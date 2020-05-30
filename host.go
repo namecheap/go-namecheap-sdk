@@ -3,6 +3,7 @@ package namecheap
 import (
 	"bytes"
 	"fmt"
+	"golang.org/x/net/publicsuffix"
 	"strconv"
 	"strings"
 )
@@ -20,17 +21,14 @@ var (
 
 func (c *Client) SetHosts(domain string, records []Record) ([]Record, error) {
 	var ret RecordsCreateResult
-	var domainSplit = strings.Split(domain, ".")
-
-	if len(domainSplit) != 2 {
-		return nil, fmt.Errorf("Domain %q does not contain SLD and TLD", domainSplit)
-	}
+	var eTLD, _ = publicsuffix.PublicSuffix(domain)
+	var SLD = strings.TrimSuffix(domain, "."+eTLD)
 
 	var numberOfRecords = len(records)
 	params := map[string]string{
 		"Command": "namecheap.domains.dns.setHosts",
-		"SLD":     domainSplit[0],
-		"TLD":     domainSplit[1],
+		"SLD":     SLD,
+		"TLD":     eTLD,
 	}
 	itr := 0
 	for itr < numberOfRecords {
@@ -83,11 +81,13 @@ func (c *Client) SetHosts(domain string, records []Record) ([]Record, error) {
 // GetRecords retrieves all the records for the given domain.
 func (c *Client) GetHosts(domain string) ([]Record, error) {
 	var recordsResponse RecordsResponse
-	var domainSplit = strings.Split(domain, ".")
+	var eTLD, _ = publicsuffix.PublicSuffix(domain)
+	var SLD = strings.TrimSuffix(domain, "."+eTLD)
+
 	params := map[string]string{
 		"Command": "namecheap.domains.dns.getHosts",
-		"SLD":     domainSplit[0],
-		"TLD":     domainSplit[1],
+		"SLD":     SLD,
+		"TLD":     eTLD,
 	}
 	req, err := c.NewRequest(params)
 	if err != nil {

@@ -3,6 +3,7 @@ package namecheap
 import (
 	// "github.com/pearkes/dnsimple/testutil"
 	// "strings"
+	"fmt"
 	"testing"
 )
 
@@ -36,24 +37,32 @@ func TestHost__GetHosts(t *testing.T) {
 	}
 }
 
-// func (s *S) Test_SetHosts(c *gocheck.C) {
-// 	testServer.Response(200, nil, hostSetExample)
-// 	var records []Record
+func TestHost__SetHosts(t *testing.T) {
+	if !clientEnabled {
+		t.Skip("namecheap credentials not configured")
+	}
 
-// 	record := Record{
-// 		HostName:   "foobar",
-// 		RecordType: "CNAME",
-// 		Address:    "test.domain.",
-// 	}
+	var records []Record
 
-// 	records = append(records, record)
+	// record := Record{
+	// 	Name:   "www",
+	// 	RecordType: "CNAME",
+	// 	Address:    "example.com",
+	// TTL: 1800,
+	// }
 
-// 	_, err := s.client.SetHosts("example.com", records)
+	records = append(records, *testRecord)
 
-// 	_ = testServer.WaitRequest()
+	testClient.SetHosts(testDomain, records)
 
-// 	c.Assert(err, gocheck.IsNil)
-// }
+	NewRecords, err := testClient.SetHosts(testDomain, records)
+
+	fmt.Printf("%v\n", NewRecords)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 // func (s *S) Test_SetHosts_fail(c *gocheck.C) {
 // 	testServer.Response(200, nil, hostExampleError)
