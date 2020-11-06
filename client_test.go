@@ -57,12 +57,6 @@ func TestClient__fail(t *testing.T) {
 			token:    "",
 			ip:       "127.0.0.1",
 		},
-		{
-			username: "username",
-			apiuser:  "apiuser",
-			token:    "token",
-			ip:       "",
-		},
 	}
 	for i := range cases {
 		_, err := NewClient(cases[i].username, cases[i].apiuser, cases[i].token, cases[i].ip, false)

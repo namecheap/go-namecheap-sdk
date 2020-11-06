@@ -21,6 +21,7 @@ var (
 const (
 	namecheapApiUrl = "https://api.namecheap.com/xml.response"
 	sandboxApiUrl   = "https://api.sandbox.namecheap.com/xml.response"
+	getUserIPUrl    = "https://dynamicdns.park-your-domain.com/getip"
 )
 
 // New returns a Client instance by reading environment variables
@@ -28,7 +29,7 @@ func New() (*Client, error) {
 	username := os.Getenv("NAMECHEAP_USERNAME")
 	apiuser := os.Getenv("NAMECHEAP_API_USER")
 	token := os.Getenv("NAMECHEAP_TOKEN")
-	ip := os.Getenv("NAMECHEAP_IP") // TODO(adam): attempt local read?
+	ip := os.Getenv("NAMECHEAP_IP")
 
 	sbx := os.Getenv("NAMECHEAP_USE_SANDBOX")
 	useSbx := sbx != "" && sbx != "false"
@@ -39,8 +40,8 @@ func New() (*Client, error) {
 // NewClient creates a Client instance from the provided configuration
 // typically users call New() with environment variables set instead.
 func NewClient(username string, apiuser string, token string, ip string, useSandbox bool) (*Client, error) {
-	if username == "" || apiuser == "" || token == "" || ip == "" {
-		return nil, fmt.Errorf("ERROR: missing configuration - username=%q, apiuser=%q, token=%d, ip=%q", username, apiuser, len(token), ip)
+	if username == "" || apiuser == "" || token == "" {
+		return nil, fmt.Errorf("ERROR: missing configuration - username=%q, apiuser=%q, token=%d", username, apiuser, len(token))
 	}
 
 	// TODO(adam): parse `ip`, ipv4 only? is ipv6 allowed?
@@ -51,6 +52,14 @@ func NewClient(username string, apiuser string, token string, ip string, useSand
 		Ip:       ip,
 		URL:      namecheapApiUrl,
 		Http:     cleanhttp.DefaultClient(),
+	}
+
+	if client.Ip == "" {
+		ip, err := client.getUserIP()
+		if err != nil {
+			return nil, fmt.Errorf("ERROR: failed to get user IP: %v", err)
+		}
+		client.Ip = ip
 	}
 
 	if useSandbox {
@@ -138,4 +147,23 @@ func (c *Client) encodeBody(body map[string]string) string {
 		data.Set(key, val)
 	}
 	return data.Encode()
+}
+
+func (c *Client) getUserIP() (string, error) {
+	resp, err := c.Http.Get(getUserIPUrl)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	ip, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if debug {
+		fmt.Printf("User IP: %s\n", string(ip))
+	}
+
+	return string(ip), nil
 }
