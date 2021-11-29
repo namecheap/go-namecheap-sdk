@@ -5,7 +5,6 @@ import (
 	"fmt"
 )
 
-
 type DomainsGetInfoResponse struct {
 	XMLName *xml.Name `xml:"ApiResponse"`
 	Errors  *[]struct {
@@ -20,10 +19,10 @@ type DomainsGetInfoCommandResponse struct {
 }
 
 type DomainsGetInfoResult struct {
-	Domain         *string   `xml:"Domain,attr"`
-	IsPremium      *bool   `xml:"IsPremium,attr"`
+	DomainName             *string                 `xml:"DomainName,attr"`
+	IsPremium              *bool                   `xml:"IsPremium,attr"`
 	PremiumDnsSubscription *PremiumDnsSubscription `xml:"PremiumDnsSubscription"`
-	DnsDetails     *DnsDetails `xml:"DnsDetails"`
+	DnsDetails             *DnsDetails             `xml:"DnsDetails"`
 }
 
 type PremiumDnsSubscription struct {
@@ -31,18 +30,18 @@ type PremiumDnsSubscription struct {
 }
 
 type DnsDetails struct {
-	ProviderType   *string `xml:"ProviderType,attr"`
-	IsUsingOurDNS   *bool `xml:"IsUsingOurDNS,attr"`
-	Nameservers    *[]string `xml:"Nameserver"`
+	ProviderType  *string   `xml:"ProviderType,attr"`
+	IsUsingOurDNS *bool     `xml:"IsUsingOurDNS,attr"`
+	Nameservers   *[]string `xml:"Nameserver"`
 }
 
 func (ds *DomainsService) GetInfo(domain string) (*DomainsGetInfoCommandResponse, error) {
 	var response DomainsGetInfoResponse
 
 	params := map[string]string{
-		"Command": "namecheap.domains.getInfo",
+		"Command":    "namecheap.domains.getInfo",
 		"DomainName": domain,
-		"HostName": domain,
+		"HostName":   domain,
 	}
 
 	_, err := ds.client.DoXML(params, &response)
