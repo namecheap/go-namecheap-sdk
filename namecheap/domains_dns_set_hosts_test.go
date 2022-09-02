@@ -301,6 +301,39 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		assert.Equal(t, "0 iodef http://domain.com", sentBody.Get("Address1"))
 	})
 
+	t.Run("request_data_correct_CAA_iodef_record_mailto", func(t *testing.T) {
+		var sentBody url.Values
+
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			body, _ := ioutil.ReadAll(request.Body)
+			query, _ := url.ParseQuery(string(body))
+			sentBody = query
+			_, _ = writer.Write([]byte(fakeResponse))
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+			Domain: String("domain.net"),
+			Records: &[]DomainsDNSHostRecord{
+				{
+					RecordType: String(RecordTypeCAA),
+					HostName:   String("@"),
+					Address:    String("0 iodef mailto:hostmaster@domain.com"),
+				},
+			},
+		})
+		if err != nil {
+			t.Fatal("Unable to get domains", err)
+		}
+
+		assert.Equal(t, RecordTypeCAA, sentBody.Get("RecordType1"))
+		assert.Equal(t, "@", sentBody.Get("HostName1"))
+		assert.Equal(t, "0 iodef mailto:hostmaster@domain.com", sentBody.Get("Address1"))
+	})
+
 	var errorCases = []struct {
 		Name          string
 		Args          *DomainsDNSSetHostsArgs
