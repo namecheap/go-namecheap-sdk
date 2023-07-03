@@ -65,6 +65,10 @@ func NewClient(options *ClientOptions) *Client {
 	return client
 }
 
+func (c *Client) SetHttpClient(httpClient *http.Client) {
+	c.http = httpClient
+}
+
 // NewRequest creates a new request with the params
 func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
 	u, err := url.Parse(c.BaseURL)
