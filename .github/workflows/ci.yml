@@ -6,24 +6,23 @@ on:
       - '**'
 
 jobs:
-
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
-          go-version: 1.15
+          go-version: 1.22
 
       - name: Check
         run: make check
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v4
         with:
-          version: v1.40.1
+          version: v1.54
 
       - name: Test
         run: make test
