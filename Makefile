@@ -1,4 +1,4 @@
-.PHONY: $(MAKECMDGOALS)
+.PHONY: default format check lint test test-unit test-race vendor
 
 default: format check lint test
 
@@ -19,7 +19,8 @@ test-race:
 vendor:
 	go mod vendor
 
-# Make sure you have installed golangci-lint CLI
+# Make sure you have installed golangci-lint CLI with the same version
+# that is used in github workflows
 # https://golangci-lint.run/usage/install/#local-installation
 lint:
 	golangci-lint run
