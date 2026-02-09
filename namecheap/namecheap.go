@@ -47,10 +47,14 @@ type service struct {
 }
 
 // NewClient returns a new Namecheap API Client
-func NewClient(options *ClientOptions) *Client {
+func NewClient(options *ClientOptions, http *http.Client) *Client {
+	if http == nil {
+		http = cleanhttp.DefaultClient()
+	}
+
 	client := &Client{
 		ClientOptions: options,
-		http:          cleanhttp.DefaultClient(),
+		http:          http,
 		sr:            syncretry.NewSyncRetry(&syncretry.Options{Delays: []int{1, 5, 15, 30, 50}}),
 	}
 
