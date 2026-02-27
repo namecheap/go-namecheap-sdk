@@ -1,4 +1,4 @@
-.PHONY: default format check lint test test-unit test-race vendor
+.PHONY: default format check lint test test-unit test-unit-quiet test-race vendor
 
 default: format check lint test
 
@@ -12,6 +12,9 @@ test: test-unit test-race
 
 test-unit:
 	go test -v -cover -count=1 ./...
+
+test-unit-quiet:
+	go test -cover -count=1 ./...
 
 test-race:
 	go test -race ./...
