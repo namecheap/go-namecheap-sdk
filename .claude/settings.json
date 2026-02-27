@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make *)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(golangci-lint:*)",
+    ],
+    "deny": [
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(.vault-token)",
+      "Edit(credentials.*)",
+      "Edit(*.pem)",
+      "Edit(*.key)",
+      "Edit(*.p12)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Write(.vault-token)",
+      "Write(credentials.*)",
+      "Write(*.pem)",
+      "Write(*.key)",
+      "Write(*.p12)"
+    ]
+  },
+  "plugins": [
+    "claude-md-management",
+    "code-simplifier"
+  ]
+}
