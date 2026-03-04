@@ -10,6 +10,7 @@ All source code lives in `namecheap/` package. Vendored dependencies in `vendor/
 
 - Go 1.22+
 - golangci-lint
+- gopls (Go language server, required by `gopls-lsp` Claude plugin)
 
 ## Verification (run in order)
 

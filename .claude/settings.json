@@ -4,7 +4,7 @@
       "Bash(make *)",
       "Bash(go test:*)",
       "Bash(go vet:*)",
-      "Bash(golangci-lint:*)",
+      "Bash(golangci-lint:*)"
     ],
     "deny": [
       "Edit(.env)",
@@ -25,6 +25,10 @@
   },
   "plugins": [
     "claude-md-management",
-    "code-simplifier"
-  ]
+    "code-simplifier",
+    "gopls-lsp@claude-plugins-official"
+  ],
+  "enabledPlugins": {
+    "gopls-lsp@claude-plugins-official": true
+  }
 }
