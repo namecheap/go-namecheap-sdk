@@ -5,7 +5,7 @@ request. Feel free to ask us for help. We'll do our best to guide you and help y
 
 ## Prerequisites
 
-- Go 1.22+
+- Go 1.26.3+
 - [golangci-lint](https://golangci-lint.run/usage/install/#local-installation) — install the same version used in CI
 
 ## Development workflow
