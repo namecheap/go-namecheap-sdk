@@ -23,8 +23,44 @@ client := namecheap.NewClient(&namecheap.ClientOptions{
     ClientIp:   "10.10.10.10",
     UseSandbox: false,
 })
+```
 
-setHostsResp, err := client.DomainsDNS.SetHosts(&namecheap.DomainsDNSSetHostsArgs{
+### Available methods
+
+#### Domains (`client.Domains`)
+
+| Method | Description |
+|---|---|
+| `GetList(args)` | List domains for the account |
+| `GetInfo(domain)` | Get detailed info about a domain |
+| `Check(domains...)` | Check availability of one or more domains |
+
+```go
+// Check domain availability
+resp, err := client.Domains.Check("example.com", "example.net")
+if err != nil {
+    log.Fatal(err)
+}
+for _, result := range *resp.DomainCheckResults {
+    fmt.Printf("%s available=%v\n", *result.Domain, *result.IsAvailable)
+}
+```
+
+#### DomainsDNS (`client.DomainsDNS`)
+
+| Method | Description |
+|---|---|
+| `GetList(domain)` | Get the nameservers for a domain |
+| `SetDefault(domain)` | Switch domain to Namecheap default DNS |
+| `SetCustom(domain, nameservers)` | Switch domain to custom nameservers |
+| `GetHosts(domain)` | Get DNS host records |
+| `SetHosts(args)` | Set DNS host records |
+| `GetEmailForwarding(domain)` | Get email forwarding rules |
+| `SetEmailForwarding(domain, forwards)` | Set email forwarding rules |
+
+```go
+// Set DNS host records
+resp, err := client.DomainsDNS.SetHosts(&namecheap.DomainsDNSSetHostsArgs{
     Domain: namecheap.String("domain.com"),
     Records: &[]namecheap.DomainsDNSHostRecord{
         {
@@ -35,12 +71,46 @@ setHostsResp, err := client.DomainsDNS.SetHosts(&namecheap.DomainsDNSSetHostsArg
     },
 })
 
-// ...
+// Get DNS host records
+resp, err := client.DomainsDNS.GetHosts("domain.com")
 
-response, err := client.DomainsDNS.GetHosts("domain.com")
+// Manage email forwarding
+forwards, err := client.DomainsDNS.GetEmailForwarding("domain.com")
 
-// ...
+_, err = client.DomainsDNS.SetEmailForwarding("domain.com", []namecheap.EmailForward{
+    {Mailbox: "info", ForwardTo: "user@example.com"},
+})
 ```
+
+#### DomainsNS (`client.DomainsNS`)
+
+| Method | Description |
+|---|---|
+| `Create(sld, tld, nameserver, ip)` | Register a new nameserver |
+| `GetInfo(sld, tld, nameserver)` | Get info about a registered nameserver |
+| `Update(sld, tld, nameserver, oldIP, ip)` | Update a nameserver IP address |
+| `Delete(sld, tld, nameserver)` | Delete a registered nameserver |
+
+```go
+// Create a custom nameserver
+_, err := client.DomainsNS.Create("domain", "com", "ns1.domain.com", "1.2.3.4")
+
+// Delete a nameserver
+_, err = client.DomainsNS.Delete("domain", "com", "ns1.domain.com")
+```
+
+### Error handling
+
+API errors (e.g. invalid parameters, quota exceeded) are returned as Go errors with the Namecheap error message and code:
+
+```go
+resp, err := client.Domains.Check("example.com")
+if err != nil {
+    log.Fatal(err) // e.g. "Parameter DomainList is Missing (2011166)"
+}
+```
+
+Network and parsing errors are wrapped with `%w`, so `errors.Is` / `errors.As` work for inspecting the underlying cause.
 
 ### Sandbox
 
@@ -49,6 +119,13 @@ explicitly for testing purposes. All purchases processed through the sandbox API
 
 To start testing API in Sandbox, you will need to sign up for an account here (this account will not be associated with
 the one you have at http://www.namecheap.com).
+
+```go
+client := namecheap.NewClient(&namecheap.ClientOptions{
+    // ...
+    UseSandbox: true,
+})
+```
 
 ### Contributing
 
