@@ -87,3 +87,20 @@ func TestDomainsDNSSetDefault(t *testing.T) {
 		assert.Equal(t, true, *result.DomainDNSSetDefaultResult.Updated)
 	})
 }
+
+func TestDomainDNSSetDefaultResult_String(t *testing.T) {
+	t.Run("with_all_fields", func(t *testing.T) {
+		d := DomainDNSSetDefaultResult{
+			Domain:  String("domain.net"),
+			Updated: Bool(true),
+		}
+		result := d.String()
+		assert.Contains(t, result, "domain.net")
+		assert.Contains(t, result, "true")
+	})
+
+	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		d := DomainDNSSetDefaultResult{}
+		assert.NotPanics(t, func() { _ = d.String() })
+	})
+}

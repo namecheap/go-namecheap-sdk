@@ -260,3 +260,30 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		assert.EqualError(t, err, "Invalid Address (2050900)")
 	})
 }
+
+func TestDomainsDNSHostRecordDetailed_String(t *testing.T) {
+	t.Run("with_all_fields", func(t *testing.T) {
+		d := DomainsDNSHostRecordDetailed{
+			HostId:             Int(877748),
+			Name:               String("host33"),
+			Type:               String("MX"),
+			Address:            String("addr.domain.com."),
+			MXPref:             Int(10),
+			TTL:                Int(1800),
+			AssociatedAppTitle: String(""),
+			FriendlyName:       String(""),
+			IsActive:           Bool(true),
+			IsDDNSEnabled:      Bool(false),
+		}
+		result := d.String()
+		assert.Contains(t, result, "877748")
+		assert.Contains(t, result, "host33")
+		assert.Contains(t, result, "MX")
+		assert.Contains(t, result, "addr.domain.com.")
+	})
+
+	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		d := DomainsDNSHostRecordDetailed{}
+		assert.NotPanics(t, func() { _ = d.String() })
+	})
+}

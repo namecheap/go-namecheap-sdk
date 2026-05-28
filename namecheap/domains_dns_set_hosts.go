@@ -94,7 +94,7 @@ type DomainDNSSetHostsResult struct {
 }
 
 func (d DomainDNSSetHostsResult) String() string {
-	return fmt.Sprintf("{Domain: %s, IsSuccess: %t}", *d.Domain, *d.IsSuccess)
+	return fmt.Sprintf("{Domain: %v, IsSuccess: %v}", deref(d.Domain), deref(d.IsSuccess))
 }
 
 // SetHosts sets DNS host records settings for the requested domain

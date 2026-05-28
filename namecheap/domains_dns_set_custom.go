@@ -25,7 +25,7 @@ type DomainsDNSSetCustomResult struct {
 }
 
 func (d DomainsDNSSetCustomResult) String() string {
-	return fmt.Sprintf("{Domain: %s, Updated: %t}", *d.Domain, *d.Updated)
+	return fmt.Sprintf("{Domain: %v, Updated: %v}", deref(d.Domain), deref(d.Updated))
 }
 
 // SetCustom sets domain to use custom DNS servers

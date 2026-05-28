@@ -138,3 +138,20 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 		})
 	}
 }
+
+func TestDomainsDNSSetCustomResult_String(t *testing.T) {
+	t.Run("with_all_fields", func(t *testing.T) {
+		d := DomainsDNSSetCustomResult{
+			Domain:  String("domain.net"),
+			Updated: Bool(true),
+		}
+		result := d.String()
+		assert.Contains(t, result, "domain.net")
+		assert.Contains(t, result, "true")
+	})
+
+	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		d := DomainsDNSSetCustomResult{}
+		assert.NotPanics(t, func() { _ = d.String() })
+	})
+}

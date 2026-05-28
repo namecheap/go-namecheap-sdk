@@ -24,7 +24,7 @@ type DomainDNSSetDefaultResult struct {
 }
 
 func (d DomainDNSSetDefaultResult) String() string {
-	return fmt.Sprintf("{Domain: %s, Updated: %t}", *d.Domain, *d.Updated)
+	return fmt.Sprintf("{Domain: %v, Updated: %v}", deref(d.Domain), deref(d.Updated))
 }
 
 // SetDefault sets domain to use our default DNS servers.

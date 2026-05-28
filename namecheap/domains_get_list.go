@@ -44,8 +44,8 @@ type Domain struct {
 }
 
 func (d Domain) String() string {
-	return fmt.Sprintf("{ID: %s, Name: %s, User: %s, Created: %s, Expires: %s, IsExpired: %t, IsLocked: %t, AutoRenew: %t, WhoisGuard: %s, IsPremium: %t, IsOurDNS: %t}",
-		*d.ID, *d.Name, *d.User, *d.Created, d.Expires.Time, *d.IsExpired, *d.IsLocked, *d.AutoRenew, *d.WhoisGuard, *d.IsPremium, *d.IsOurDNS)
+	return fmt.Sprintf("{ID: %v, Name: %v, User: %v, Created: %v, Expires: %v, IsExpired: %v, IsLocked: %v, AutoRenew: %v, WhoisGuard: %v, IsPremium: %v, IsOurDNS: %v}",
+		deref(d.ID), deref(d.Name), deref(d.User), deref(d.Created), deref(d.Expires), deref(d.IsExpired), deref(d.IsLocked), deref(d.AutoRenew), deref(d.WhoisGuard), deref(d.IsPremium), deref(d.IsOurDNS))
 }
 
 // DomainsGetListArgs struct is an input arguments for Client.DomainsGetList function
