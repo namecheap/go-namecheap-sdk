@@ -16,3 +16,8 @@ linters:
     - unconvert
     - unused
   default: none
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
