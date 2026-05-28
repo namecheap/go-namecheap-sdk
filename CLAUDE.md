@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Go SDK for the Namecheap API. Module path: `github.com/namecheap/go-namecheap-sdk/v2`. Requires Go 1.22+.
+Go SDK for the Namecheap API. Module path: `github.com/namecheap/go-namecheap-sdk/v2`. Requires Go 1.26.3+.
 
 All source code lives in `namecheap/` package. Vendored dependencies in `vendor/`.
 
