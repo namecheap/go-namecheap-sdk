@@ -1,10 +1,11 @@
+version: "2"
+
 linters:
   enable:
     - copyloopvar
     - dogsled
     - gocritic
     - gocyclo
-    - gosimple
     - govet
     - ineffassign
     - misspell
@@ -12,7 +13,11 @@ linters:
     - prealloc
     - revive
     - staticcheck
-    - stylecheck
     - unconvert
     - unused
-  disable-all: true
+  default: none
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
