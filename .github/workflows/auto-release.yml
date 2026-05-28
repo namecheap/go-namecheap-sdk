@@ -1,0 +1,67 @@
+name: Auto Release
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  auto-release:
+    name: Auto Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check for changes since last release
+        id: changes
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            echo "No tags found, skipping"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          COMMIT_COUNT=$(git log "${LAST_TAG}..HEAD" --oneline | wc -l | tr -d ' ')
+          echo "Commits since ${LAST_TAG}: ${COMMIT_COUNT}"
+          echo "last_tag=${LAST_TAG}" >> "$GITHUB_OUTPUT"
+          if [ "$COMMIT_COUNT" -eq "0" ]; then
+            echo "No changes since last release, skipping"
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine next version
+        id: version
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          LAST_TAG="${{ steps.changes.outputs.last_tag }}"
+          VERSION="${LAST_TAG#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+          if git log "${LAST_TAG}..HEAD" --format="%s" | grep -q "^feat:"; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "next_version=${NEXT}" >> "$GITHUB_OUTPUT"
+          echo "Next version: ${NEXT}"
+
+      - name: Create release
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.next_version }}" \
+            --target master \
+            --title "${{ steps.version.outputs.next_version }}" \
+            --generate-notes \
+            --notes-start-tag "${{ steps.changes.outputs.last_tag }}"
