@@ -24,6 +24,7 @@ type DomainsNSUpdateResult struct {
 	IsSuccess  *bool   `xml:"IsSuccess,attr"`
 }
 
+// Update modifies the IP address of a registered nameserver.
 func (s *DomainsNSService) Update(sld, tld, nameserver, oldIP, ip string) (*NameserversUpdateCommandResponse, error) {
 	var response NameserversUpdateResponse
 

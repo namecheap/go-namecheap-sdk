@@ -27,6 +27,7 @@ type DomainNSInfoResult struct {
 	} `xml:"NameserverStatuses"`
 }
 
+// GetInfo retrieves information about a registered nameserver.
 func (s *DomainsNSService) GetInfo(sld, tld, nameserver string) (*NameserversGetInfoCommandResponse, error) {
 	var response NameserversGetInfoResponse
 

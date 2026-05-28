@@ -1,3 +1,4 @@
+// Package namecheap provides a Go client for the Namecheap API v1.
 package namecheap
 
 import (
