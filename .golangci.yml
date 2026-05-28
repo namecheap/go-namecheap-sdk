@@ -13,12 +13,6 @@ linters:
     - revive
     - staticcheck
     - stylecheck
-    - typecheck
     - unconvert
     - unused
-  fast: false
   disable-all: true
-linters-settings:
-  gosec:
-    excludes:
-      - G402
