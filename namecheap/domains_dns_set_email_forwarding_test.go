@@ -147,8 +147,10 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 			t.Fatal("Unable to set email forwarding", err)
 		}
 
-		assert.Equal(t, "example.com", *result.DomainEmailForwardingResult.Domain)
-		assert.Equal(t, true, *result.DomainEmailForwardingResult.IsSuccess)
+		assert.Equal(t, "example.com", *result.DomainDNSSetEmailForwardingResult.Domain)
+		if assert.NotNil(t, result.DomainDNSSetEmailForwardingResult.IsSuccess) {
+			assert.True(t, *result.DomainDNSSetEmailForwardingResult.IsSuccess)
+		}
 	})
 
 	t.Run("request_data_empty_forwards", func(t *testing.T) {

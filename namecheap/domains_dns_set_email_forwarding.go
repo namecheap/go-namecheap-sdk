@@ -16,10 +16,10 @@ type DomainsDNSSetEmailForwardingResponse struct {
 }
 
 type DomainsDNSSetEmailForwardingCommandResponse struct {
-	DomainEmailForwardingResult *DomainsDNSSetEmailForwardingResult `xml:"DomainEmailForwardingResult"`
+	DomainDNSSetEmailForwardingResult *DomainDNSSetEmailForwardingResult `xml:"DomainEmailForwardingResult"`
 }
 
-type DomainsDNSSetEmailForwardingResult struct {
+type DomainDNSSetEmailForwardingResult struct {
 	Domain    *string `xml:"Domain,attr"`
 	IsSuccess *bool   `xml:"IsSuccess,attr"`
 }

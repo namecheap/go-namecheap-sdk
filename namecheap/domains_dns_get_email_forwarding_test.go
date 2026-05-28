@@ -87,10 +87,10 @@ func TestDomainsDNSService_GetEmailForwarding(t *testing.T) {
 			t.Fatal("Unable to get email forwarding", err)
 		}
 
-		assert.Equal(t, "example.com", *result.DomainEmailForwardingResult.Domain)
-		assert.Len(t, *result.DomainEmailForwardingResult.Forwards, 2)
+		assert.Equal(t, "example.com", *result.DomainDNSGetEmailForwardingResult.Domain)
+		assert.Len(t, *result.DomainDNSGetEmailForwardingResult.Forwards, 2)
 
-		forwards := *result.DomainEmailForwardingResult.Forwards
+		forwards := *result.DomainDNSGetEmailForwardingResult.Forwards
 		assert.Equal(t, "info", forwards[0].Mailbox)
 		assert.Equal(t, "user@gmail.com", forwards[0].ForwardTo)
 		assert.Equal(t, "support", forwards[1].Mailbox)
@@ -126,8 +126,8 @@ func TestDomainsDNSService_GetEmailForwarding(t *testing.T) {
 			t.Fatal("Unable to get email forwarding", err)
 		}
 
-		assert.Equal(t, "example.com", *result.DomainEmailForwardingResult.Domain)
-		assert.Nil(t, result.DomainEmailForwardingResult.Forwards)
+		assert.Equal(t, "example.com", *result.DomainDNSGetEmailForwardingResult.Domain)
+		assert.Nil(t, result.DomainDNSGetEmailForwardingResult.Forwards)
 	})
 
 	t.Run("server_respond_with_error", func(t *testing.T) {

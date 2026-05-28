@@ -15,11 +15,11 @@ type DomainsDNSGetEmailForwardingResponse struct {
 }
 
 type DomainsDNSGetEmailForwardingCommandResponse struct {
-	DomainEmailForwardingResult *DomainEmailForwardingResult `xml:"DomainEmailForwardingResult"`
+	DomainDNSGetEmailForwardingResult *DomainDNSGetEmailForwardingResult `xml:"DomainEmailForwardingResult"`
 }
 
-type DomainEmailForwardingResult struct {
-	Domain   *string        `xml:"Domain,attr"`
+type DomainDNSGetEmailForwardingResult struct {
+	Domain   *string         `xml:"Domain,attr"`
 	Forwards *[]EmailForward `xml:"Forward"`
 }
 
