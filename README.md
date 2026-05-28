@@ -14,11 +14,9 @@ $ go get github.com/namecheap/go-namecheap-sdk/v2
 ### Usage
 
 ```go
-import (
-    "github.com/namecheap/go-namecheap-sdk/v2"
-)
+import "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
 
-client := NewClient(&ClientOptions{
+client := namecheap.NewClient(&namecheap.ClientOptions{
     UserName:   "UserName",
     ApiUser:    "ApiUser",
     ApiKey:     "ApiKey",
