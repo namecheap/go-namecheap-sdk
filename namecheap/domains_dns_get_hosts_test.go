@@ -11,6 +11,7 @@ import (
 )
 
 func TestDomainsDNSGetHosts(t *testing.T) {
+	t.Parallel()
 	fakeResponse := `
 		<?xml version="1.0" encoding="utf-8"?>
 		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -30,6 +31,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	`
 
 	t.Run("request_command", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -52,6 +54,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_sld_tld", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -75,6 +78,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_error_incorrect_domain", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -90,6 +94,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("correct_parsing_result_tags", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -109,6 +114,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("correct_parsing_list", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -153,6 +159,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("empty_record_list", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -185,6 +192,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("server_empty_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := ""
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -201,6 +209,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("server_non_xml_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := "non-xml response"
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -217,6 +226,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("server_broken_xml_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := "<broken></xml><response>"
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -233,6 +243,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 	})
 
 	t.Run("server_respond_with_error", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
@@ -262,7 +273,9 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 }
 
 func TestDomainsDNSHostRecordDetailed_String(t *testing.T) {
+	t.Parallel()
 	t.Run("with_all_fields", func(t *testing.T) {
+		t.Parallel()
 		d := DomainsDNSHostRecordDetailed{
 			HostId:             Int(877748),
 			Name:               String("host33"),
@@ -283,6 +296,7 @@ func TestDomainsDNSHostRecordDetailed_String(t *testing.T) {
 	})
 
 	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		t.Parallel()
 		d := DomainsDNSHostRecordDetailed{}
 		assert.NotPanics(t, func() { _ = d.String() })
 	})

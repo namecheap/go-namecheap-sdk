@@ -11,6 +11,7 @@ import (
 )
 
 func TestDomainsDNSSetHosts(t *testing.T) {
+	t.Parallel()
 	fakeResponse := `
 		<?xml version="1.0" encoding="utf-8"?>
 		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -29,6 +30,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	`
 
 	t.Run("request_command", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -53,6 +55,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_correct_args_mapping", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -84,6 +87,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_correct_mx_records_mapping", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -133,6 +137,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_correct_mxe_records_mapping", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -171,6 +176,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_correct_url_record", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -204,6 +210,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_correct_url301_record", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -237,6 +244,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_correct_frame_record", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -270,6 +278,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_correct_CAA_iodef_record", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -303,6 +312,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	})
 
 	t.Run("request_data_correct_CAA_iodef_record_mailto", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -554,6 +564,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 
 	for _, errorCase := range errorCases {
 		t.Run(errorCase.Name, func(t *testing.T) {
+			t.Parallel()
 			mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 				_, _ = writer.Write([]byte(fakeResponse))
 			}))
@@ -567,10 +578,40 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			assert.EqualError(t, err, errorCase.ExpectedError)
 		})
 	}
+
+	t.Run("server_respond_with_error", func(t *testing.T) {
+		t.Parallel()
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			_, _ = writer.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+				<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
+					<Errors><Error Number="2019166">Domain not found</Error></Errors>
+					<CommandResponse/>
+				</ApiResponse>`))
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{Domain: String("notfound.com")})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "2019166")
+	})
+
+	t.Run("doxml_failure_bad_url", func(t *testing.T) {
+		t.Parallel()
+		client := setupClient(nil)
+		client.BaseURL = "://bad"
+
+		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{Domain: String("domain.net")})
+		assert.Error(t, err)
+	})
 }
 
 func TestDomainDNSSetHostsResult_String(t *testing.T) {
+	t.Parallel()
 	t.Run("with_all_fields", func(t *testing.T) {
+		t.Parallel()
 		d := DomainDNSSetHostsResult{
 			Domain:    String("domain.net"),
 			IsSuccess: Bool(true),
@@ -581,6 +622,7 @@ func TestDomainDNSSetHostsResult_String(t *testing.T) {
 	})
 
 	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		t.Parallel()
 		d := DomainDNSSetHostsResult{}
 		assert.NotPanics(t, func() { _ = d.String() })
 	})

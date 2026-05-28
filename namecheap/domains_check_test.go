@@ -11,6 +11,7 @@ import (
 )
 
 func TestDomainsService_Check(t *testing.T) {
+	t.Parallel()
 	fakeResponse := `
 		<?xml version="1.0" encoding="utf-8"?>
 		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -27,6 +28,7 @@ func TestDomainsService_Check(t *testing.T) {
 	`
 
 	t.Run("request_command", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -49,6 +51,7 @@ func TestDomainsService_Check(t *testing.T) {
 	})
 
 	t.Run("request_data_single_domain", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -71,6 +74,7 @@ func TestDomainsService_Check(t *testing.T) {
 	})
 
 	t.Run("request_data_multiple_domains", func(t *testing.T) {
+		t.Parallel()
 		multiResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -112,6 +116,7 @@ func TestDomainsService_Check(t *testing.T) {
 	})
 
 	t.Run("correct_parsing_result_attributes", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -138,6 +143,7 @@ func TestDomainsService_Check(t *testing.T) {
 	})
 
 	t.Run("correct_parsing_premium_result_attributes", func(t *testing.T) {
+		t.Parallel()
 		premiumFakeResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -176,5 +182,33 @@ func TestDomainsService_Check(t *testing.T) {
 		assert.Equal(t, 13000.0, *first.PremiumTransferPrice)
 		assert.Equal(t, 0.0, *first.IcannFee)
 		assert.Equal(t, 0.0, *first.EapFee)
+	})
+
+	t.Run("server_respond_with_error", func(t *testing.T) {
+		t.Parallel()
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			_, _ = writer.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+				<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
+					<Errors><Error Number="1011150">Domain is invalid</Error></Errors>
+					<CommandResponse/>
+				</ApiResponse>`))
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		_, err := client.Domains.Check("bad")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "1011150")
+	})
+
+	t.Run("doxml_failure_bad_url", func(t *testing.T) {
+		t.Parallel()
+		client := setupClient(nil)
+		client.BaseURL = "://bad"
+
+		_, err := client.Domains.Check("example.com")
+		assert.Error(t, err)
 	})
 }

@@ -12,6 +12,7 @@ import (
 )
 
 func TestDomainsGetList(t *testing.T) {
+	t.Parallel()
 	fakeResponse := `
 		<?xml version="1.0" encoding="utf-8"?>
 		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -36,6 +37,7 @@ func TestDomainsGetList(t *testing.T) {
 	`
 
 	t.Run("request_command", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -58,6 +60,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("request_data_passing", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -90,6 +93,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("request_data_when_nil_input_arguments", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -116,6 +120,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("request_data_page_error", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -132,6 +137,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("request_data_page_size_too_low_error", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -148,6 +154,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("request_data_page_size_too_high_error", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -163,7 +170,30 @@ func TestDomainsGetList(t *testing.T) {
 		assert.EqualError(t, err, "invalid PageSize value: 999, minimum value is 10, and maximum value is 100")
 	})
 
+	t.Run("request_data_invalid_sort_by_error", func(t *testing.T) {
+		t.Parallel()
+		client := setupClient(nil)
+
+		_, err := client.Domains.GetList(&DomainsGetListArgs{
+			SortBy: String("INVALID"),
+		})
+
+		assert.EqualError(t, err, "invalid SortBy value: INVALID")
+	})
+
+	t.Run("request_data_invalid_list_type_error", func(t *testing.T) {
+		t.Parallel()
+		client := setupClient(nil)
+
+		_, err := client.Domains.GetList(&DomainsGetListArgs{
+			ListType: String("BADTYPE"),
+		})
+
+		assert.EqualError(t, err, "invalid ListType value: BADTYPE")
+	})
+
 	t.Run("correct_parsing_domain_list", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -213,6 +243,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("correct_parsing_paging", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -236,6 +267,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("empty_domain_list", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -273,6 +305,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("server_empty_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := ""
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -289,6 +322,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("server_non_xml_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := "non-xml response"
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -305,6 +339,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("server_broken_xml_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := "<broken></xml><response>"
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -321,6 +356,7 @@ func TestDomainsGetList(t *testing.T) {
 	})
 
 	t.Run("server_respond_with_error", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
@@ -350,7 +386,9 @@ func TestDomainsGetList(t *testing.T) {
 }
 
 func TestDomain_String(t *testing.T) {
+	t.Parallel()
 	t.Run("with_all_fields", func(t *testing.T) {
+		t.Parallel()
 		createdDate, _ := time.Parse("01/02/2006", "06/02/2021")
 		expiresDate, _ := time.Parse("01/02/2006", "06/02/2022")
 		d := Domain{
@@ -374,6 +412,7 @@ func TestDomain_String(t *testing.T) {
 	})
 
 	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		t.Parallel()
 		d := Domain{}
 		assert.NotPanics(t, func() { _ = d.String() })
 	})

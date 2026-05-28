@@ -31,6 +31,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 	`
 
 	t.Run("request_command", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -53,6 +54,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_empty_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := ""
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -69,6 +71,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_non_xml_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := "non-xml response"
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -85,6 +88,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_broken_xml_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := "<broken></xml><response>"
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -101,6 +105,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_respond_with_domain_not_found_error", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
@@ -129,6 +134,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_respond_with_domain_not_associated_with_account_error", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
@@ -157,6 +163,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_respond_with_error_from_enom", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
@@ -185,6 +192,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_respond_with_unknown_error_from_enom", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
