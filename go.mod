@@ -1,6 +1,6 @@
 module github.com/namecheap/go-namecheap-sdk/v2
 
-go 1.25.0
+go 1.26.3
 
 require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
