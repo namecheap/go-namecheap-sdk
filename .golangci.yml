@@ -6,7 +6,6 @@ linters:
     - dogsled
     - gocritic
     - gocyclo
-    - gosimple
     - govet
     - ineffassign
     - misspell
@@ -14,7 +13,6 @@ linters:
     - prealloc
     - revive
     - staticcheck
-    - stylecheck
     - unconvert
     - unused
   default: none
