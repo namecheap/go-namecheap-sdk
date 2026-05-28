@@ -24,8 +24,6 @@
     ]
   },
   "plugins": [
-    "claude-md-management",
-    "code-simplifier",
     "gopls-lsp@claude-plugins-official"
   ],
   "enabledPlugins": {
