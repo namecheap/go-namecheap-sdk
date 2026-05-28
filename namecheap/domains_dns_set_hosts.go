@@ -100,7 +100,7 @@ func (d DomainDNSSetHostsResult) String() string {
 // SetHosts sets DNS host records settings for the requested domain
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains-dns/set-hosts/
-func (dds DomainsDNSService) SetHosts(args *DomainsDNSSetHostsArgs) (*DomainsDNSSetHostsCommandResponse, error) {
+func (dds *DomainsDNSService) SetHosts(args *DomainsDNSSetHostsArgs) (*DomainsDNSSetHostsCommandResponse, error) {
 	var response DomainsDNSSetHostsResponse
 
 	params := map[string]string{
@@ -120,7 +120,7 @@ func (dds DomainsDNSService) SetHosts(args *DomainsDNSSetHostsArgs) (*DomainsDNS
 	}
 
 	// merge parsed arguments with params
-	for k, v := range *parsedArgsMap {
+	for k, v := range parsedArgsMap {
 		params[k] = v
 	}
 
@@ -217,7 +217,7 @@ func validateDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) error {
 	return nil
 }
 
-func parseDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) (*map[string]string, error) {
+func parseDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) (map[string]string, error) {
 	params := map[string]string{}
 
 	parsedDomain, err := ParseDomain(*args.Domain)
@@ -265,7 +265,7 @@ func parseDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) (*map[string]stri
 		}
 	}
 
-	return &params, nil
+	return params, nil
 }
 
 func isValidEmailType(emailType string) bool {

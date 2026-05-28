@@ -85,7 +85,7 @@ func (ds *DomainsService) GetList(args *DomainsGetListArgs) (*DomainsGetListComm
 	}
 
 	// merge parsed arguments with params
-	for k, v := range *parsedArgsMap {
+	for k, v := range parsedArgsMap {
 		params[k] = v
 	}
 
@@ -101,11 +101,11 @@ func (ds *DomainsService) GetList(args *DomainsGetListArgs) (*DomainsGetListComm
 	return domainsResponse.CommandResponse, nil
 }
 
-func parseDomainsGetListArgs(args *DomainsGetListArgs) (*map[string]string, error) {
+func parseDomainsGetListArgs(args *DomainsGetListArgs) (map[string]string, error) {
 	params := map[string]string{}
 
 	if args == nil {
-		return &params, nil
+		return params, nil
 	}
 
 	if args.ListType != nil {
@@ -144,7 +144,7 @@ func parseDomainsGetListArgs(args *DomainsGetListArgs) (*map[string]string, erro
 		params["SearchTerm"] = *args.SearchTerm
 	}
 
-	return &params, nil
+	return params, nil
 }
 
 func isValidListType(listType string) bool {
