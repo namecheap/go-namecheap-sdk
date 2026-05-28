@@ -221,3 +221,24 @@ func TestDomainsDNSGetList(t *testing.T) {
 		assert.Equal(t, expectedNameservers, result.DomainDNSGetListResult.Nameservers)
 	})
 }
+
+func TestDomainDNSGetListResult_String(t *testing.T) {
+	t.Run("with_all_fields", func(t *testing.T) {
+		ns := []string{"ns1.example.com", "ns2.example.com"}
+		d := DomainDNSGetListResult{
+			Domain:         String("domain.net"),
+			IsUsingOurDNS:  Bool(true),
+			IsPremiumDNS:   Bool(false),
+			IsUsingFreeDNS: Bool(false),
+			Nameservers:    &ns,
+		}
+		result := d.String()
+		assert.Contains(t, result, "domain.net")
+		assert.Contains(t, result, "ns1.example.com")
+	})
+
+	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		d := DomainDNSGetListResult{}
+		assert.NotPanics(t, func() { _ = d.String() })
+	})
+}

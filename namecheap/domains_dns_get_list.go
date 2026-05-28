@@ -27,8 +27,8 @@ type DomainDNSGetListResult struct {
 }
 
 func (d DomainDNSGetListResult) String() string {
-	return fmt.Sprintf("{Domain: %s, IsUsingOurDNS: %t, IsPremiumDNS: %t, IsUsingFreeDNS: %t, Nameservers: %v}",
-		*d.Domain, *d.IsUsingOurDNS, *d.IsPremiumDNS, *d.IsUsingFreeDNS, *d.Nameservers,
+	return fmt.Sprintf("{Domain: %v, IsUsingOurDNS: %v, IsPremiumDNS: %v, IsUsingFreeDNS: %v, Nameservers: %v}",
+		deref(d.Domain), deref(d.IsUsingOurDNS), deref(d.IsPremiumDNS), deref(d.IsUsingFreeDNS), deref(d.Nameservers),
 	)
 }
 

@@ -39,8 +39,8 @@ type DomainsDNSHostRecordDetailed struct {
 }
 
 func (d DomainsDNSHostRecordDetailed) String() string {
-	return fmt.Sprintf("{HostId: %d, Name: %s, Type: %s, Address: %s, MXPref: %d, TTL: %d, AssociatedAppTitle: %s, FriendlyName: %s, IsActive: %t, IsDDNSEnabled: %t}",
-		*d.HostId, *d.Name, *d.Type, *d.Address, *d.MXPref, *d.TTL, *d.AssociatedAppTitle, *d.FriendlyName, *d.IsActive, *d.IsDDNSEnabled)
+	return fmt.Sprintf("{HostId: %v, Name: %v, Type: %v, Address: %v, MXPref: %v, TTL: %v, AssociatedAppTitle: %v, FriendlyName: %v, IsActive: %v, IsDDNSEnabled: %v}",
+		deref(d.HostId), deref(d.Name), deref(d.Type), deref(d.Address), deref(d.MXPref), deref(d.TTL), deref(d.AssociatedAppTitle), deref(d.FriendlyName), deref(d.IsActive), deref(d.IsDDNSEnabled))
 }
 
 // GetHosts retrieves DNS host record settings for the requested domain.

@@ -348,3 +348,33 @@ func TestDomainsGetList(t *testing.T) {
 		assert.EqualError(t, err, "Invalid Address (2050900)")
 	})
 }
+
+func TestDomain_String(t *testing.T) {
+	t.Run("with_all_fields", func(t *testing.T) {
+		createdDate, _ := time.Parse("01/02/2006", "06/02/2021")
+		expiresDate, _ := time.Parse("01/02/2006", "06/02/2022")
+		d := Domain{
+			ID:         String("677625"),
+			Name:       String("domain.com"),
+			User:       String("user"),
+			Created:    &DateTime{createdDate},
+			Expires:    &DateTime{expiresDate},
+			IsExpired:  Bool(false),
+			IsLocked:   Bool(false),
+			AutoRenew:  Bool(true),
+			WhoisGuard: String("ENABLED"),
+			IsPremium:  Bool(false),
+			IsOurDNS:   Bool(false),
+		}
+		result := d.String()
+		assert.Contains(t, result, "677625")
+		assert.Contains(t, result, "domain.com")
+		assert.Contains(t, result, "user")
+		assert.Contains(t, result, "ENABLED")
+	})
+
+	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		d := Domain{}
+		assert.NotPanics(t, func() { _ = d.String() })
+	})
+}
