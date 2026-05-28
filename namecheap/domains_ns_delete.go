@@ -24,6 +24,7 @@ type DomainsNSDeleteResult struct {
 	IsSuccess  *bool   `xml:"IsSuccess,attr"`
 }
 
+// Delete deletes a nameserver associated with the requested domain.
 func (s *DomainsNSService) Delete(sld, tld, nameserver string) (*NameserversDeleteCommandResponse, error) {
 	var response NameserversDeleteResponse
 

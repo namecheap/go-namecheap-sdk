@@ -35,6 +35,7 @@ type DnsDetails struct { // nolint: stylecheck,revive
 	Nameservers   *[]string `xml:"Nameserver"`
 }
 
+// GetInfo returns detailed information about the requested domain.
 func (ds *DomainsService) GetInfo(domain string) (*DomainsGetInfoCommandResponse, error) {
 	var response DomainsGetInfoResponse
 
