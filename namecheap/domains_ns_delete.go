@@ -11,7 +11,7 @@ type NameserversDeleteResponse struct {
 		Message *string `xml:",chardata"`
 		Number  *string `xml:"Number,attr"`
 	} `xml:"Errors>Error"`
-	CommandResponse *NameserversCreateCommandResponse `xml:"CommandResponse"`
+	CommandResponse *NameserversDeleteCommandResponse `xml:"CommandResponse"`
 }
 
 type NameserversDeleteCommandResponse struct {
@@ -24,7 +24,7 @@ type DomainsNSDeleteResult struct {
 	IsSuccess  *bool   `xml:"IsSuccess,attr"`
 }
 
-func (s *DomainsNSService) Delete(sld, tld, nameserver string) (*NameserversCreateCommandResponse, error) {
+func (s *DomainsNSService) Delete(sld, tld, nameserver string) (*NameserversDeleteCommandResponse, error) {
 	var response NameserversDeleteResponse
 
 	params := map[string]string{

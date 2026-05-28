@@ -47,6 +47,25 @@ func TestDomainNameserversUpdate(t *testing.T) {
 		assert.Equal(t, "namecheap.domains.ns.update", sentBody.Get("Command"))
 	})
 
+	t.Run("correct_result_fields", func(t *testing.T) {
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			_, _ = writer.Write([]byte(fakeResponse))
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		result, err := client.DomainsNS.Update("domain", "com", "ns1.domain.com", "1.1.1.1", "2.2.2.2")
+		if err != nil {
+			t.Fatal("Unable to update domain nameserver", err)
+		}
+
+		assert.Equal(t, "domain.com", *result.DomainNameserverUpdateResult.Domain)
+		assert.Equal(t, "ns1.domain.com", *result.DomainNameserverUpdateResult.Nameserver)
+		assert.Equal(t, true, *result.DomainNameserverUpdateResult.IsSuccess)
+	})
+
 	t.Run("server_empty_response", func(t *testing.T) {
 		fakeLocalResponse := ""
 

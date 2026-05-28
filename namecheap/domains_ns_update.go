@@ -11,7 +11,7 @@ type NameserversUpdateResponse struct {
 		Message *string `xml:",chardata"`
 		Number  *string `xml:"Number,attr"`
 	} `xml:"Errors>Error"`
-	CommandResponse *NameserversCreateCommandResponse `xml:"CommandResponse"`
+	CommandResponse *NameserversUpdateCommandResponse `xml:"CommandResponse"`
 }
 
 type NameserversUpdateCommandResponse struct {
@@ -24,7 +24,7 @@ type DomainsNSUpdateResult struct {
 	IsSuccess  *bool   `xml:"IsSuccess,attr"`
 }
 
-func (s *DomainsNSService) Update(sld, tld, nameserver, oldIP, ip string) (*NameserversCreateCommandResponse, error) {
+func (s *DomainsNSService) Update(sld, tld, nameserver, oldIP, ip string) (*NameserversUpdateCommandResponse, error) {
 	var response NameserversUpdateResponse
 
 	params := map[string]string{

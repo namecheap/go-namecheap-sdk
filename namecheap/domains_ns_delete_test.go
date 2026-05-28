@@ -47,6 +47,25 @@ func TestDomainNameserversDelete(t *testing.T) {
 		assert.Equal(t, "namecheap.domains.ns.delete", sentBody.Get("Command"))
 	})
 
+	t.Run("correct_result_fields", func(t *testing.T) {
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			_, _ = writer.Write([]byte(fakeResponse))
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		result, err := client.DomainsNS.Delete("domain", "com", "ns1.domain.com")
+		if err != nil {
+			t.Fatal("Unable to delete domain nameserver", err)
+		}
+
+		assert.Equal(t, "domain.com", *result.DomainNameserverDeleteResult.Domain)
+		assert.Equal(t, "ns1.domain.com", *result.DomainNameserverDeleteResult.Nameserver)
+		assert.Equal(t, true, *result.DomainNameserverDeleteResult.IsSuccess)
+	})
+
 	t.Run("server_empty_response", func(t *testing.T) {
 		fakeLocalResponse := ""
 
