@@ -16,6 +16,8 @@ import (
 	"github.com/weppos/publicsuffix-go/publicsuffix"
 )
 
+var domainRegexp = regexp.MustCompile(`^([\-a-zA-Z0-9]+\.+){1,}[a-zA-Z0-9]+$`)
+
 const (
 	namecheapProductionAPIURL = "https://api.namecheap.com/xml.response"
 	namecheapSandboxAPIURL    = "https://api.sandbox.namecheap.com/xml.response"
@@ -73,7 +75,7 @@ func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
 	u, err := url.Parse(c.BaseURL)
 
 	if err != nil {
-		return nil, fmt.Errorf("error parsing base URL: %s", err)
+		return nil, fmt.Errorf("error parsing base URL: %w", err)
 	}
 
 	body["Username"] = c.ClientOptions.UserName
@@ -87,7 +89,7 @@ func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
 	req, err := http.NewRequest("POST", u.String(), bytes.NewBufferString(rBody))
 
 	if err != nil {
-		return nil, fmt.Errorf("error creating request: %s", err)
+		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
@@ -96,7 +98,7 @@ func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
 	return req, nil
 }
 
-func (c *Client) DoXML(body map[string]string, obj interface{}) (*http.Response, error) {
+func (c *Client) DoXML(body map[string]string, obj any) (*http.Response, error) {
 	var requestResponse *http.Response
 	err := c.sr.Do(func() error {
 		request, err := c.NewRequest(body)
@@ -114,9 +116,8 @@ func (c *Client) DoXML(body map[string]string, obj interface{}) (*http.Response,
 		}
 
 		requestResponse = response
-		defer response.Body.Close()
-
 		err = decodeBody(response.Body, obj)
+		response.Body.Close()
 		return err
 	})
 
@@ -128,11 +129,11 @@ func (c *Client) DoXML(body map[string]string, obj interface{}) (*http.Response,
 }
 
 // decodeBody decodes the interface from received XML
-func decodeBody(reader io.Reader, obj interface{}) error {
+func decodeBody(reader io.Reader, obj any) error {
 	decoder := xml.NewDecoder(reader)
 	err := decoder.Decode(&obj)
 	if err != nil {
-		return fmt.Errorf("unable to parse server response: %s", err)
+		return fmt.Errorf("unable to parse server response: %w", err)
 	}
 	return nil
 }
@@ -148,15 +149,13 @@ func encodeBody(body map[string]string) string {
 
 // ParseDomain is a wrapper around publicsuffix.Parse to throw the correct error
 func ParseDomain(domain string) (*publicsuffix.DomainName, error) {
-	regDomain := regexp.MustCompile(`^([\-a-zA-Z0-9]+\.+){1,}[a-zA-Z0-9]+$`)
-
-	if !regDomain.MatchString(domain) {
+	if !domainRegexp.MatchString(domain) {
 		return nil, fmt.Errorf("invalid domain: incorrect format")
 	}
 
 	parsedDomain, err := publicsuffix.Parse(domain)
 	if err != nil {
-		return nil, fmt.Errorf("invalid domain: %v", err)
+		return nil, fmt.Errorf("invalid domain: %w", err)
 	}
 
 	return parsedDomain, nil
