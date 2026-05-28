@@ -17,4 +17,4 @@ linters:
     - stylecheck
     - unconvert
     - unused
-  disable-all: true
+  default: none
