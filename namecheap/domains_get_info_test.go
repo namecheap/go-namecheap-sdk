@@ -11,6 +11,7 @@ import (
 )
 
 func TestDomainsGetInfo(t *testing.T) {
+	t.Parallel()
 	fakeResponse := `
 		<?xml version="1.0" encoding="utf-8"?>
 		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -51,6 +52,7 @@ func TestDomainsGetInfo(t *testing.T) {
 	`
 
 	t.Run("request_command", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -73,6 +75,7 @@ func TestDomainsGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_empty_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := ""
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -89,6 +92,7 @@ func TestDomainsGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_non_xml_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := "non-xml response"
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -105,6 +109,7 @@ func TestDomainsGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_broken_xml_response", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := "<broken></xml><response>"
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -121,6 +126,7 @@ func TestDomainsGetInfo(t *testing.T) {
 	})
 
 	t.Run("server_respond_with_error", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
@@ -146,5 +152,33 @@ func TestDomainsGetInfo(t *testing.T) {
 		_, err := client.DomainsDNS.GetHosts("domain.net")
 
 		assert.EqualError(t, err, "Invalid Address (2050900)")
+	})
+
+	t.Run("domains_get_info_error_response", func(t *testing.T) {
+		t.Parallel()
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			_, _ = writer.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+				<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
+					<Errors><Error Number="2019166">Domain not found</Error></Errors>
+					<CommandResponse/>
+				</ApiResponse>`))
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		_, err := client.Domains.GetInfo("notfound.com")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "2019166")
+	})
+
+	t.Run("domains_get_info_doxml_failure", func(t *testing.T) {
+		t.Parallel()
+		client := setupClient(nil)
+		client.BaseURL = "://bad"
+
+		_, err := client.Domains.GetInfo("domain.com")
+		assert.Error(t, err)
 	})
 }

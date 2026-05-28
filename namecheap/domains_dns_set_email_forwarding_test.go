@@ -11,6 +11,7 @@ import (
 )
 
 func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
+	t.Parallel()
 	fakeResponse := `
 		<?xml version="1.0" encoding="utf-8"?>
 		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
@@ -27,6 +28,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 	`
 
 	t.Run("request_command", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -51,6 +53,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 	})
 
 	t.Run("request_data_domain", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -75,6 +78,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 	})
 
 	t.Run("request_data_single_forward", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -101,6 +105,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 	})
 
 	t.Run("request_data_multiple_forwards", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -132,6 +137,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 	})
 
 	t.Run("correct_parsing_result", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -154,6 +160,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 	})
 
 	t.Run("request_data_empty_forwards", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -177,6 +184,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 	})
 
 	t.Run("server_respond_with_error", func(t *testing.T) {
+		t.Parallel()
 		errorResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
@@ -204,5 +212,16 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 			{Mailbox: "info", ForwardTo: "user@gmail.com"},
 		})
 		assert.EqualError(t, err, "Domain is not associated with your account (2019166)")
+	})
+
+	t.Run("doxml_failure_bad_url", func(t *testing.T) {
+		t.Parallel()
+		client := setupClient(nil)
+		client.BaseURL = "://bad"
+
+		_, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{
+			{Mailbox: "info", ForwardTo: "user@gmail.com"},
+		})
+		assert.Error(t, err)
 	})
 }

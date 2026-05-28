@@ -11,6 +11,7 @@ import (
 )
 
 func TestDomainsDNSGetList(t *testing.T) {
+	t.Parallel()
 	fakeResponse := `<?xml version="1.0" encoding="utf-8"?>
 		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 			<Errors />
@@ -28,6 +29,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		</ApiResponse>`
 
 	t.Run("request_command", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -50,6 +52,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 	})
 
 	t.Run("request_data_domain", func(t *testing.T) {
+		t.Parallel()
 		var sentBody url.Values
 
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -73,6 +76,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 	})
 
 	t.Run("correct_parsing_result_attributes", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -93,6 +97,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 	})
 
 	t.Run("correct_parsing_list", func(t *testing.T) {
+		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(fakeResponse))
 		}))
@@ -112,6 +117,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 	})
 
 	t.Run("empty_list", func(t *testing.T) {
+		t.Parallel()
 		fakeLocalResponse := `<?xml version="1.0" encoding="utf-8"?>
 		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 			<Errors />
@@ -142,6 +148,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 	})
 
 	t.Run("FreeDNS domain handling", func(t *testing.T) {
+		t.Parallel()
 		fakeDNSGetListResponse := `
 			<?xml version="1.0" encoding="utf-8"?>
 			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
@@ -220,10 +227,82 @@ func TestDomainsDNSGetList(t *testing.T) {
 		expectedNameservers := &[]string{"freedns1.registrar-servers.com", "freedns2.registrar-servers.com"}
 		assert.Equal(t, expectedNameservers, result.DomainDNSGetListResult.Nameservers)
 	})
+
+	t.Run("server_respond_with_error", func(t *testing.T) {
+		t.Parallel()
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			body, _ := io.ReadAll(request.Body)
+			query, _ := url.ParseQuery(string(body))
+			if query.Get("Command") == "namecheap.domains.dns.getList" {
+				_, _ = writer.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+					<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
+						<Errors><Error Number="2050900">Invalid Address</Error></Errors>
+						<CommandResponse/>
+					</ApiResponse>`))
+			} else {
+				_, _ = writer.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+					<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+						<CommandResponse Type="namecheap.domains.getInfo"><DomainGetInfoResult/></CommandResponse>
+					</ApiResponse>`))
+			}
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		_, err := client.DomainsDNS.GetList("notfound.com")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "2050900")
+	})
+
+	t.Run("doxml_failure_bad_url", func(t *testing.T) {
+		t.Parallel()
+		client := setupClient(nil)
+		client.BaseURL = "://bad"
+
+		_, err := client.DomainsDNS.GetList("domain.net")
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid_domain_error", func(t *testing.T) {
+		t.Parallel()
+		client := setupClient(nil)
+
+		_, err := client.DomainsDNS.GetList("invalid")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid domain")
+	})
+
+	t.Run("freedns_getinfo_failure", func(t *testing.T) {
+		t.Parallel()
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			body, _ := io.ReadAll(request.Body)
+			query, _ := url.ParseQuery(string(body))
+			if query.Get("Command") == "namecheap.domains.dns.getList" {
+				_, _ = writer.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+					<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
+						<Errors><Error Number="2019166">Domain name not found</Error></Errors>
+						<CommandResponse/>
+					</ApiResponse>`))
+			} else {
+				_, _ = writer.Write([]byte("not xml"))
+			}
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		_, err := client.DomainsDNS.GetList("horse-family.com.ua")
+		assert.Error(t, err)
+	})
 }
 
 func TestDomainDNSGetListResult_String(t *testing.T) {
+	t.Parallel()
 	t.Run("with_all_fields", func(t *testing.T) {
+		t.Parallel()
 		ns := []string{"ns1.example.com", "ns2.example.com"}
 		d := DomainDNSGetListResult{
 			Domain:         String("domain.net"),
@@ -238,6 +317,7 @@ func TestDomainDNSGetListResult_String(t *testing.T) {
 	})
 
 	t.Run("nil_fields_do_not_panic", func(t *testing.T) {
+		t.Parallel()
 		d := DomainDNSGetListResult{}
 		assert.NotPanics(t, func() { _ = d.String() })
 	})

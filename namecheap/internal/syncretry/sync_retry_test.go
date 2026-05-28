@@ -12,14 +12,18 @@ import (
 var testRetryDelays = []int{1, 2, 3}
 
 func TestNewSyncRetry(t *testing.T) {
+	t.Parallel()
 	t.Run("instance", func(t *testing.T) {
+		t.Parallel()
 		sr := NewSyncRetry(&Options{testRetryDelays})
 		assert.NotNil(t, sr)
 	})
 }
 
 func TestSyncRetry_Do(t *testing.T) {
+	t.Parallel()
 	t.Run("one_func_success", func(t *testing.T) {
+		t.Parallel()
 		sr := NewSyncRetry(&Options{testRetryDelays})
 		done := false
 
@@ -33,6 +37,7 @@ func TestSyncRetry_Do(t *testing.T) {
 	})
 
 	t.Run("two_funcs_sync_success", func(t *testing.T) {
+		t.Parallel()
 		sr := NewSyncRetry(&Options{testRetryDelays})
 		done := 0
 
@@ -52,6 +57,7 @@ func TestSyncRetry_Do(t *testing.T) {
 	})
 
 	t.Run("should_forward_error", func(t *testing.T) {
+		t.Parallel()
 		testError := errors.New("test error")
 		sr := NewSyncRetry(&Options{testRetryDelays})
 
@@ -64,6 +70,7 @@ func TestSyncRetry_Do(t *testing.T) {
 	})
 
 	t.Run("two_funcs_parallel_success", func(t *testing.T) {
+		t.Parallel()
 		sr := NewSyncRetry(&Options{testRetryDelays})
 		done := int32(0)
 
@@ -99,6 +106,7 @@ func TestSyncRetry_Do(t *testing.T) {
 	})
 
 	t.Run("one_func_retry_last_success", func(t *testing.T) {
+		t.Parallel()
 		delays := []int{1, 1, 1}
 		sr := NewSyncRetry(&Options{delays})
 		count := 0
@@ -116,6 +124,7 @@ func TestSyncRetry_Do(t *testing.T) {
 	})
 
 	t.Run("one_func_exceed_error", func(t *testing.T) {
+		t.Parallel()
 		delays := []int{1, 1}
 		sr := NewSyncRetry(&Options{delays})
 		count := 0
@@ -129,6 +138,7 @@ func TestSyncRetry_Do(t *testing.T) {
 	})
 
 	t.Run("two_func_retry_success", func(t *testing.T) {
+		t.Parallel()
 		delays := []int{1, 1, 1}
 		sr := NewSyncRetry(&Options{delays})
 
@@ -176,6 +186,7 @@ func TestSyncRetry_Do(t *testing.T) {
 	})
 
 	t.Run("parallel_funcs_exceeded_error", func(t *testing.T) {
+		t.Parallel()
 		delays := []int{1, 1}
 		sr := NewSyncRetry(&Options{delays})
 
@@ -214,5 +225,24 @@ func TestSyncRetry_Do(t *testing.T) {
 		assert.Equal(t, int32(3), secondFuncCalls)
 		assert.ErrorIs(t, ErrRetryAttempts, err1)
 		assert.ErrorIs(t, ErrRetryAttempts, err2)
+	})
+
+	t.Run("non_retry_error_during_retry_loop", func(t *testing.T) {
+		t.Parallel()
+		delays := []int{1, 1, 1}
+		sr := NewSyncRetry(&Options{delays})
+		nonRetryErr := errors.New("non-retriable error")
+		count := 0
+
+		err := sr.Do(func() error {
+			count++
+			if count == 1 {
+				return ErrRetry
+			}
+			return nonRetryErr
+		})
+
+		assert.ErrorIs(t, err, nonRetryErr)
+		assert.Equal(t, 2, count)
 	})
 }
