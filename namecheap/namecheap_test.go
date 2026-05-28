@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -154,6 +155,19 @@ func TestDecodeBody(t *testing.T) {
 	assert.Equal(t, obj.String, "hello")
 	assert.Equal(t, obj.Integer, 10)
 	assert.Equal(t, obj.Boolean, true)
+}
+
+func TestParseDomainErrorWrapping(t *testing.T) {
+	t.Run("publicsuffix_error_is_wrapped", func(t *testing.T) {
+		// "co.uk" passes regex validation but is a public suffix with no SLD,
+		// so publicsuffix.Parse returns an error that ParseDomain wraps with %w.
+		_, err := ParseDomain("co.uk")
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "invalid domain")
+		// Verify the error is wrapped (unwrap returns the inner error)
+		unwrapped := errors.Unwrap(err)
+		assert.NotNil(t, unwrapped, "expected wrapped error to be unwrappable")
+	})
 }
 
 func TestParseDomain(t *testing.T) {
