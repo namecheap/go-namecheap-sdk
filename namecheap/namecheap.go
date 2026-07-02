@@ -102,6 +102,8 @@ type Client struct {
 
 	Users        *UsersService
 	UsersAddress *UsersAddressService
+
+	SSL *SSLService
 }
 
 type service struct {
@@ -151,6 +153,7 @@ func NewClient(options *ClientOptions) *Client {
 	client.DomainsTransfer = (*DomainsTransferService)(&client.common)
 	client.Users = (*UsersService)(&client.common)
 	client.UsersAddress = (*UsersAddressService)(&client.common)
+	client.SSL = (*SSLService)(&client.common)
 
 	return client
 }

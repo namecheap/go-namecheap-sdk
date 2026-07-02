@@ -462,6 +462,119 @@ counterpart for (`AddressName`, `DefaultYN`, `StateProvinceChoice`, `PhoneExt`,
 | `getList` | Implemented |
 | `setDefault` | Implemented |
 
+#### SSL (`client.SSL`)
+
+The `ssl.*` group covers the full certificate lifecycle across three phases:
+inventory (read), activation, and the charge-bearing money operations.
+
+| Method | Description |
+|---|---|
+| `GetListWithContext(ctx, args)` | List certificates (status filter, search, paging, sort) |
+| `GetInfoWithContext(ctx, certificateID, returnCert, returnType)` | Get one certificate's detail (status, expiry, provider) |
+| `ParseCSRWithContext(ctx, csr, certificateType)` | Decode the fields of a CSR |
+| `ActivateWithContext(ctx, args)` | Activate a purchased certificate (CSR, web-server type, DCV method, multi-SAN) |
+| `GetApproverEmailListWithContext(ctx, domainName, certificateType)` | List approver emails for a domain |
+| `ResendApproverEmailWithContext(ctx, certificateID)` | Resend approver email / retry HTTP-DNS validation |
+| `EditDCVMethodWithContext(ctx, args)` | Change the domain-control-validation method (single or multi-domain) |
+| `CreateWithContext(ctx, args)` | Purchase a new certificate (charge-bearing) |
+| `RenewWithContext(ctx, args)` | Renew a certificate (charge-bearing) |
+| `ReissueWithContext(ctx, args)` | Reissue a certificate (non-idempotent) |
+| `PurchaseMoreSansWithContext(ctx, args)` | Buy additional SAN slots (charge-bearing) |
+| `RevokeCertificateWithContext(ctx, certificateID, certificateType)` | Revoke a re-issued certificate |
+| `ResendFulfillmentEmailWithContext(ctx, certificateID)` | Resend the fulfilment email |
+
+```go
+// End-to-end: purchase, activate with DNS (CNAME) DCV, then poll until issued.
+// You generate the private key and CSR yourself; the SDK only transports the CSR
+// string and never sees or stores key material (see the note below).
+created, err := client.SSL.CreateWithContext(ctx, &namecheap.SSLCreateArgs{
+    Years: 1,
+    Type:  "PositiveSSL",
+})
+if err != nil {
+    log.Fatal(err) // charge-bearing: never auto-retried on an ambiguous failure
+}
+certID := *created.SSLCreateResult.CertificateID
+
+// Activate with DNS-based domain control validation.
+_, err = client.SSL.ActivateWithContext(ctx, &namecheap.SSLActivateArgs{
+    CertificateID:     certID,
+    CSR:               csrPEM, // your PEM-encoded CSR string
+    AdminEmailAddress: "[email protected]",
+    WebServerType:     "nginx",
+    DCVMethod:         namecheap.DCVMethodDNS,
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+// Poll GetInfo until the certificate is issued (Active). IsExpiringSoon and
+// IsIssued do the status/expiry reasoning for you.
+for {
+    info, err := client.SSL.GetInfoWithContext(ctx, certID, "", "")
+    if err != nil {
+        log.Fatal(err)
+    }
+    if info.SSLGetInfoResult.IsIssued() {
+        break
+    }
+    select {
+    case <-ctx.Done():
+        log.Fatal(ctx.Err())
+    case <-time.After(60 * time.Second):
+    }
+}
+```
+
+> **DCV method is a typed enum.** `DCVMethodHTTP`, `DCVMethodDNS` and
+> `DCVMethodEmail` cannot be mistyped, and per-method required-field validation
+> runs client-side before any network call — email validation requires an
+> `ApproverEmail`, reported (with every other missing field) via
+> `*InvalidArgumentsError`. The doc names a `DCVMethod` parameter but does **not**
+> enumerate its values, and the activate section documents no DCV/SAN parameters
+> at all; the two non-email tokens (`HTTP_CSR_HASH`, `CNAME_CSR_HASH`) and the
+> email-address wire value are grounded in the documented Namecheap DCV flow, and
+> the multi-SAN blocks (`SANDomainName[i]` / `SANDCVMethod[i]`) follow the
+> documented multi-domain activation contract.
+>
+> **Certificate status is typed and grounded.** Unlike transfer status, the doc
+> *does* enumerate the certificate status vocabulary, so `CertStatus`
+> (`ACTIVE` / `NEWPURCHASE` / `NEWRENEWAL` / `PURCHASED` / `PURCHASEERROR` /
+> `CANCELLED` / `UNKNOWN`) mirrors it exactly — no fabricated codes. The raw
+> status string is exposed verbatim; `ClassifyStatus`, `IsIssued()` (true only for
+> `ACTIVE`) and `IsExpiringSoon(within)` (inclusive boundary, timezone-safe) read
+> it for you.
+>
+> **Money operations are non-idempotent.** `Create`, `Renew`, `Reissue` and
+> `PurchaseMoreSans` are never auto-retried on an ambiguous transport/server
+> failure (only the pre-execution HTTP 405 rate-limit signal is), the same money
+> rule as `domains.create`. The read/inventory and validation calls are
+> idempotent and retry as usual.
+>
+> **Keys and CSRs are the consumer's job.** This SDK only transports the CSR
+> string you provide; it never generates, parses, or stores private keys.
+> Generate a key pair and CSR yourself — for example with the standard library's
+> `crypto/x509` (`x509.CreateCertificateRequest`) and `encoding/pem` — and pass
+> the PEM-encoded CSR to `ActivateWithContext` / `ReissueWithContext`.
+
+##### SSL API coverage matrix
+
+| `namecheap.ssl.*` command | Status |
+|---|---|
+| `create` | Implemented |
+| `getList` | Implemented |
+| `parseCSR` | Implemented |
+| `getApproverEmailList` | Implemented |
+| `activate` | Implemented |
+| `resendApproverEmail` | Implemented |
+| `getInfo` | Implemented |
+| `renew` | Implemented |
+| `reissue` | Implemented |
+| `resendfulfillmentemail` | Implemented |
+| `purchasemoresans` | Implemented |
+| `revokecertificate` | Implemented |
+| `editDCVMethod` | Implemented |
+
 ### Error handling
 
 When the API rejects a call it returns a typed `*namecheap.APIError` carrying the
