@@ -160,8 +160,22 @@ func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
 // the last real error as "after N attempts: <err>", so errors.Is and errors.As
 // still reach the underlying *APIError.
 func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, obj any) (*http.Response, error) {
+	return c.doXML(ctx, body, obj, true)
+}
+
+// doXML is the shared engine behind DoXMLWithContext. It performs the API call
+// described by body, decoding the XML response into obj, and threads idempotent
+// into the retry driver.
+//
+// idempotent must be true for safely-repeatable calls (every read and every
+// non-charge-bearing write) and false for charge-bearing, non-idempotent calls
+// (domain create/renew/reactivate). A false value narrows the retry policy so an
+// ambiguous transport/server failure — which may already have executed and
+// charged the account — is never resent; only Namecheap's pre-execution HTTP 405
+// rate-limit signal is retried. See shouldRetry.
+func (c *Client) doXML(ctx context.Context, body map[string]string, obj any, idempotent bool) (*http.Response, error) {
 	var requestResponse *http.Response
-	err := c.do(ctx, func(ctx context.Context) error {
+	err := c.do(ctx, idempotent, func(ctx context.Context) error {
 		request, err := c.NewRequestWithContext(ctx, body)
 		if err != nil {
 			return err

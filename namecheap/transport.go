@@ -129,16 +129,21 @@ func resolveUserAgent(ua string) string {
 }
 
 // do runs attempt through the resilience pipeline: rate limiter -> concurrency
-// gate -> attempt -> retry policy. It retries an attempt only while its error
-// is retryable (IsRetryable or the internal 405 sentinel), attempts remain, and
-// the elapsed budget is not exhausted, sleeping an exponential, jittered,
+// gate -> attempt -> retry policy. It retries an attempt only while its error is
+// retryable for the given idempotency class (see shouldRetry), attempts remain,
+// and the elapsed budget is not exhausted, sleeping an exponential, jittered,
 // ctx-aware backoff between tries.
+//
+// idempotent distinguishes a safely-repeatable call from a charge-bearing one
+// (domain create/renew/reactivate): a non-idempotent call is retried only on the
+// pre-execution HTTP 405 rate-limit signal, never on ambiguous transport/server
+// failures that may already have executed server-side.
 //
 // A cancelled context aborts a limiter wait, a concurrency wait, or a backoff
 // sleep promptly and returns the context error unwrapped. A terminal retry
 // failure wraps the last real error as "after N attempts: <err>" so errors.Is
 // and errors.As still reach the underlying *APIError.
-func (c *Client) do(ctx context.Context, attempt func(context.Context) error) error {
+func (c *Client) do(ctx context.Context, idempotent bool, attempt func(context.Context) error) error {
 	start := time.Now()
 	var lastErr error
 	attempts := 0
@@ -158,7 +163,7 @@ func (c *Client) do(ctx context.Context, attempt func(context.Context) error) er
 		}
 		lastErr = err
 
-		if !shouldRetry(err) {
+		if !shouldRetry(err, idempotent) {
 			return err
 		}
 		if attempts >= c.retry.MaxAttempts {
@@ -208,10 +213,27 @@ func (c *Client) nextDelay(attempt int, elapsed time.Duration) (time.Duration, b
 	return d, true
 }
 
-// shouldRetry reports whether err is worth another attempt: either a typed
-// retryable error (IsRetryable) or the internal HTTP 405 rate-limit sentinel.
-func shouldRetry(err error) bool {
-	return IsRetryable(err) || errors.Is(err, errRetryStatus)
+// shouldRetry reports whether err is worth another attempt, given whether the
+// call is idempotent.
+//
+// The internal HTTP 405 rate-limit sentinel (errRetryStatus) is always
+// retryable: Namecheap returns 405 before it processes the request, so the call
+// provably did not execute and resending it cannot double-apply an effect.
+//
+// For an idempotent call, any typed-retryable error (IsRetryable — transient
+// server-side codes and transport timeouts) is also retried. For a
+// non-idempotent, charge-bearing call it is NOT: a timeout or a server-side
+// exception is ambiguous (the request may already have executed), so a blind
+// resend could double-charge the account. Such calls fail fast on the first
+// real error and let the caller reconcile.
+func shouldRetry(err error, idempotent bool) bool {
+	if errors.Is(err, errRetryStatus) {
+		return true
+	}
+	if !idempotent {
+		return false
+	}
+	return IsRetryable(err)
 }
 
 // backoff computes the delay before the given attempt (1-based): an exponential

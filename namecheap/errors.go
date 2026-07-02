@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 )
 
 // maxSnippetBytes caps how many bytes of a malformed response body a ParseError
@@ -152,6 +153,40 @@ var (
 	// docs/namecheap-api-v2.md § Error Codes.
 	ErrServerError error = &sentinelError{name: "server error", numbers: serverErrorNumbers}
 )
+
+// InvalidArgumentsError is a client-side validation error returned before any
+// HTTP request is made, when method arguments are missing or inconsistent. It
+// reports every offending field at once (not just the first) so a caller can fix
+// them in a single pass.
+//
+// It is used for missing required contact fields (see ContactInfo) and for the
+// premium-domain money-safety guard on charge-bearing calls. Match it with
+// errors.As:
+//
+//	var argErr *namecheap.InvalidArgumentsError
+//	if errors.As(err, &argErr) {
+//	    log.Printf("invalid fields: %v", argErr.Fields)
+//	}
+type InvalidArgumentsError struct {
+	// Fields lists the names of the invalid or missing arguments, using the
+	// Namecheap parameter names (e.g. "RegistrantFirstName", "PremiumPrice").
+	Fields []string
+	// Reason, when set, explains why the fields are invalid. When empty the
+	// fields are treated as plain "missing required" fields.
+	Reason string
+}
+
+// Error implements the error interface, listing every offending field.
+func (e *InvalidArgumentsError) Error() string {
+	switch {
+	case e.Reason != "" && len(e.Fields) > 0:
+		return fmt.Sprintf("invalid arguments: %s (%s)", e.Reason, strings.Join(e.Fields, ", "))
+	case e.Reason != "":
+		return "invalid arguments: " + e.Reason
+	default:
+		return "missing required fields: " + strings.Join(e.Fields, ", ")
+	}
+}
 
 // ParseError signals that a server response could not be decoded as the
 // expected XML. It preserves a bounded snippet of the raw body (at most
