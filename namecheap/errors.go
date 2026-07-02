@@ -154,6 +154,21 @@ var (
 	ErrServerError error = &sentinelError{name: "server error", numbers: serverErrorNumbers}
 )
 
+// ErrConcurrentModification is returned by the record-level DNS helpers
+// (AddRecordsWithContext, DeleteRecordsWithContext, UpsertRecordsWithContext)
+// when the post-write verification read shows a record set that differs from
+// the one the helper intended to write. Because namecheap.domains.dns.setHosts
+// replaces the entire zone and is not transactional, this signals a lost-update
+// race: another writer changed the zone between the helper's read and its write.
+//
+// It is a client-side sentinel (not an *APIError). Match it with errors.Is:
+//
+//	if errors.Is(err, namecheap.ErrConcurrentModification) { /* re-read and retry */ }
+//
+// Pass WithRetryOnConflict to have the helper retry the whole
+// read-modify-write-verify cycle automatically instead of returning this error.
+var ErrConcurrentModification = errors.New("concurrent modification detected: DNS zone changed between read and write")
+
 // InvalidArgumentsError is a client-side validation error returned before any
 // HTTP request is made, when method arguments are missing or inconsistent. It
 // reports every offending field at once (not just the first) so a caller can fix
