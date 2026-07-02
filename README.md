@@ -147,7 +147,11 @@ fmt.Printf("charged=%s\n", renewed.DomainRenewResult.ChargedAmount)
 | `SetDefaultWithContext(ctx, domain)` | Switch domain to Namecheap default DNS |
 | `SetCustomWithContext(ctx, domain, nameservers)` | Switch domain to custom nameservers |
 | `GetHostsWithContext(ctx, domain)` | Get DNS host records |
-| `SetHostsWithContext(ctx, args)` | Set DNS host records |
+| `SetHostsWithContext(ctx, args)` | Set (replace) the entire DNS host record set |
+| `AddRecordsWithContext(ctx, domain, records, opts...)` | Add records, preserving all existing ones |
+| `DeleteRecordsWithContext(ctx, domain, selector, opts...)` | Delete records matching a selector, preserving the rest |
+| `UpsertRecordsWithContext(ctx, domain, selector, records, opts...)` | Replace the selector-matched records with new ones |
+| `PlanWithContext(ctx, domain, ops...)` | Compute an add/remove/keep diff without writing |
 | `GetEmailForwardingWithContext(ctx, domain)` | Get email forwarding rules |
 | `SetEmailForwardingWithContext(ctx, domain, forwards)` | Set email forwarding rules |
 
@@ -174,6 +178,80 @@ _, err = client.DomainsDNS.SetEmailForwardingWithContext(ctx, "domain.com", []na
     {Mailbox: "info", ForwardTo: "user@example.com"},
 })
 ```
+
+#### Managing individual DNS records
+
+`SetHosts` (`namecheap.domains.dns.setHosts`) is the only write endpoint the API
+offers, and it **replaces the entire record set**. To change one record you must
+read every record, edit the slice, and write them all back — forget one and it is
+silently deleted (this is the [#49](https://github.com/namecheap/go-namecheap-sdk/issues/49)
+footgun). The record-level helpers own that read-modify-write once, correctly.
+
+Delete one record — the #49 question, answered in five lines:
+
+```go
+_, err := client.DomainsDNS.DeleteRecordsWithContext(ctx, "example.com",
+    namecheap.RecordSelector{
+        HostName:   namecheap.String("blog"),
+        RecordType: namecheap.String("A"),
+    })
+// every other record (and the zone EmailType) is preserved automatically.
+```
+
+```go
+// Add records, keeping everything else:
+_, err := client.DomainsDNS.AddRecordsWithContext(ctx, "example.com",
+    []namecheap.DomainsDNSHostRecord{
+        {HostName: namecheap.String("www"), RecordType: namecheap.String("A"), Address: namecheap.String("1.2.3.4")},
+    })
+
+// Replace exactly the selector-matched records (upsert):
+_, err = client.DomainsDNS.UpsertRecordsWithContext(ctx, "example.com",
+    namecheap.RecordSelector{RecordType: namecheap.String("TXT")},
+    []namecheap.DomainsDNSHostRecord{
+        {HostName: namecheap.String("@"), RecordType: namecheap.String("TXT"), Address: namecheap.String("v=spf1 -all")},
+    })
+
+// Preview a change without writing (zero setHosts calls):
+diff, err := client.DomainsDNS.PlanWithContext(ctx, "example.com",
+    namecheap.DeleteOp(namecheap.RecordSelector{HostName: namecheap.String("old")}))
+fmt.Println(diff) // RecordDiff: +0 -1 =7
+```
+
+A `RecordSelector` matches a record when **every** non-nil field equals the
+record's (HostName/RecordType compared case-insensitively, a trailing dot on the
+address ignored, MXPref exact). An empty selector is **rejected** with a typed
+`*InvalidArgumentsError` to refuse an accidental mass-delete; set
+`RecordSelector{MatchAll: true}` for an intentional full wipe.
+
+> **⚠️ The API is not transactional.** `setHosts` replaces the whole zone, so a
+> concurrent writer between your read and your write causes a lost update. Every
+> mutating helper re-reads the zone after writing and, if the result does not
+> match what it intended, returns `namecheap.ErrConcurrentModification`
+> (`errors.Is`-matchable) instead of silently accepting the race:
+>
+> ```go
+> _, err := client.DomainsDNS.AddRecordsWithContext(ctx, "example.com", records)
+> if errors.Is(err, namecheap.ErrConcurrentModification) {
+>     // someone else changed the zone; re-read and retry
+> }
+> ```
+>
+> Pass `namecheap.WithRetryOnConflict(n)` to have the helper retry the whole
+> read-modify-write-verify cycle up to `n` times automatically:
+>
+> ```go
+> _, err := client.DomainsDNS.AddRecordsWithContext(ctx, "example.com", records,
+>     namecheap.WithRetryOnConflict(3))
+> ```
+>
+> This is detection-plus-retry, not true transactionality (the API cannot offer
+> that) — but it turns a silent data-loss footgun into an explicit, handleable
+> error.
+
+`NormalizeRecord` and `RecordsEqual` are exported so consumers can reuse the same
+comparison logic (TTL defaults to 1799, hostname lower-cased, `@` apex handling,
+trailing-dot handling, record type upper-cased).
 
 #### DomainsNS (`client.DomainsNS`)
 

@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Record-level DNS helpers on `DomainsDNSService`, all context-first with the
+  `WithContext` suffix and no non-context wrappers:
+  `AddRecordsWithContext` (append, preserving all existing records),
+  `DeleteRecordsWithContext` (remove selector-matched records, preserve the rest)
+  and `UpsertRecordsWithContext` (replace exactly the selector-matched records).
+  Each is a read-modify-write over `GetHosts`/`SetHosts` that preserves every
+  settable field and the zone `EmailType`, then re-reads and verifies the result,
+  returning `ErrConcurrentModification` on a detected lost-update race. They fix
+  the `setHosts` "replaces everything" footgun (#49) and de-duplicate logic every
+  consumer re-derives (#119).
+- `RecordSelector` for exact-match record selection (HostName/RecordType/Address/
+  MXPref; empty selector rejected as a typed `*InvalidArgumentsError`; `MatchAll`
+  required for an intentional full wipe), and `WithRetryOnConflict(n)` to
+  auto-retry the read-modify-write-verify cycle on conflict (#119).
+- `PlanWithContext` plus the `RecordOp` constructors `AddOp`/`DeleteOp`/`UpsertOp`
+  and the `RecordDiff` type: compute the add/remove/keep diff for a set of
+  operations **without writing** (zero `setHosts` calls), for previewing changes
+  (#119).
+- `RecordFromDetailed` (maps a `GetHosts` `DomainsDNSHostRecordDetailed` to a
+  `SetHosts` `DomainsDNSHostRecord`, converting/clamping `MXPref` and consciously
+  dropping server-managed read-only fields), plus exported `NormalizeRecord` and
+  `RecordsEqual` normalization/comparison helpers (TTL default 1799, hostname
+  case, `@`/trailing-dot handling, record-type case). A `reflect`-based
+  exhaustiveness test fails loudly if a new struct field is left unmapped (#119).
+- `ErrConcurrentModification`, a typed, `errors.Is`-matchable sentinel returned
+  when a record-level mutation detects that the zone changed between its read and
+  its verifying re-read (#119).
 - Eight new `Domains` API methods, all context-first with the `WithContext`
   suffix and no non-context wrappers (these are brand-new, charge-bearing or
   read-only surfaces with no legacy to preserve): `CreateWithContext`,
