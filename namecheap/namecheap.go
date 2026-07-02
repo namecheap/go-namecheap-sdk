@@ -95,9 +95,10 @@ type Client struct {
 	ClientOptions *ClientOptions
 	BaseURL       string
 
-	Domains    *DomainsService
-	DomainsNS  *DomainsNSService
-	DomainsDNS *DomainsDNSService
+	Domains         *DomainsService
+	DomainsNS       *DomainsNSService
+	DomainsDNS      *DomainsDNSService
+	DomainsTransfer *DomainsTransferService
 
 	Users        *UsersService
 	UsersAddress *UsersAddressService
@@ -147,6 +148,7 @@ func NewClient(options *ClientOptions) *Client {
 	client.Domains = (*DomainsService)(&client.common)
 	client.DomainsDNS = (*DomainsDNSService)(&client.common)
 	client.DomainsNS = (*DomainsNSService)(&client.common)
+	client.DomainsTransfer = (*DomainsTransferService)(&client.common)
 	client.Users = (*UsersService)(&client.common)
 	client.UsersAddress = (*UsersAddressService)(&client.common)
 
