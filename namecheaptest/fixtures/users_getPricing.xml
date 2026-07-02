@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<RequestedCommand>namecheap.users.getPricing</RequestedCommand>
+	<CommandResponse Type="namecheap.users.getPricing">
+		<UserGetPricingResult>
+			<ProductType Name="domains">
+				<ProductCategory Name="register">
+					<Product Name="com">
+						<Price Duration="1" DurationType="YEAR" Price="8.88" PricingType="MULTIPLE" RegularPrice="10.87" RegularPriceType="MULTIPLE" YourPrice="9.99" YourPriceType="MULTIPLE" Currency="USD" />
+						<Price Duration="2" DurationType="YEAR" Price="17.76" RegularPrice="21.74" YourPrice="19.98" Currency="USD" />
+					</Product>
+					<Product Name="net">
+						<Price Duration="1" DurationType="YEAR" Price="0.0" RegularPrice="12.00" YourPrice="10.50" Currency="USD" />
+					</Product>
+					<Product Name="org">
+						<Price Duration="1" DurationType="YEAR" Price="" RegularPrice="9.18" YourPrice="0.00" Currency="USD" />
+					</Product>
+				</ProductCategory>
+				<ProductCategory Name="renew">
+					<Product Name="com">
+						<Price Duration="1" DurationType="YEAR" Price="11.00" RegularPrice="12.88" YourPrice="11.50" Currency="USD" />
+					</Product>
+				</ProductCategory>
+			</ProductType>
+		</UserGetPricingResult>
+	</CommandResponse>
+	<Server>PHX01SBAPIEXT06</Server>
+	<GMTTimeDifference>--4:00</GMTTimeDifference>
+	<ExecutionTime>2.345</ExecutionTime>
+</ApiResponse>

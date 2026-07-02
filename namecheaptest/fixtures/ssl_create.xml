@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.ssl.create">
+		<SSLCreateResult IsSuccess="true" OrderID="11223344" TransactionID="55667788" ChargedAmount="9.9800" CertificateID="123456" Created="09/22/2020" SSLType="PositiveSSL" />
+	</CommandResponse>
+</ApiResponse>

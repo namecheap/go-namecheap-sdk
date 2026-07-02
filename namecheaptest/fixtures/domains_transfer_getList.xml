@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<RequestedCommand>namecheap.domains.transfer.getList</RequestedCommand>
+	<CommandResponse Type="namecheap.domains.transfer.getList">
+		<TransferGetListResult>
+			<Transfer TransferID="101" DomainName="alpha.com" User="acct" TransferDate="05/20/2026" OrderID="9001" StatusID="5" Status="Transfer in progress" />
+			<Transfer TransferID="102" DomainName="beta.net" User="acct" TransferDate="05/21/2026" OrderID="9002" StatusID="20" Status="Transfer completed" />
+		</TransferGetListResult>
+		<Paging>
+			<TotalItems>2</TotalItems>
+			<CurrentPage>1</CurrentPage>
+			<PageSize>10</PageSize>
+		</Paging>
+	</CommandResponse>
+</ApiResponse>

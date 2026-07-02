@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.ssl.editDCVMethod">
+		<SSLEditDCVMethodResult ID="123456" IsSuccess="true">
+			<HttpDCValidation ValueAvailable="true">
+				<FileName>ABCDEF.txt</FileName>
+				<FileContent>hash-content</FileContent>
+			</HttpDCValidation>
+		</SSLEditDCVMethodResult>
+	</CommandResponse>
+</ApiResponse>

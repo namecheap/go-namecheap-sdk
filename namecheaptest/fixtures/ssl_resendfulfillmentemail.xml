@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.ssl.resendfulfillmentemail">
+		<SSLResendFulfillmentEmailResult ID="123456" IsSuccess="true" />
+	</CommandResponse>
+</ApiResponse>

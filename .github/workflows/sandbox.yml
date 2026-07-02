@@ -1,0 +1,112 @@
+# Weekly integration run against the real Namecheap sandbox API plus fixture
+# drift detection. It NEVER runs on pull_request or push: the sandbox is
+# slow/flaky and its credentials must never fan out to fork PRs. Triggers are
+# limited to a weekly schedule and manual dispatch.
+#
+# Required repository secrets (configure under Settings -> Secrets and variables
+# -> Actions). Until they are set the suite skips cleanly and this workflow is a
+# no-op:
+#   NAMECHEAP_SANDBOX_APIUSER   - sandbox API user
+#   NAMECHEAP_SANDBOX_APIKEY    - sandbox API key
+#   NAMECHEAP_SANDBOX_CLIENTIP  - whitelisted client IP (the runner's egress IP)
+#   NAMECHEAP_SANDBOX_USERNAME  - optional; defaults to APIUSER
+#   NAMECHEAP_SANDBOX_DOMAIN    - optional disposable test domain for getInfo/DNS
+name: Sandbox integration
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write # to post/refresh the drift note on the tracking issue
+
+env:
+  TRACKING_ISSUE: "122"
+
+jobs:
+  sandbox:
+    name: Sandbox suite + fixture drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run sandbox suite
+        id: suite
+        env:
+          NAMECHEAP_SANDBOX_APIUSER: ${{ secrets.NAMECHEAP_SANDBOX_APIUSER }}
+          NAMECHEAP_SANDBOX_APIKEY: ${{ secrets.NAMECHEAP_SANDBOX_APIKEY }}
+          NAMECHEAP_SANDBOX_CLIENTIP: ${{ secrets.NAMECHEAP_SANDBOX_CLIENTIP }}
+          NAMECHEAP_SANDBOX_USERNAME: ${{ secrets.NAMECHEAP_SANDBOX_USERNAME }}
+          NAMECHEAP_SANDBOX_DOMAIN: ${{ secrets.NAMECHEAP_SANDBOX_DOMAIN }}
+        run: make test-sandbox
+
+      - name: Re-capture fixtures and diff against committed corpus
+        id: drift
+        if: ${{ !cancelled() }}
+        env:
+          NAMECHEAP_SANDBOX_APIUSER: ${{ secrets.NAMECHEAP_SANDBOX_APIUSER }}
+          NAMECHEAP_SANDBOX_APIKEY: ${{ secrets.NAMECHEAP_SANDBOX_APIKEY }}
+          NAMECHEAP_SANDBOX_CLIENTIP: ${{ secrets.NAMECHEAP_SANDBOX_CLIENTIP }}
+          NAMECHEAP_SANDBOX_USERNAME: ${{ secrets.NAMECHEAP_SANDBOX_USERNAME }}
+          NAMECHEAP_SANDBOX_DOMAIN: ${{ secrets.NAMECHEAP_SANDBOX_DOMAIN }}
+        run: |
+          make update-fixtures
+          if git diff --quiet -- namecheaptest/fixtures; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            git diff -- namecheaptest/fixtures > fixture-drift.diff
+          fi
+
+      - name: Upload fixture drift diff
+        if: ${{ steps.drift.outputs.drift == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fixture-drift
+          path: fixture-drift.diff
+          retention-days: 30
+
+      - name: Post or refresh drift note on tracking issue
+        if: ${{ failure() || steps.drift.outputs.drift == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          MARKER="<!-- sandbox-drift-note -->"
+          {
+            echo "$MARKER"
+            echo "## :rotating_light: Weekly sandbox check needs attention"
+            echo
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            if [ "${{ steps.drift.outputs.drift }}" = "true" ]; then
+              echo "**Fixture drift** detected against the committed corpus. Review the diff and update fixtures if the change is legitimate:"
+              echo
+              echo '```diff'
+              head -c 60000 fixture-drift.diff
+              echo
+              echo '```'
+            fi
+            if [ "${{ steps.suite.outcome }}" = "failure" ]; then
+              echo "**The sandbox suite failed.** See the run logs above."
+            fi
+            echo
+            echo "_Updated $(date -u +'%Y-%m-%dT%H:%M:%SZ') by the sandbox workflow._"
+          } > note.md
+
+          REPO="${{ github.repository }}"
+          COMMENT_ID=$(gh api "repos/${REPO}/issues/${TRACKING_ISSUE}/comments" --paginate \
+            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" | head -n1 || true)
+          if [ -n "${COMMENT_ID}" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${COMMENT_ID}" -F body=@note.md
+          else
+            gh api -X POST "repos/${REPO}/issues/${TRACKING_ISSUE}/comments" -F body=@note.md
+          fi

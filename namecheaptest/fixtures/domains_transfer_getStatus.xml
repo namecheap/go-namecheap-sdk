@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<RequestedCommand>namecheap.domains.transfer.getStatus</RequestedCommand>
+	<CommandResponse Type="namecheap.domains.transfer.getStatus">
+		<DomainTransferGetStatusResult TransferID="123456" StatusID="5" Status="Transfer in progress, awaiting EPP code" />
+	</CommandResponse>
+</ApiResponse>

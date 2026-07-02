@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.ssl.renew">
+		<SSLRenewResult CertificateID="123456" Years="1" OrderID="11223344" TransactionID="55667788" ChargedAmount="7.5000" />
+	</CommandResponse>
+</ApiResponse>

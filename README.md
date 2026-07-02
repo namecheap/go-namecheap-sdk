@@ -987,6 +987,57 @@ client := namecheap.NewClient(&namecheap.ClientOptions{
 })
 ```
 
+### Testing your integration
+
+If you build on top of this SDK — a Terraform provider, an MCP server, internal
+tooling — you can test your code against a mock Namecheap API without hand-rolling
+an `httptest` server or capturing XML by hand. The exported
+[`namecheaptest`](namecheaptest) package ships a command-routed mock server, a
+corpus of success fixtures (one per implemented command), synthesized API errors,
+scripted sequences and request-capture assertions.
+
+```go
+import (
+    "context"
+    "testing"
+
+    "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
+    "github.com/namecheap/go-namecheap-sdk/v2/namecheaptest"
+)
+
+func TestReconcileDomain(t *testing.T) {
+    srv := namecheaptest.NewServer(t) // httptest-backed, auto-closed via t.Cleanup
+
+    // Stub by command: a shipped fixture, an inline body, or a synthesized error.
+    srv.StubFixture("namecheap.domains.getInfo", "domains_getInfo")
+    srv.StubError("namecheap.domains.create", 2019166) // -> *namecheap.APIError{Number: 2019166}
+
+    client := srv.Client() // pre-wired *namecheap.Client pointed at the mock
+
+    // ... exercise the code under test with client ...
+    _, err := client.Domains.GetInfoWithContext(context.Background(), "example.com")
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    // Assert on the request the SDK actually sent (subset match).
+    srv.AssertCalled(t, "namecheap.domains.getInfo", map[string]string{
+        "DomainName": "example.com",
+    })
+}
+```
+
+Use `StubSequence` when a command must return different bodies on successive
+calls (read-modify-write, polling). Fixtures are named by the command with the
+`namecheap.` prefix stripped and dots replaced by underscores
+(`namecheap.domains.getInfo` → `domains_getInfo`); `namecheaptest.FixtureOK(name)`
+returns a fixture body by that short name.
+
+**Compatibility:** `namecheaptest` is part of this SDK's public API surface.
+Breaking changes to it follow the same semantic-versioning rules as the core
+`namecheap` package — they only happen in a major release — so you can depend on
+its API and on the fixture naming scheme with the same stability guarantees.
+
 ### Contributing
 
 To contribute, please read our [contributing](CONTRIBUTING.md) docs.

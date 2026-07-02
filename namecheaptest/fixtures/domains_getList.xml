@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<Warnings />
+	<RequestedCommand>namecheap.domains.getlist</RequestedCommand>
+	<CommandResponse Type="namecheap.domains.getList">
+		<DomainGetListResult>
+			<Domain ID="677625" Name="domain.com" User="user" Created="06/02/2021" Expires="06/02/2022" IsExpired="false" IsLocked="false" AutoRenew="true" WhoisGuard="ENABLED" IsPremium="false" IsOurDNS="false" />
+			<Domain ID="677626" Name="domain2.net" User="user" Created="06/02/2021" Expires="06/02/2022" IsExpired="false" IsLocked="false" AutoRenew="true" WhoisGuard="ENABLED" IsPremium="false" IsOurDNS="true" />
+		</DomainGetListResult>
+		<Paging>
+			<TotalItems>2</TotalItems>
+			<CurrentPage>1</CurrentPage>
+			<PageSize>20</PageSize>
+		</Paging>
+	</CommandResponse>
+	<Server>PHX01SBAPIEXT05</Server>
+	<GMTTimeDifference>--4:00</GMTTimeDifference>
+	<ExecutionTime>0.011</ExecutionTime>
+</ApiResponse>

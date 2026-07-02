@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.ssl.getList">
+		<SSLListResult>
+			<SSL CertificateID="123456" HostName="example.com" SSLType="PositiveSSL" PurchaseDate="09/22/2020" ExpireDate="09/22/2021" Status="Active" />
+			<SSL CertificateID="123457" HostName="foo.example" SSLType="EV SSL" PurchaseDate="01/01/2021" ExpireDate="01/01/2022" Status="Purchased" />
+		</SSLListResult>
+		<Paging>
+			<TotalItems>2</TotalItems>
+			<CurrentPage>1</CurrentPage>
+			<PageSize>20</PageSize>
+		</Paging>
+	</CommandResponse>
+</ApiResponse>

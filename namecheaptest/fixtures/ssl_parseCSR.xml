@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.ssl.parseCSR">
+		<SSLParseCSRResult>
+			<CSRDetails>
+				<CommonName>example.com</CommonName>
+				<DomainName>example.com</DomainName>
+				<Country>US</Country>
+				<OrganisationUnit>IT</OrganisationUnit>
+				<Organisation>Example Inc</Organisation>
+				<State>CA</State>
+				<Locality>San Francisco</Locality>
+				<Email>[email protected]</Email>
+			</CSRDetails>
+		</SSLParseCSRResult>
+	</CommandResponse>
+</ApiResponse>

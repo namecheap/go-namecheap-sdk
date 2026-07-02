@@ -1,4 +1,4 @@
-.PHONY: default format check lint test test-unit test-unit-quiet test-race test-coverage vendor
+.PHONY: default format check lint test test-unit test-unit-quiet test-race test-coverage test-sandbox update-fixtures vendor
 
 default: format check lint test
 
@@ -22,6 +22,19 @@ test-race:
 test-coverage:
 	go test -coverprofile=coverage.out -count=1 -parallel=8 ./...
 	go tool cover -func=coverage.out
+
+# test-sandbox runs the build-tagged integration suite against the real Namecheap
+# sandbox API. It needs NAMECHEAP_SANDBOX_APIUSER/APIKEY/CLIENTIP (and optionally
+# USERNAME and a disposable NAMECHEAP_SANDBOX_DOMAIN) in the environment; without
+# them the suite skips cleanly. It is never part of `make test`.
+test-sandbox:
+	go test -tags sandbox -count=1 -v ./...
+
+# update-fixtures re-captures the read-only sandbox responses into
+# namecheaptest/fixtures so drift against the committed corpus surfaces as a diff.
+# Requires the same sandbox credentials as test-sandbox.
+update-fixtures:
+	go test -tags sandbox -count=1 -run TestSandbox ./namecheap/ -update-fixtures
 
 vendor:
 	go mod vendor
