@@ -3,7 +3,8 @@
 // Construct a Client with NewClient and call the service methods on
 // Client.Domains, Client.DomainsDNS and Client.DomainsNS. Every call takes a
 // context.Context as its first argument; cancelling it aborts the in-flight
-// HTTP request, any pending retry sleep, and waiting on the internal retry lock.
+// HTTP request, a pending rate-limit or concurrency wait, and any inter-retry
+// backoff sleep.
 //
 // # Error handling
 //

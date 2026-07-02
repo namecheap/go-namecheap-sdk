@@ -29,8 +29,8 @@ client := namecheap.NewClient(&namecheap.ClientOptions{
 })
 
 // Every call takes a context.Context as its first argument. Cancelling the
-// context aborts the in-flight HTTP request, any pending retry sleep, and
-// waiting on the internal retry lock.
+// context aborts the in-flight HTTP request, a pending rate-limit or
+// concurrency wait, and any inter-retry backoff sleep.
 ctx := context.Background()
 ```
 
@@ -162,6 +162,68 @@ if namecheap.IsRetryable(err) {
 Malformed responses return a `*namecheap.ParseError` (with a bounded snippet of
 the raw body); transport and context errors propagate unwrapped. All error types
 support `errors.Is` / `errors.As` for inspecting the underlying cause.
+
+### Rate limiting & retries
+
+The client is concurrency-safe and paces itself against Namecheap's published API
+quotas. Every request flows through a client-side token-bucket rate limiter, an
+optional in-flight concurrency bound, and a context-aware exponential-backoff
+retry policy. All of it is configurable and falls back to safe defaults.
+
+> **Behavior change:** requests are now **concurrent by default**. Earlier
+> versions funneled every call through a single process-wide lock, so calls were
+> strictly serialized. If you relied on that serialization, set
+> `RateLimit.MaxConcurrent: 1` (or a low `RateLimit.PerMinute`) to restore it.
+
+**Quotas.** Namecheap documents 20 requests/minute, 700/hour and 8000/day. The
+limiter enforces the per-minute bucket (default 20/min, with a burst equal to the
+per-minute rate so genuine concurrency under the quota is not throttled). The
+hour and day budgets are *not* enforced client-side, to avoid stalling
+long-running processes.
+
+**Retries.** Only errors classified as retryable by `IsRetryable` (transient
+server-side codes and transport timeouts) plus Namecheap's HTTP 405 rate-limit
+signal are retried, using exponential backoff with equal jitter, bounded by a
+per-attempt cap and a total wall-time budget. A context deadline or cancellation
+aborts a limiter wait or a backoff sleep promptly. A terminal failure wraps the
+last real error as `after N attempts: <cause>`, so `errors.Is`/`errors.As` still
+reach the underlying `*APIError`.
+
+```go
+client := namecheap.NewClient(&namecheap.ClientOptions{
+    UserName: "UserName",
+    ApiUser:  "ApiUser",
+    ApiKey:   "ApiKey",
+    ClientIp: "10.10.10.10",
+
+    // Identify your integration to Namecheap support (appended to the SDK's
+    // default User-Agent on every request).
+    UserAgent: "my-app/1.2.3",
+
+    // Inject your own HTTP client or middleware (tracing, mocking, custom
+    // timeouts). Transport is applied onto the effective client.
+    // HTTPClient: myHTTPClient,
+    // Transport:  myRoundTripper,
+
+    RateLimit: &namecheap.RateLimitOptions{
+        PerMinute:     20,    // token-bucket rate; default 20
+        MaxConcurrent: 0,     // 0 = unbounded; 1 restores serial behavior
+        Disabled:      false, // true = no client-side limiting
+    },
+    Retry: &namecheap.RetryOptions{
+        MaxAttempts: 4,                     // total attempts incl. the first
+        BaseDelay:   500 * time.Millisecond,
+        MaxDelay:    30 * time.Second,
+        MaxElapsed:  2 * time.Minute,       // cap on total retry wall-time
+    },
+})
+```
+
+Every resilience field is optional; a nil/zero value selects the default shown
+above (`PerMinute: 20`, `MaxAttempts: 4`, `BaseDelay: 500ms`, `MaxDelay: 30s`,
+`MaxElapsed: 2m`, unbounded concurrency). Pass
+`RateLimit: &namecheap.RateLimitOptions{Disabled: true}` to turn off client-side
+limiting entirely.
 
 ### Sandbox
 

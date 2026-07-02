@@ -73,9 +73,9 @@ The SDK uses a service-based architecture:
 3. Responses are decoded via `encoding/xml` into typed structs.
 4. API errors (Status="ERROR") are parsed and returned as Go errors.
 
-### Internal retry
+### Resilience (rate limiting & retries)
 
-`namecheap/internal/syncretry` — mutex-guarded retry with configurable delays. Retries on HTTP 405; other errors propagate immediately.
+`namecheap/transport.go` — concurrent-safe pipeline: a `golang.org/x/time/rate` token-bucket limiter, an optional concurrency semaphore, and a context-aware exponential-backoff-with-jitter retry policy (`Client.do`). Retries on HTTP 405 and `IsRetryable` errors; a terminal failure wraps the cause as `after N attempts: <err>`. Configured via `ClientOptions.RateLimit`/`Retry`. (Replaced the removed `internal/syncretry` global-mutex loop.)
 
 ### Pointer-based optional fields
 

@@ -209,11 +209,14 @@ func TestDomainNameserversCreate(t *testing.T) {
 		}))
 		defer mockServer.Close()
 
-		client := setupClient(nil)
+		// 3050900 is a retryable server-error code, so the resilience layer wraps
+		// the exhausted error; a single-attempt client keeps this focused on
+		// error surfacing while errors.As still reaches the *APIError.
+		client := setupNoRetryClient()
 		client.BaseURL = mockServer.URL
 
 		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 
-		assert.EqualError(t, err, "Unknown error from Enom (3050900)")
+		assertTerminalAPIError(t, err, 3050900, "Unknown error from Enom")
 	})
 }

@@ -27,18 +27,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ctx-first `...WithContext` variants (`Client.NewRequestWithContext`,
   `Client.DoXMLWithContext`, and every service method such as
   `Domains.GetInfoWithContext`, `DomainsDNS.SetHostsWithContext`,
-  `DomainsNS.CreateWithContext`, plus `syncretry.SyncRetry.DoContext`) thread a
-  context through the request. Cancelling the context now aborts an in-flight
-  HTTP request, a pending inter-retry sleep, and waiting on the internal retry
-  lock (#110).
+  `DomainsNS.CreateWithContext`) thread a context through the request.
+  Cancelling the context now aborts an in-flight HTTP request, a pending
+  rate-limit or concurrency wait, and any inter-retry backoff sleep (#110).
+- Client-side resilience layer: a token-bucket rate limiter, optional
+  concurrency bound, and a context-aware exponential-backoff-with-jitter retry
+  policy, all configurable via new `ClientOptions` fields. `RateLimitOptions`
+  (`PerMinute`, `Disabled`, `MaxConcurrent`) paces requests against Namecheap's
+  published quota (default 20/min, burst 20); `RetryOptions` (`MaxAttempts`,
+  `MaxElapsed`, `BaseDelay`, `MaxDelay`) governs retries (defaults: 4 attempts,
+  500ms base, 30s cap, 2m budget). New transport knobs `HTTPClient`,
+  `Transport` (a `http.RoundTripper` override) and `UserAgent` (appended to the
+  SDK's default UA) round out the injection points. Requests are now executed
+  concurrently and only retried when `IsRetryable` (or the HTTP 405 rate-limit
+  signal) says so (#112).
+
+### Changed
+
+- **Behavior change:** API calls are no longer globally serialized. The
+  process-wide mutex that forced every request through a single lock is gone;
+  requests now run concurrently, bounded by the token-bucket limiter and the
+  optional `RateLimit.MaxConcurrent`. Consumers that relied on serialization can
+  restore it with `RateLimit.MaxConcurrent: 1` (or a low `RateLimit.PerMinute`)
+  (#112).
+- A terminal retry failure now wraps the last underlying error as
+  `after N attempts: <cause>` (reachable via `errors.Is`/`errors.As`) instead of
+  the opaque, untyped `"API retry limit exceeded"` string, which discarded the
+  cause (#112).
 
 ### Deprecated
 
-- The existing non-context methods (`Client.NewRequest`, `Client.DoXML`,
-  `syncretry.SyncRetry.Do`, and every service method such as `Domains.GetInfo`,
-  `DomainsDNS.SetHosts`, `DomainsNS.Create`) are deprecated. They now delegate
-  to their `...WithContext` counterparts with `context.Background()` and are
-  slated for removal in v3 (#110).
+- The existing non-context methods (`Client.NewRequest`, `Client.DoXML`, and
+  every service method such as `Domains.GetInfo`, `DomainsDNS.SetHosts`,
+  `DomainsNS.Create`) are deprecated. They now delegate to their
+  `...WithContext` counterparts with `context.Background()` and are slated for
+  removal in v3 (#110).
+
+### Removed
+
+- The internal `namecheap/internal/syncretry` package (the global-mutex retry
+  loop) has been removed and replaced by the new resilience pipeline. It was an
+  internal package, so this is not a public API change (#112).
 
 ## [2.5.1] - 2026-05-28
 
