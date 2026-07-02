@@ -13,8 +13,8 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/go-cleanhttp"
-	"github.com/namecheap/go-namecheap-sdk/v2/namecheap/internal/syncretry"
 	"github.com/weppos/publicsuffix-go/publicsuffix"
+	"golang.org/x/time/rate"
 )
 
 var domainRegexp = regexp.MustCompile(`^([\-a-zA-Z0-9]+\.+){1,}[a-zA-Z0-9]+$`)
@@ -30,12 +30,32 @@ type ClientOptions struct {
 	ApiKey     string // nolint: stylecheck,revive
 	ClientIp   string // nolint: stylecheck,revive
 	UseSandbox bool
+
+	// HTTPClient is the HTTP client used for every request. When nil, a
+	// cleanhttp.DefaultClient() is used.
+	HTTPClient *http.Client
+	// Transport, when set, replaces the RoundTripper on the effective HTTP
+	// client. Use it to inject middleware (retries, tracing, mocking) without
+	// having to supply a whole *http.Client.
+	Transport http.RoundTripper
+	// UserAgent, when set, is appended (after a space) to the SDK's default
+	// User-Agent on every request so support can identify the calling client.
+	UserAgent string
+	// RateLimit configures the client-side token-bucket limiter and optional
+	// concurrency bound. When nil, the documented defaults apply (20 req/min).
+	RateLimit *RateLimitOptions
+	// Retry configures the exponential-backoff retry policy. When nil, the
+	// documented defaults apply (4 attempts, 500ms base, 30s cap, 2m budget).
+	Retry *RetryOptions
 }
 
 type Client struct {
-	http   *http.Client
-	common service
-	sr     *syncretry.SyncRetry
+	http      *http.Client
+	common    service
+	limiter   *rate.Limiter // nil when rate limiting is disabled
+	sem       chan struct{} // nil when concurrency is unbounded
+	retry     RetryOptions  // resolved retry policy (no zero fields)
+	userAgent string
 
 	ClientOptions *ClientOptions
 	BaseURL       string
@@ -49,12 +69,29 @@ type service struct {
 	client *Client
 }
 
-// NewClient returns a new Namecheap API Client
+// NewClient returns a new Namecheap API Client.
+//
+// The client is safe for concurrent use. Requests flow through a client-side
+// rate limiter, an optional concurrency gate, and a context-aware
+// exponential-backoff retry policy; all three are configured via options and
+// fall back to safe defaults when their option is nil. See RateLimitOptions and
+// RetryOptions.
 func NewClient(options *ClientOptions) *Client {
+	httpClient := options.HTTPClient
+	if httpClient == nil {
+		httpClient = cleanhttp.DefaultClient()
+	}
+	if options.Transport != nil {
+		httpClient.Transport = options.Transport
+	}
+
 	client := &Client{
 		ClientOptions: options,
-		http:          cleanhttp.DefaultClient(),
-		sr:            syncretry.NewSyncRetry(&syncretry.Options{Delays: []int{1, 5, 15, 30, 50}}),
+		http:          httpClient,
+		limiter:       newLimiter(options.RateLimit),
+		sem:           newSemaphore(options.RateLimit),
+		retry:         resolveRetry(options.Retry),
+		userAgent:     resolveUserAgent(options.UserAgent),
 	}
 
 	if options.UseSandbox {
@@ -97,6 +134,7 @@ func (c *Client) NewRequestWithContext(ctx context.Context, body map[string]stri
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Content-Length", strconv.Itoa(len(rBody)))
+	req.Header.Set("User-Agent", c.userAgent)
 
 	return req, nil
 }
@@ -112,12 +150,18 @@ func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
 
 // DoXMLWithContext performs the API call described by body, decoding the XML
 // response into obj. The call is bound to ctx: cancelling ctx aborts the
-// in-flight HTTP request, any pending inter-retry sleep, and waiting to enter
-// the retry section. context.Canceled and context.DeadlineExceeded propagate
-// to the caller unwrapped (they are never rewritten into a retry-limit error).
+// in-flight HTTP request, a pending rate-limit or concurrency wait, and any
+// inter-retry backoff sleep. context.Canceled and context.DeadlineExceeded
+// propagate to the caller unwrapped.
+//
+// The call flows through the client's rate limiter, concurrency gate, and
+// exponential-backoff retry policy (see NewClient). An HTTP 405 — Namecheap's
+// rate-limit signal — is retried transparently. A terminal retry failure wraps
+// the last real error as "after N attempts: <err>", so errors.Is and errors.As
+// still reach the underlying *APIError.
 func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, obj any) (*http.Response, error) {
 	var requestResponse *http.Response
-	err := c.sr.DoContext(ctx, func(ctx context.Context) error {
+	err := c.do(ctx, func(ctx context.Context) error {
 		request, err := c.NewRequestWithContext(ctx, body)
 		if err != nil {
 			return err
@@ -130,7 +174,7 @@ func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, o
 
 		if response.StatusCode == 405 {
 			response.Body.Close()
-			return syncretry.ErrRetry
+			return errRetryStatus
 		}
 
 		data, readErr := io.ReadAll(response.Body)
@@ -147,10 +191,6 @@ func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, o
 
 		return parseAPIError(data, body["Command"])
 	})
-
-	if err != nil && errors.Is(err, syncretry.ErrRetryAttempts) {
-		return nil, fmt.Errorf("API retry limit exceeded")
-	}
 
 	return requestResponse, err
 }

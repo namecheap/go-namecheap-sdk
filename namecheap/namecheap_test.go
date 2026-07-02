@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/namecheap/go-namecheap-sdk/v2/namecheap/internal/syncretry"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,6 +35,36 @@ func setupClient(httpClient *http.Client) *Client {
 	}
 
 	return client
+}
+
+// setupNoRetryClient builds a client that performs exactly one attempt with no
+// client-side rate limiting. It is used by service tests that assert on a single
+// server response for a retryable server-error code, which the resilience layer
+// would otherwise retry.
+func setupNoRetryClient() *Client {
+	return NewClient(&ClientOptions{
+		UserName:  ncUserName,
+		ApiUser:   ncAPIUser,
+		ApiKey:    ncAPIKey,
+		ClientIp:  ncClientIP,
+		RateLimit: &RateLimitOptions{Disabled: true},
+		Retry:     &RetryOptions{MaxAttempts: 1},
+	})
+}
+
+// assertTerminalAPIError asserts err is a terminal retry failure that preserves
+// the server message and still unwraps to an *APIError carrying number (the
+// #112 guarantee that errors.As reaches the cause through the "after N attempts"
+// wrapper).
+func assertTerminalAPIError(t *testing.T, err error, number int, message string) {
+	t.Helper()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "after")
+	assert.ErrorContains(t, err, message)
+	var apiErr *APIError
+	if assert.True(t, errors.As(err, &apiErr), "terminal error should unwrap to *APIError") {
+		assert.Equal(t, number, apiErr.Number)
+	}
 }
 
 func TestNewClient(t *testing.T) {
@@ -306,19 +335,27 @@ func TestNewRequestInvalidURL(t *testing.T) {
 
 func TestDoXMLRetryExhausted(t *testing.T) {
 	t.Parallel()
+	// Persistent HTTP 405 (Namecheap's rate-limit signal) forces the retry loop
+	// to exhaust its attempts.
 	mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusMethodNotAllowed)
 	}))
 	defer mockServer.Close()
 
-	client := setupClient(nil)
-	client.sr = syncretry.NewSyncRetry(&syncretry.Options{Delays: []int{1, 1}})
+	client := NewClient(&ClientOptions{
+		UserName: ncUserName, ApiUser: ncAPIUser, ApiKey: ncAPIKey, ClientIp: ncClientIP,
+		RateLimit: &RateLimitOptions{Disabled: true},
+		Retry:     &RetryOptions{MaxAttempts: 3, BaseDelay: time.Millisecond, MaxDelay: 2 * time.Millisecond},
+	})
 	client.BaseURL = mockServer.URL
 
-	var result any
+	var result testResponse
 	_, err := client.DoXML(map[string]string{"Command": "test"}, &result)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "retry limit exceeded")
+	// The terminal error must wrap the cause as "after N attempts:", never the
+	// legacy bare "retry limit exceeded".
+	assert.Contains(t, err.Error(), "after 3 attempts:")
+	assert.NotContains(t, err.Error(), "retry limit exceeded")
 }
 
 func TestDoXMLDecodeFailure(t *testing.T) {
@@ -345,7 +382,6 @@ func TestDoXMLHTTPFailure(t *testing.T) {
 	mockServer.Close()
 
 	client := setupClient(nil)
-	client.sr = syncretry.NewSyncRetry(&syncretry.Options{Delays: []int{}})
 	client.BaseURL = mockServer.URL
 
 	var result any
@@ -392,15 +428,20 @@ func TestDoXMLWithContextCancelsRetrySleep(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	client := setupClient(nil)
-	client.sr = syncretry.NewSyncRetry(&syncretry.Options{Delays: []int{30}})
+	// A 30s base backoff would dominate unless the context deadline cancels the
+	// inter-attempt sleep.
+	client := NewClient(&ClientOptions{
+		UserName: ncUserName, ApiUser: ncAPIUser, ApiKey: ncAPIKey, ClientIp: ncClientIP,
+		RateLimit: &RateLimitOptions{Disabled: true},
+		Retry:     &RetryOptions{MaxAttempts: 4, BaseDelay: 30 * time.Second, MaxDelay: 30 * time.Second},
+	})
 	client.BaseURL = mockServer.URL
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	start := time.Now()
-	var result any
+	var result testResponse
 	_, err := client.DoXMLWithContext(ctx, map[string]string{"Command": "test"}, &result)
 	elapsed := time.Since(start)
 
