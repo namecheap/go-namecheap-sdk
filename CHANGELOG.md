@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `UsersService` (`client.Users`), context-first with the `WithContext`
+  suffix and no non-context wrappers: `GetPricingWithContext`,
+  `GetBalancesWithContext`, `CreateAddFundsRequestWithContext`,
+  `GetAddFundsStatusWithContext`, `ChangePasswordWithContext` and
+  `UpdateWithContext`. Every struct field is cross-checked against
+  `docs/namecheap-api-v2.md`; each method carries the Namecheap doc URL (#117).
+- `GetPricing` models the deeply nested price sheet as navigable typed structs
+  (`ProductType → ProductCategory → Product → Price` tiers) matching the doc's
+  element/attribute names, plus the flattening helper
+  `UsersGetPricingResult.PriceFor(action, productName, years)` for the common
+  single-tier lookup and `Price.EffectivePrice()`, which resolves the documented
+  precedence (server-resolved `Price` incl. promo/special → `YourPrice` →
+  `RegularPrice`). All monetary values are `Amount` (exact decimal strings), never
+  `float64`. Fixtures cover DOMAIN, SSLCERTIFICATE and WHOISGUARD (#117).
+- `GetBalances` returns typed decimal-safe amounts (`Amount`) and currency (#117).
+- Add-funds flow with `AddFundsStatus` constants (`CREATED`, `SUBMITTED`,
+  `COMPLETED`, `FAILED`, `EXPIRED`). `CreateAddFundsRequest` is classified
+  **non-idempotent** (charge-bearing): an ambiguous transport/server failure is
+  never retried (only Namecheap's pre-execution HTTP 405 is), so it can never
+  double-charge; reconcile via `GetAddFundsStatus` (#117).
+- `ChangePassword` supports both the old-password and reset-code methods; password
+  values are only ever placed in the outbound request parameters — never stored or
+  logged. Hook-level redaction is deferred to the logging layer (#113) (#117).
+- New `UsersAddressService` (`client.UsersAddress`) with full context-first CRUD:
+  `CreateWithContext`, `UpdateWithContext`, `DeleteWithContext`,
+  `GetInfoWithContext`, `GetListWithContext`, `SetDefaultWithContext` (#117).
+- `ContactInfo` ↔ address-book adapter, bidirectional and tested for no field
+  drift: `ContactInfo.ToAddressDetails`, `UsersAddressDetails.ToContactInfo` and
+  `UsersAddressGetInfoResult.ToContactInfo`, so a stored address can feed the
+  `domains.create` contact blocks. The two renamed correspondences
+  (`PostalCode` ↔ `Zip`, `OrganizationName` ↔ `Organization`) are mapped
+  explicitly (#117).
+- The reseller account-creation surface (`users.create`, `users.login`,
+  `users.resetPassword`) is deferred (planned, unscheduled) and documented in the
+  README coverage matrix with the reseller-only rationale (#117).
 - Record-level DNS helpers on `DomainsDNSService`, all context-first with the
   `WithContext` suffix and no non-context wrappers:
   `AddRecordsWithContext` (append, preserving all existing records),

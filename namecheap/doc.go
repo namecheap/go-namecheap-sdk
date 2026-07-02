@@ -1,10 +1,10 @@
 // Package namecheap provides a Go client for the Namecheap API.
 //
 // Construct a Client with NewClient and call the service methods on
-// Client.Domains, Client.DomainsDNS and Client.DomainsNS. Every call takes a
-// context.Context as its first argument; cancelling it aborts the in-flight
-// HTTP request, a pending rate-limit or concurrency wait, and any inter-retry
-// backoff sleep.
+// Client.Domains, Client.DomainsDNS, Client.DomainsNS, Client.Users and
+// Client.UsersAddress. Every call takes a context.Context as its first argument;
+// cancelling it aborts the in-flight HTTP request, a pending rate-limit or
+// concurrency wait, and any inter-retry backoff sleep.
 //
 // # Error handling
 //
