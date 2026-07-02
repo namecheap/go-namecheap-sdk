@@ -575,6 +575,101 @@ for {
 | `revokecertificate` | Implemented |
 | `editDCVMethod` | Implemented |
 
+#### Domain privacy (`client.DomainPrivacy`)
+
+The `domainprivacy` group manages privacy (WhoisGuard) subscriptions: listing
+them, turning protection on/off, attaching/detaching a subscription to a domain,
+throwing away an unused subscription, and rotating the forwarding email.
+
+> **Naming: whoisguard → domainprivacy.** The service is named for the current
+> product term ("domain privacy"), but the underlying Namecheap API commands
+> still use the legacy `whoisguard` names. The mapping is one-to-one, e.g.
+> `DomainPrivacy.GetListWithContext` → `namecheap.whoisguard.getList`,
+> `EnableWithContext` → `namecheap.whoisguard.enable`, `DiscardWithContext` →
+> `namecheap.whoisguard.discard`. Subscription IDs are the API's numeric IDs
+> typed as `int` (a "WhoisguardID" on the wire), never strings.
+
+| Method | Description |
+|---|---|
+| `GetListWithContext(ctx, args)` | List privacy subscriptions (ListType filter, paging) |
+| `EnableWithContext(ctx, privacyID, forwardedToEmail)` | Turn privacy on and set the forwarding email |
+| `DisableWithContext(ctx, privacyID)` | Turn privacy off (keeps the subscription attached) |
+| `AllotWithContext(ctx, privacyID, domain)` | Attach a subscription to a domain |
+| `UnallotWithContext(ctx, privacyID)` | Detach a subscription (returns it to the FREE pool) |
+| `DiscardWithContext(ctx, privacyID)` | **Destructive:** throw away an unused subscription |
+| `ChangeEmailAddressWithContext(ctx, privacyID)` | Rotate the privacy forwarding email |
+| `EnsureEnabledWithContext(ctx, domain, forwardedToEmail)` | Compose getList → allot → enable for a domain |
+
+```go
+// Register a domain, then make sure privacy is enabled for it. EnsureEnabled
+// composes the whole state machine (find/allot a subscription, then enable it),
+// so you do not have to reason about the attach-vs-activate distinction yourself.
+created, err := client.Domains.CreateWithContext(ctx, &namecheap.DomainsCreateArgs{
+    DomainName:        "example.com",
+    Years:             1,
+    Registrant:        contact, Tech: contact, Admin: contact, AuxBilling: contact,
+    AddFreeWhoisguard: namecheap.Bool(true), // include the free privacy subscription
+})
+if err != nil {
+    log.Fatal(err) // charge-bearing: never auto-retried on an ambiguous failure
+}
+
+res, err := client.DomainPrivacy.EnsureEnabledWithContext(ctx, "example.com", "[email protected]")
+if err != nil {
+    if errors.Is(err, namecheap.ErrNoFreePrivacySubscription) {
+        log.Fatal("no free privacy subscription to allot")
+    }
+    log.Fatal(err)
+}
+fmt.Printf("privacy id=%d action=%s\n", res.PrivacyID, res.Action)
+```
+
+> **Attach vs. activate.** A subscription must first be *allotted* (attached) to a
+> domain and, separately, *enabled* (activated with a forwarding email).
+> `AllotWithContext` does the first; `EnableWithContext` does the second;
+> `EnsureEnabledWithContext` hides both. From each starting state it either no-ops
+> (already enabled), enables (attached but disabled), or allots-then-enables (a
+> FREE subscription exists) — and returns `ErrNoFreePrivacySubscription` when
+> there is nothing to allot.
+>
+> **Status is typed and grounded.** The doc does not enumerate the getList
+> `Status` values, only the `ListType` filter vocabulary (`ALL` / `ALLOTED` /
+> `FREE` / `DISCARD`). The SDK exposes the raw `Status` verbatim and offers a
+> typed `PrivacyState` (`FREE` / `ALLOTTED` / `DISCARD` / `UNKNOWN`) grounded in
+> that vocabulary via `ClassifyPrivacyStatus` — no fabricated code table. The
+> on/off dimension is read separately with `DomainPrivacyGetListEntry.IsEnabled`.
+>
+> **`discard` is destructive and non-idempotent.** It permanently gives up an
+> unused subscription; use `UnallotWithContext` instead to detach and keep it. As
+> a destructive, charge-adjacent call it is never auto-retried on an ambiguous
+> transport/server failure (only the pre-execution HTTP 405 rate-limit signal is),
+> the same money-safety rule as `domains.create`. The other mutations
+> (`enable` / `disable` / `allot` / `unallot` / `changeEmailAddress`) are
+> idempotent and retry as usual.
+>
+> **Documented gap: `allot` / `unallot` / `discard`.** These three commands are
+> **not** present in `docs/namecheap-api-v2.md`; their wire commands
+> (`namecheap.whoisguard.allot` / `.unallot` / `.discard`) and required parameters
+> (`allot`: `WhoisguardID` + `DomainName`; `unallot` / `discard`: `WhoisguardID`)
+> are grounded in the real Namecheap whoisguard API rather than the local doc, and
+> the gap is flagged in the code — the same "don't fabricate silently" principle
+> used for SSL DCV tokens and transfer status codes. The doc's `renew` command is
+> intentionally **not** implemented here (out of scope for this group;
+> charge-bearing).
+
+##### DomainPrivacy API coverage matrix
+
+| `namecheap.whoisguard.*` command | Status |
+|---|---|
+| `getList` | Implemented |
+| `enable` | Implemented |
+| `disable` | Implemented |
+| `allot` | Implemented (grounded; not in local doc) |
+| `unallot` | Implemented (grounded; not in local doc) |
+| `discard` | Implemented (grounded; not in local doc; destructive) |
+| `changeEmailAddress` | Implemented |
+| `renew` | Deferred (documented but out of scope; charge-bearing) |
+
 ### Error handling
 
 When the API rejects a call it returns a typed `*namecheap.APIError` carrying the

@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `DomainPrivacyService` (`client.DomainPrivacy`), context-first with the
+  `WithContext` suffix, covering the `domainprivacy` (WhoisGuard) group — all 7
+  commands: `GetListWithContext`, `EnableWithContext`, `DisableWithContext`,
+  `AllotWithContext`, `UnallotWithContext`, `DiscardWithContext` and
+  `ChangeEmailAddressWithContext`. The service is named for the current product
+  term ("domain privacy") while the underlying command strings keep the API's
+  legacy `whoisguard` names; the one-to-one mapping is documented on the service.
+  Subscription IDs are the API's numeric IDs typed as `int` (a `WhoisguardID` on
+  the wire), never strings. Documented commands (`changeemailaddress`, `enable`,
+  `disable`, `getlist`) match `docs/namecheap-api-v2.md` (lines 1485-1575) (#118).
+- `EnsureEnabledWithContext(ctx, domain, forwardedToEmail)` convenience helper
+  composing the attach-vs-activate state machine (getList → allot → enable): it
+  no-ops when already enabled, enables when attached-but-disabled, allots-then-
+  enables a FREE subscription, and returns the typed `ErrNoFreePrivacySubscription`
+  when nothing is available to allot. Table-driven mock-sequence tests cover all
+  four starting states (#118).
+- Grounded `PrivacyState` type (`FREE` / `ALLOTTED` / `DISCARD` / `UNKNOWN`)
+  mirroring the documented getList `ListType` vocabulary (the doc enumerates no
+  `Status` values), with `ClassifyPrivacyStatus` and a per-entry `State()`; the
+  raw `Status` is exposed verbatim, and the enabled/disabled dimension is read
+  separately with `DomainPrivacyGetListEntry.IsEnabled()`. No fabricated codes
+  (#118).
+- `Discard` is **destructive and non-idempotent**: it uses the same retry
+  classification as `domains.create` (`doXML(..., false)`), so an ambiguous
+  transport/server failure is never auto-retried (only the pre-execution HTTP 405
+  rate-limit signal is); a test asserts no re-fire after a simulated server error
+  and after a transport timeout (call-count == 1). `enable` / `disable` / `allot`
+  / `unallot` / `changeEmailAddress` are idempotent and retry as usual (#118).
+- Documented gap flagged in code and README: `allot` / `unallot` / `discard` are
+  **not** present in `docs/namecheap-api-v2.md`; their wire commands
+  (`namecheap.whoisguard.allot` / `.unallot` / `.discard`) and required parameters
+  (`allot`: `WhoisguardID` + `DomainName`; `unallot` / `discard`: `WhoisguardID`)
+  are grounded in the real Namecheap whoisguard API — the same "don't fabricate
+  silently" principle used for SSL DCV tokens and transfer status codes. The doc's
+  `renew` command is intentionally deferred (out of scope; charge-bearing) (#118).
+- README coverage matrix for `domainprivacy` plus a "register with privacy"
+  example composing `domains.CreateWithContext` and
+  `DomainPrivacy.EnsureEnabledWithContext`, noting the whoisguard→domainprivacy
+  naming and that `discard` is destructive (#118).
 - New `SSLService` (`client.SSL`), context-first with the `WithContext` suffix,
   covering the full `namecheap.ssl.*` group — all 13 commands across three phases:
   inventory (`GetListWithContext`, `GetInfoWithContext`, `ParseCSRWithContext`),

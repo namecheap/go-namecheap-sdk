@@ -104,6 +104,12 @@ type Client struct {
 	UsersAddress *UsersAddressService
 
 	SSL *SSLService
+
+	// DomainPrivacy groups the domain-privacy commands. The service is named for
+	// the current product term ("domain privacy"), while the underlying API
+	// command strings still use the legacy "whoisguard" names. See
+	// DomainPrivacyService for the full name mapping.
+	DomainPrivacy *DomainPrivacyService
 }
 
 type service struct {
@@ -154,6 +160,7 @@ func NewClient(options *ClientOptions) *Client {
 	client.Users = (*UsersService)(&client.common)
 	client.UsersAddress = (*UsersAddressService)(&client.common)
 	client.SSL = (*SSLService)(&client.common)
+	client.DomainPrivacy = (*DomainPrivacyService)(&client.common)
 
 	return client
 }
