@@ -2,7 +2,7 @@ package otelnamecheap_test
 
 import (
 	"github.com/namecheap/go-namecheap-sdk/v2/namecheap"
-	"github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap"
+	"github.com/namecheap/go-namecheap-sdk/otelnamecheap"
 )
 
 // ExampleNewTransport shows how to enable OpenTelemetry tracing for the SDK by

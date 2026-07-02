@@ -7,7 +7,7 @@
 //
 //	import (
 //	    "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
-//	    "github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap"
+//	    "github.com/namecheap/go-namecheap-sdk/otelnamecheap"
 //	)
 //
 //	client := namecheap.NewClient(&namecheap.ClientOptions{
@@ -38,7 +38,7 @@ import (
 
 // instrumentationName is the tracer name reported for spans created by this
 // package.
-const instrumentationName = "github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap"
+const instrumentationName = "github.com/namecheap/go-namecheap-sdk/otelnamecheap"
 
 // Attribute keys set on every span.
 const (
