@@ -48,6 +48,14 @@ ctx := context.Background()
 | `GetListWithContext(ctx, args)` | List domains for the account |
 | `GetInfoWithContext(ctx, domain)` | Get detailed info about a domain |
 | `CheckWithContext(ctx, domains...)` | Check availability of one or more domains |
+| `GetTldListWithContext(ctx)` | List all TLDs and their per-TLD API capabilities |
+| `CreateWithContext(ctx, args)` | Register a new domain (charge-bearing) |
+| `RenewWithContext(ctx, args)` | Renew an expiring domain (charge-bearing) |
+| `ReactivateWithContext(ctx, args)` | Reactivate an expired domain (charge-bearing) |
+| `GetContactsWithContext(ctx, domain)` | Get a domain's contact information |
+| `SetContactsWithContext(ctx, args)` | Set a domain's contact information |
+| `GetRegistrarLockWithContext(ctx, domain)` | Get the registrar-lock status |
+| `SetRegistrarLockWithContext(ctx, domain, action)` | Lock/unlock the domain at the registrar |
 
 ```go
 // Check domain availability
@@ -59,6 +67,77 @@ for _, result := range *resp.DomainCheckResults {
     fmt.Printf("%s available=%v\n", *result.Domain, *result.IsAvailable)
 }
 ```
+
+```go
+// Register a new domain. The four contact blocks reuse the shared
+// namecheap.ContactInfo type; all required fields are validated up front and
+// every missing field is reported at once as a *namecheap.InvalidArgumentsError.
+contact := namecheap.ContactInfo{
+    FirstName:    "John",
+    LastName:     "Smith",
+    Address1:     "8939 S.cross Blvd",
+    City:         "Phoenix",
+    StateProvince: "AZ",
+    PostalCode:   "85284",
+    Country:      "US",
+    Phone:        "+1.6613102107",
+    EmailAddress: "john@example.com",
+}
+created, err := client.Domains.CreateWithContext(ctx, &namecheap.DomainsCreateArgs{
+    DomainName: "example.com",
+    Years:      2,
+    Registrant: contact,
+    Tech:       contact,
+    Admin:      contact,
+    AuxBilling: contact,
+    // For a premium domain set IsPremiumDomain and PremiumPrice together; the
+    // premium guard rejects the call (before any charge) if they disagree.
+    // IsPremiumDomain: true,
+    // PremiumPrice:    namecheap.Amount("13000.0000"),
+})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("registered=%v charged=%s\n",
+    *created.DomainCreateResult.Registered, created.DomainCreateResult.ChargedAmount)
+
+// Renew an expiring domain.
+renewed, err := client.Domains.RenewWithContext(ctx, &namecheap.DomainsRenewArgs{
+    DomainName: "example.com",
+    Years:      1,
+})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("charged=%s\n", renewed.DomainRenewResult.ChargedAmount)
+```
+
+> **Money and charge-bearing calls.** `Create`, `Renew` and `Reactivate` can
+> charge the account. Their prices are exposed as `namecheap.Amount` — a string
+> type that preserves the exact server value (money is **never** a `float64`, to
+> avoid decimal rounding). These three calls are treated as **non-idempotent**:
+> on an ambiguous transport or server-side failure the SDK does **not** retry
+> (a resend could double-charge); only Namecheap's pre-execution HTTP 405
+> rate-limit signal is retried. Reconcile such failures via the account order
+> history. All other methods remain idempotent and retry as before.
+
+#### Domains API coverage matrix
+
+| `namecheap.domains.*` command | Status |
+|---|---|
+| `getList` | Implemented |
+| `getInfo` | Implemented |
+| `check` | Implemented |
+| `getTldList` | Implemented |
+| `create` | Implemented |
+| `renew` | Implemented |
+| `reactivate` | Implemented |
+| `getContacts` | Implemented |
+| `setContacts` | Implemented |
+| `getRegistrarLock` | Implemented |
+| `setRegistrarLock` | Implemented |
+| `getRegistrarLockStatus` (bulk) | Planned |
+| `transfer.*` | Planned |
 
 #### DomainsDNS (`client.DomainsDNS`)
 
@@ -162,6 +241,19 @@ if namecheap.IsRetryable(err) {
 Malformed responses return a `*namecheap.ParseError` (with a bounded snippet of
 the raw body); transport and context errors propagate unwrapped. All error types
 support `errors.Is` / `errors.As` for inspecting the underlying cause.
+
+Client-side validation failures (missing required arguments, missing required
+contact fields, or a tripped premium guard) are returned as a
+`*namecheap.InvalidArgumentsError` **before** any request is sent. It lists every
+offending field at once via its `Fields` slice, so a caller can fix them in a
+single pass:
+
+```go
+var argErr *namecheap.InvalidArgumentsError
+if errors.As(err, &argErr) {
+    log.Printf("fix these fields: %v", argErr.Fields)
+}
+```
 
 ### Rate limiting & retries
 

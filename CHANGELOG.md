@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Eight new `Domains` API methods, all context-first with the `WithContext`
+  suffix and no non-context wrappers (these are brand-new, charge-bearing or
+  read-only surfaces with no legacy to preserve): `CreateWithContext`,
+  `RenewWithContext`, `ReactivateWithContext`, `GetContactsWithContext`,
+  `SetContactsWithContext`, `GetRegistrarLockWithContext`,
+  `SetRegistrarLockWithContext` and `GetTldListWithContext`. Each returns a typed
+  `*...CommandResponse` and carries the Namecheap doc URL (#114).
+- Shared `ContactInfo` type used by both `create` and `setContacts` for the
+  Registrant/Tech/Admin/AuxBilling blocks, with up-front validation that reports
+  **all** missing required contact fields at once as a typed
+  `*InvalidArgumentsError` (rather than failing on the first) (#114).
+- `Amount`, a string-based money type. `ChargedAmount`, `PremiumPrice` and
+  `EapFee` are exposed as `Amount` and parsed from the exact server string —
+  money is never modeled as `float64`, avoiding decimal-rounding surprises (#114).
+- Premium-domain money-safety guard on `create`/`renew`/`reactivate`: when
+  `IsPremiumDomain` is true `PremiumPrice` is mandatory, and when it is false no
+  premium pricing may be set. A violation returns an `*InvalidArgumentsError`
+  before any charge-bearing request is sent, making an accidental premium
+  purchase impossible without explicit acknowledgment (#114).
+- Non-idempotent (charge-bearing) request classification. `create`, `renew` and
+  `reactivate` are no longer retried on ambiguous transport/server failures that
+  may already have executed (which could double-charge); only Namecheap's
+  pre-execution HTTP 405 rate-limit signal is retried for them. All other calls
+  remain idempotent and retry as before. Implemented by threading an idempotency
+  flag through the transport (`Client.doXML`) and `shouldRetry` (#114).
 - Typed API errors. API failures now surface as a machine-matchable
   `*APIError` (exposing `Number`, `Message` and `Command`) instead of a flat
   string, so callers can inspect the Namecheap error code via `errors.As`.
