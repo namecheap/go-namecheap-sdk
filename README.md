@@ -270,6 +270,143 @@ _, err := client.DomainsNS.CreateWithContext(ctx, "domain", "com", "ns1.domain.c
 _, err = client.DomainsNS.DeleteWithContext(ctx, "domain", "com", "ns1.domain.com")
 ```
 
+#### Users (`client.Users`)
+
+| Method | Description |
+|---|---|
+| `GetPricingWithContext(ctx, args)` | Get the full price sheet for a product type (DOMAIN/SSLCERTIFICATE/WHOISGUARD) |
+| `GetBalancesWithContext(ctx)` | Get account funds (decimal-safe amounts + currency) |
+| `CreateAddFundsRequestWithContext(ctx, args)` | Create a credit-card add-funds request (charge-bearing, non-idempotent) |
+| `GetAddFundsStatusWithContext(ctx, tokenID)` | Get the status of an add-funds request |
+| `ChangePasswordWithContext(ctx, args)` | Change the account password (old-password or reset-code method) |
+| `UpdateWithContext(ctx, args)` | Update the account contact information |
+
+The pricing response is a deeply nested tree (`ProductType → ProductCategory →
+Product → Price` tiers). Navigate it directly, or use `PriceFor` for the common
+single-tier lookup. Money is never parsed to `float64`: every amount is an
+`Amount` (the exact server decimal string). `Price.EffectivePrice()` resolves the
+documented precedence — server-resolved `Price` (which already reflects any
+promo/special), then `YourPrice` (account price), then `RegularPrice` (list
+price). The sheet is large and slow-changing, so fetch it once and cache it.
+
+```go
+// Example: check the balance before a bulk renew.
+// Amount is an exact decimal string, never a float64 — convert it to a decimal
+// type (here math/big.Rat) at the point you need the numeric comparison.
+balances, err := client.Users.GetBalancesWithContext(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+result := balances.UserGetBalancesResult
+have, ok := new(big.Rat).SetString(result.AvailableBalance.String())
+need := big.NewRat(10000, 100) // 100.00
+if !ok || have.Cmp(need) < 0 {
+    log.Fatalf("insufficient funds: %s %s available, gate the batch",
+        result.Currency, result.AvailableBalance)
+}
+// ... proceed with the renew batch.
+```
+
+```go
+// Example: find the cheapest TLD among com/net/org for a 1-year registration.
+pricing, err := client.Users.GetPricingWithContext(ctx, &namecheap.UsersGetPricingArgs{
+    ProductType: namecheap.String("DOMAIN"),
+    ActionName:  namecheap.String("REGISTER"),
+})
+if err != nil {
+    log.Fatal(err)
+}
+result := pricing.UserGetPricingResult
+var cheapestTLD string
+var cheapest *big.Rat
+for _, tld := range []string{"com", "net", "org"} {
+    price, ok := result.PriceFor("REGISTER", tld, 1)
+    if !ok {
+        continue
+    }
+    // Compare as decimals, not strings: "8.88" < "10.50" numerically, but not
+    // lexicographically.
+    eff, ok := new(big.Rat).SetString(price.EffectivePrice().String())
+    if !ok {
+        continue
+    }
+    if cheapest == nil || eff.Cmp(cheapest) < 0 {
+        cheapestTLD, cheapest = tld, eff
+    }
+}
+fmt.Printf("cheapest: .%s at %s\n", cheapestTLD, cheapest.FloatString(2))
+```
+
+> **Note:** `AddFundsRequest` is charge-bearing and **non-idempotent** — an
+> ambiguous transport/server failure is never retried (only Namecheap's
+> pre-execution HTTP 405 rate-limit signal is), so it can never double-charge.
+> Reconcile an ambiguous failure with `GetAddFundsStatusWithContext`. The
+> `changePassword` password values are only ever placed in the outbound request
+> parameters — never stored, logged, or echoed in errors; hook-level redaction
+> lands with the logging layer in [#113](https://github.com/namecheap/go-namecheap-sdk/issues/113).
+
+##### Users API coverage matrix
+
+| `namecheap.users.*` command | Status |
+|---|---|
+| `getPricing` | Implemented |
+| `getBalances` | Implemented |
+| `createaddfundsrequest` | Implemented |
+| `getAddFundsStatus` | Implemented |
+| `changePassword` | Implemented |
+| `update` | Implemented |
+| `create` | Planned, unscheduled (reseller-only account creation; weak demand) |
+| `login` | Planned, unscheduled (validates only accounts made via `users.create`) |
+| `resetPassword` | Planned, unscheduled (reseller account-creation flow) |
+
+#### UsersAddress (`client.UsersAddress`)
+
+The address book stores reusable registrant profiles. An entry holds the same
+logical fields as a domain `ContactInfo`, so a stored address can feed the
+contact blocks of `domains.create`.
+
+| Method | Description |
+|---|---|
+| `CreateWithContext(ctx, details)` | Add a new address-book entry |
+| `UpdateWithContext(ctx, addressID, details)` | Update an existing entry |
+| `DeleteWithContext(ctx, addressID)` | Delete an entry |
+| `GetInfoWithContext(ctx, addressID)` | Get the full stored address |
+| `GetListWithContext(ctx)` | List every entry (id + name) |
+| `SetDefaultWithContext(ctx, addressID)` | Mark an entry as the account default |
+
+```go
+// Reuse a stored address as a domains.create contact block.
+info, err := client.UsersAddress.GetInfoWithContext(ctx, 777)
+if err != nil {
+    log.Fatal(err)
+}
+contact := info.GetAddressInfoResult.ToContactInfo()
+_, err = client.Domains.CreateWithContext(ctx, &namecheap.DomainsCreateArgs{
+    DomainName: "example.com",
+    Years:      1,
+    Registrant: contact, Tech: contact, Admin: contact, AuxBilling: contact,
+})
+```
+
+The `ContactInfo` ↔ address-book adapter maps the twelve shared logical fields in
+both directions (`ContactInfo.ToAddressDetails`, `UsersAddressDetails.ToContactInfo`,
+`UsersAddressGetInfoResult.ToContactInfo`). Two field names differ between the two
+API shapes and are mapped explicitly: `PostalCode` ↔ `Zip` and `OrganizationName`
+↔ `Organization`. The address book also carries five fields `ContactInfo` has no
+counterpart for (`AddressName`, `DefaultYN`, `StateProvinceChoice`, `PhoneExt`,
+`Fax`); set `StateProvinceChoice` yourself before create/update, as it is required.
+
+##### UsersAddress API coverage matrix
+
+| `namecheap.users.address.*` command | Status |
+|---|---|
+| `create` | Implemented |
+| `update` | Implemented |
+| `delete` | Implemented |
+| `getInfo` | Implemented |
+| `getList` | Implemented |
+| `setDefault` | Implemented |
+
 ### Error handling
 
 When the API rejects a call it returns a typed `*namecheap.APIError` carrying the
