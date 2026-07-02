@@ -670,6 +670,54 @@ fmt.Printf("privacy id=%d action=%s\n", res.PrivacyID, res.Action)
 | `changeEmailAddress` | Implemented |
 | `renew` | Deferred (documented but out of scope; charge-bearing) |
 
+### Iterating all pages
+
+Every paged list endpoint offers a lazy, auto-paging iterator so you can walk an
+entire portfolio without writing the fetch loop yourself. Iterate all your
+domains in four lines:
+
+```go
+for domain, err := range client.Domains.ListAll(ctx, &namecheap.DomainsGetListArgs{}) {
+    if err != nil {
+        return err // a page fetch failed mid-iteration; iteration has stopped
+    }
+    fmt.Println(*domain.Name)
+}
+```
+
+`ListAll` returns an `iter.Seq2[*T, error]` (Go 1.23+ range-over-func):
+
+- **Lazy** — page N+1 is fetched only when you have consumed page N. `PageSize`
+  defaults to each endpoint's documented maximum (100) when you leave it unset,
+  so the fewest possible calls are made.
+- **Clean early break** — `break` (or a `return`) stops iteration immediately
+  without fetching the next page. It is pull-based, so there is no goroutine to
+  leak.
+- **Errors** — a fetch error is yielded once as the final `(zero, err)` pair,
+  after the items from the pages that already succeeded, then iteration stops.
+  Always check `err` on every iteration.
+- **Context** — a context cancelled between pages surfaces as the next yielded
+  error; the in-flight request, the rate-limiter wait and the retry backoff are
+  all ctx-bound.
+
+When you want the whole set in memory, `ListAllSlice` eagerly collects it
+(preallocated from the first page's `TotalItems`); on the first error it returns
+that error together with whatever was gathered before it:
+
+```go
+domains, err := client.Domains.ListAllSlice(ctx, &namecheap.DomainsGetListArgs{})
+if err != nil {
+    return err
+}
+fmt.Printf("you own %d domains\n", len(domains))
+```
+
+The same pair ships on `client.Domains`, `client.DomainsTransfer`, `client.SSL`
+and `client.DomainPrivacy`. `client.UsersAddress.ListAll(ctx)` /
+`ListAllSlice(ctx)` are provided for uniformity even though that endpoint is flat
+(one fetch, no paging). The existing `GetListWithContext` methods are unchanged —
+use them when you need page-level control or the raw paging metadata.
+
 ### Error handling
 
 When the API rejects a call it returns a typed `*namecheap.APIError` carrying the
