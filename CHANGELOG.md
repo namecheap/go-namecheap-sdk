@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Observability: request/response hooks `ClientOptions.OnRequest` and
+  `OnResponse` (new `RequestInfo`/`ResponseInfo` types) that fire once per HTTP
+  attempt — retries included — with a 1-based `Attempt`. Ordering is documented:
+  the rate-limiter wait happens first, then `OnRequest` fires immediately before
+  the HTTP send, then `OnResponse` after the attempt with status, duration, error
+  code and whether a retry will follow. Panicking hooks are recovered (and logged
+  when a `Logger` is set), never crashing the caller or aborting the request (#113).
+- Mandatory redaction: `RequestInfo.Params` is always a redacted copy — the
+  values of the secret keys `ApiKey`, `NewPassword`, `OldPassword` and
+  `ResetCode` are replaced with `***` before reaching any hook or log record. The
+  key set lives in one place and is trivial to extend; a test greps every string
+  the hooks and slog emit and asserts the credential appears zero times (#113).
+- `ClientOptions.Logger *slog.Logger`: opt-in structured logging on the same
+  request path (stdlib `log/slog`, no new dependency). Request start and
+  limiter-wait at `Debug`, success at `Info`, retryable failure/retry at `Warn`;
+  records carry `command`, `attempt`, `duration`, `status` and `error_code` and
+  only ever log redacted parameters. With no hooks and no logger, the
+  observability path allocates nothing (benchmark-guarded) (#113).
+- `Client.Stats()` returns a snapshot (deep copy) of cumulative counters:
+  `RequestsByCommand`, `ErrorsByCode`, `Retries`, `TotalLimiterWait` and a
+  best-effort `QuotaRemaining` estimate — enough to export Prometheus/OTel
+  metrics without the SDK depending on either. Counters are race-safe under
+  concurrent load (#113).
+- New opt-in `otelnamecheap` submodule (its own `go.mod`, so the core SDK stays
+  OpenTelemetry-free): `otelnamecheap.NewTransport` wraps an `http.RoundTripper`
+  for `ClientOptions.Transport` and emits one client span per API-call attempt
+  with command and HTTP-status attributes and an error status on failure. It
+  reads the request body only to extract the command, never a secret (#113).
 - New `UsersService` (`client.Users`), context-first with the `WithContext`
   suffix and no non-context wrappers: `GetPricingWithContext`,
   `GetBalancesWithContext`, `CreateAddFundsRequestWithContext`,

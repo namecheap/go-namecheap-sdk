@@ -128,6 +128,11 @@ func resolveUserAgent(ua string) string {
 	return defaultUserAgent + " " + ua
 }
 
+// attemptFunc runs one HTTP attempt of an API call. It reports the HTTP status
+// code observed (0 when the request never produced a response) and the error, so
+// the retry driver can surface both to the observability layer.
+type attemptFunc func(ctx context.Context) (status int, err error)
+
 // do runs attempt through the resilience pipeline: rate limiter -> concurrency
 // gate -> attempt -> retry policy. It retries an attempt only while its error is
 // retryable for the given idempotency class (see shouldRetry), attempts remain,
@@ -139,11 +144,26 @@ func resolveUserAgent(ua string) string {
 // pre-execution HTTP 405 rate-limit signal, never on ambiguous transport/server
 // failures that may already have executed server-side.
 //
+// command and observeParams drive the observability layer. observeParams, when
+// non-nil (i.e. when an observer is configured), is the credential-applied
+// parameter map that do redacts once and threads onto every per-attempt
+// RequestInfo. Observability ordering: the rate-limiter wait happens first, then
+// OnRequest / slog request-start fires immediately before the HTTP send, then
+// OnResponse / slog request-end fires after the attempt completes.
+//
 // A cancelled context aborts a limiter wait, a concurrency wait, or a backoff
 // sleep promptly and returns the context error unwrapped. A terminal retry
 // failure wraps the last real error as "after N attempts: <err>" so errors.Is
 // and errors.As still reach the underlying *APIError.
-func (c *Client) do(ctx context.Context, idempotent bool, attempt func(context.Context) error) error {
+func (c *Client) do(ctx context.Context, command string, observeParams map[string]string, idempotent bool, attempt attemptFunc) error {
+	c.recordRequest(command)
+
+	observe := c.observed()
+	var redacted map[string]string
+	if observe {
+		redacted = redactParams(observeParams)
+	}
+
 	start := time.Now()
 	var lastErr error
 	attempts := 0
@@ -151,29 +171,51 @@ func (c *Client) do(ctx context.Context, idempotent bool, attempt func(context.C
 	for attempts < c.retry.MaxAttempts && time.Since(start) < c.retry.MaxElapsed {
 		attempts++
 
-		if c.limiter != nil {
-			if err := c.limiter.Wait(ctx); err != nil {
-				return err
-			}
+		if err := c.waitLimiter(ctx, command, attempts, observe); err != nil {
+			return err
 		}
 
-		err := c.runAttempt(ctx, attempt)
+		if observe {
+			c.safeOnRequest(RequestInfo{Command: command, Params: redacted, Attempt: attempts})
+			c.logRequestStart(ctx, command, attempts, redacted)
+		}
+
+		attemptStart := time.Now()
+		status, err := c.runAttempt(ctx, attempt)
+		duration := time.Since(attemptStart)
+
 		if err == nil {
+			if observe {
+				c.fireResponse(ctx, ResponseInfo{
+					Command: command, Attempt: attempts, StatusCode: status, Duration: duration,
+				}, 0)
+			}
 			return nil
 		}
 		lastErr = err
 
-		if !shouldRetry(err, idempotent) {
-			return err
-		}
-		if attempts >= c.retry.MaxAttempts {
-			break
+		errCode := errorCodeOf(err)
+		if errCode != 0 {
+			c.recordError(errCode)
 		}
 
-		delay, ok := c.nextDelay(attempts, time.Since(start))
-		if !ok {
+		retryable := shouldRetry(err, idempotent)
+		delay, willRetry := c.retryPlan(retryable, attempts, start)
+
+		if observe {
+			c.fireResponse(ctx, ResponseInfo{
+				Command: command, Attempt: attempts, StatusCode: status, Duration: duration,
+				Err: err, ErrorCode: errCode, WillRetry: willRetry,
+			}, delay)
+		}
+
+		if !retryable {
+			return err
+		}
+		if !willRetry {
 			break
 		}
+		c.recordRetry()
 		if err := sleep(ctx, delay); err != nil {
 			return err
 		}
@@ -182,17 +224,57 @@ func (c *Client) do(ctx context.Context, idempotent bool, attempt func(context.C
 	return fmt.Errorf("after %d attempts: %w", attempts, lastErr)
 }
 
+// waitLimiter blocks on the rate limiter (when enabled), records the wait time
+// in the stats, and emits the limiter-wait slog event. It returns the context
+// error if the wait is cancelled.
+func (c *Client) waitLimiter(ctx context.Context, command string, attempt int, observe bool) error {
+	if c.limiter == nil {
+		return nil
+	}
+	waitStart := time.Now()
+	if err := c.limiter.Wait(ctx); err != nil {
+		return err
+	}
+	waited := time.Since(waitStart)
+	c.recordLimiterWait(waited)
+	if observe {
+		c.logLimiterWait(ctx, command, attempt, waited)
+	}
+	return nil
+}
+
+// retryPlan reports the backoff delay before the next attempt and whether a
+// retry will actually follow: only when the error is retryable, attempts remain,
+// and the elapsed-time budget is not exhausted.
+func (c *Client) retryPlan(retryable bool, attempts int, start time.Time) (time.Duration, bool) {
+	if !retryable || attempts >= c.retry.MaxAttempts {
+		return 0, false
+	}
+	delay, ok := c.nextDelay(attempts, time.Since(start))
+	if !ok {
+		return 0, false
+	}
+	return delay, true
+}
+
+// fireResponse fires the OnResponse hook and the request-end slog event for one
+// attempt. Callers invoke it only when an observer is configured.
+func (c *Client) fireResponse(ctx context.Context, info ResponseInfo, delay time.Duration) {
+	c.safeOnResponse(info)
+	c.logResponse(ctx, info, delay)
+}
+
 // runAttempt acquires the concurrency slot (if any), runs attempt, and releases
 // the slot. It returns the context error promptly if the slot cannot be
 // acquired before ctx is done.
-func (c *Client) runAttempt(ctx context.Context, attempt func(context.Context) error) error {
+func (c *Client) runAttempt(ctx context.Context, attempt attemptFunc) (int, error) {
 	if c.sem == nil {
 		return attempt(ctx)
 	}
 	select {
 	case c.sem <- struct{}{}:
 	case <-ctx.Done():
-		return ctx.Err()
+		return 0, ctx.Err()
 	}
 	defer func() { <-c.sem }()
 	return attempt(ctx)

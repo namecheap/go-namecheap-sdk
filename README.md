@@ -532,6 +532,135 @@ above (`PerMinute: 20`, `MaxAttempts: 4`, `BaseDelay: 500ms`, `MaxDelay: 30s`,
 `RateLimit: &namecheap.RateLimitOptions{Disabled: true}` to turn off client-side
 limiting entirely.
 
+### Observability
+
+The SDK exposes safe, first-class hooks into the request pipeline so you can log,
+trace and measure calls in production without ever wrapping the raw HTTP client
+(which would see the credential — `ApiKey` travels as a form field). Everything
+is opt-in: with no hooks and no logger configured, the observability path does no
+work and allocates nothing.
+
+#### Redaction guarantee
+
+`RequestInfo.Params` is always a **redacted copy**: the value of every secret
+parameter is replaced with `***` before it ever reaches a hook or a log record.
+The redacted key set is **`ApiKey`, `NewPassword`, `OldPassword`, `ResetCode`**
+and is trivial to extend in one place. The SDK never hands a live parameter map
+to a hook and never logs an unredacted parameter — redaction is enforced by
+construction, not by convention.
+
+#### Ordering
+
+Per attempt (retries included), the pipeline is:
+
+1. rate-limiter wait (a `Debug` slog event records the wait), then
+2. `OnRequest` / slog request-start fires **immediately before** the HTTP send, then
+3. the HTTP round trip, then
+4. `OnResponse` / slog request-end fires after the attempt completes, carrying
+   the status, duration, error code and whether a retry will follow.
+
+The rate-limiter wait therefore happens **before** `OnRequest`, so a hook's
+timestamp reflects the moment the request is actually sent, not when it was
+queued.
+
+#### Hooks
+
+Both hooks are optional and fire once per attempt with a 1-based `Attempt`. A
+panicking hook is recovered (and logged if a `Logger` is set); it never crashes
+the caller or aborts the request.
+
+```go
+client := namecheap.NewClient(&namecheap.ClientOptions{
+    UserName: "UserName", ApiUser: "ApiUser", ApiKey: "ApiKey", ClientIp: "10.10.10.10",
+
+    OnRequest: func(info namecheap.RequestInfo) {
+        // info.Params is already redacted; info.Attempt is 1-based.
+        log.Printf("→ %s attempt=%d params=%v", info.Command, info.Attempt, info.Params)
+    },
+    OnResponse: func(info namecheap.ResponseInfo) {
+        log.Printf("← %s attempt=%d status=%d dur=%s code=%d willRetry=%t err=%v",
+            info.Command, info.Attempt, info.StatusCode, info.Duration,
+            info.ErrorCode, info.WillRetry, info.Err)
+    },
+})
+```
+
+#### Structured logging (`log/slog`)
+
+Set `Logger` to emit structured events on the same path — no extra dependency
+(stdlib `log/slog`). Levels are chosen so steady state is quiet: request start
+and limiter wait at `Debug`, success at `Info`, retryable failure/retry at
+`Warn`. Records carry `command`, `attempt`, `duration`, `status` and
+`error_code` (and `retry_delay`/`retry_reason` on a retry). Logged parameters are
+the redacted copy. This maps cleanly onto the Terraform provider's `TF_LOG`
+bridge.
+
+```go
+logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+client := namecheap.NewClient(&namecheap.ClientOptions{
+    UserName: "UserName", ApiUser: "ApiUser", ApiKey: "ApiKey", ClientIp: "10.10.10.10",
+    Logger: logger,
+})
+```
+
+#### Stats
+
+`Client.Stats()` returns a snapshot (a deep copy — mutating it never affects the
+client) suitable for exporting to Prometheus/OTel in a few lines, without the SDK
+depending on either:
+
+```go
+s := client.Stats()
+// s.RequestsByCommand map[string]int64   – calls per command
+// s.ErrorsByCode      map[int]int64       – failed attempts by Namecheap code
+// s.Retries           int64               – retry attempts (beyond the first)
+// s.TotalLimiterWait  time.Duration       – cumulative rate-limiter wait
+// s.QuotaRemaining    int                 – best-effort minute-bucket estimate
+```
+
+`QuotaRemaining` is an estimate of the tokens currently left in the limiter's
+minute bucket (0 when rate limiting is disabled); treat it as a hint, not a hard
+count.
+
+#### OpenTelemetry (`otelnamecheap`)
+
+Tracing lives in a **separate, opt-in module** (`otelnamecheap`) with its own
+`go.mod`, so the core SDK stays dependency-free. It provides a RoundTripper you
+wire through `ClientOptions.Transport`; each API call produces a client span per
+HTTP attempt with the command and HTTP status as attributes, and an error status
+for non-2xx responses or transport failures. It reads the request body only to
+extract the command name — never a secret.
+
+```go
+import (
+    "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
+    "github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap"
+)
+
+client := namecheap.NewClient(&namecheap.ClientOptions{
+    UserName: "UserName", ApiUser: "ApiUser", ApiKey: "ApiKey", ClientIp: "10.10.10.10",
+    // nil base wraps http.DefaultTransport; the global TracerProvider is used
+    // unless you pass otelnamecheap.WithTracerProvider(tp).
+    Transport: otelnamecheap.NewTransport(nil),
+})
+```
+
+Add it to your project with:
+
+```sh
+go get github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap
+```
+
+#### Why no wire-level HTTP dumps
+
+The SDK deliberately does **not** offer a raw request/response body dump. The
+credential travels in the POST body, and a byte-level dump cannot guarantee
+redaction — so the safe hooks above are the supported surface. If you truly need
+low-level tracing you can attach `net/http/httptrace` to your context, **but be
+warned**: httptrace exposes the unredacted request and can leak `ApiKey` and
+passwords into your logs. That path is out of scope for the SDK's redaction
+guarantee and is your responsibility to handle safely.
+
 ### Sandbox
 
 Before you start using our API, we advise you to try it in our [Sandbox](https://www.sandbox.namecheap.com/) environment. The sandbox environment was created

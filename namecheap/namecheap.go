@@ -7,10 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/weppos/publicsuffix-go/publicsuffix"
@@ -47,6 +50,26 @@ type ClientOptions struct {
 	// Retry configures the exponential-backoff retry policy. When nil, the
 	// documented defaults apply (4 attempts, 500ms base, 30s cap, 2m budget).
 	Retry *RetryOptions
+
+	// OnRequest, when set, is called once per outgoing HTTP attempt, immediately
+	// before the request is sent and after any rate-limiter wait, with a
+	// RequestInfo whose Params are already redacted (no credential is ever
+	// exposed). It fires again for every retry with an increasing Attempt. A
+	// panicking hook is recovered and logged (if a Logger is set), never crashing
+	// the caller. Keep it fast and non-blocking; it runs on the request path.
+	OnRequest func(RequestInfo)
+	// OnResponse, when set, is called once per HTTP attempt after it completes,
+	// with a ResponseInfo carrying the status, duration, outcome, error code and
+	// whether a retry will follow. Same panic-safety and ordering guarantees as
+	// OnRequest.
+	OnResponse func(ResponseInfo)
+	// Logger, when set, makes the SDK emit structured log/slog events on the same
+	// request path as the hooks: request start (Debug), rate-limiter wait
+	// (Debug), request completed (Info) and request failed/retrying (Warn).
+	// Records carry command, attempt, duration, status and error_code attributes
+	// and only ever include redacted parameters. It uses the stdlib log/slog, so
+	// enabling it adds no dependency.
+	Logger *slog.Logger
 }
 
 type Client struct {
@@ -56,6 +79,18 @@ type Client struct {
 	sem       chan struct{} // nil when concurrency is unbounded
 	retry     RetryOptions  // resolved retry policy (no zero fields)
 	userAgent string
+
+	// Observability surfaces, mirrored from ClientOptions for hot-path access.
+	onRequest  func(RequestInfo)
+	onResponse func(ResponseInfo)
+	logger     *slog.Logger
+
+	// Cumulative counters exposed via Stats, guarded by statsMu.
+	statsMu         sync.Mutex
+	statRequests    map[string]int64
+	statErrors      map[int]int64
+	statRetries     int64
+	statLimiterWait time.Duration
 
 	ClientOptions *ClientOptions
 	BaseURL       string
@@ -95,6 +130,11 @@ func NewClient(options *ClientOptions) *Client {
 		sem:           newSemaphore(options.RateLimit),
 		retry:         resolveRetry(options.Retry),
 		userAgent:     resolveUserAgent(options.UserAgent),
+		onRequest:     options.OnRequest,
+		onResponse:    options.OnResponse,
+		logger:        options.Logger,
+		statRequests:  make(map[string]int64),
+		statErrors:    make(map[int]int64),
 	}
 
 	if options.UseSandbox {
@@ -179,36 +219,46 @@ func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, o
 // charged the account — is never resent; only Namecheap's pre-execution HTTP 405
 // rate-limit signal is retried. See shouldRetry.
 func (c *Client) doXML(ctx context.Context, body map[string]string, obj any, idempotent bool) (*http.Response, error) {
+	command := body["Command"]
+
+	// The redacted view handed to observers must reflect exactly what goes on the
+	// wire, including the credentials NewRequestWithContext injects per attempt.
+	// Build it only when an observer is configured so the hot path stays clean.
+	var observeParams map[string]string
+	if c.observed() {
+		observeParams = c.withCredentials(body)
+	}
+
 	var requestResponse *http.Response
-	err := c.do(ctx, idempotent, func(ctx context.Context) error {
+	err := c.do(ctx, command, observeParams, idempotent, func(ctx context.Context) (int, error) {
 		request, err := c.NewRequestWithContext(ctx, body)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		response, err := c.http.Do(request)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		if response.StatusCode == 405 {
 			response.Body.Close()
-			return errRetryStatus
+			return response.StatusCode, errRetryStatus
 		}
 
 		data, readErr := io.ReadAll(response.Body)
 		response.Body.Close()
 		if readErr != nil {
-			return readErr
+			return response.StatusCode, readErr
 		}
 
 		requestResponse = response
 
 		if parseErr := decodeBody(bytes.NewReader(data), obj); parseErr != nil {
-			return parseErr
+			return response.StatusCode, parseErr
 		}
 
-		return parseAPIError(data, body["Command"])
+		return response.StatusCode, parseAPIError(data, body["Command"])
 	})
 
 	return requestResponse, err
