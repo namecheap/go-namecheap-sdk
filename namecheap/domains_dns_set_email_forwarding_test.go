@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +43,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{
+		_, err := client.DomainsDNS.SetEmailForwardingWithContext(context.Background(), "example.com", []EmailForward{
 			{Mailbox: "info", ForwardTo: "user@gmail.com"},
 		})
 		if err != nil {
@@ -67,7 +68,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{
+		_, err := client.DomainsDNS.SetEmailForwardingWithContext(context.Background(), "example.com", []EmailForward{
 			{Mailbox: "info", ForwardTo: "user@gmail.com"},
 		})
 		if err != nil {
@@ -92,7 +93,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{
+		_, err := client.DomainsDNS.SetEmailForwardingWithContext(context.Background(), "example.com", []EmailForward{
 			{Mailbox: "info", ForwardTo: "user@gmail.com"},
 		})
 		if err != nil {
@@ -119,7 +120,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{
+		_, err := client.DomainsDNS.SetEmailForwardingWithContext(context.Background(), "example.com", []EmailForward{
 			{Mailbox: "info", ForwardTo: "user@gmail.com"},
 			{Mailbox: "support", ForwardTo: "support@company.com"},
 			{Mailbox: "billing", ForwardTo: "billing@company.com"},
@@ -146,7 +147,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{
+		result, err := client.DomainsDNS.SetEmailForwardingWithContext(context.Background(), "example.com", []EmailForward{
 			{Mailbox: "info", ForwardTo: "user@gmail.com"},
 		})
 		if err != nil {
@@ -174,7 +175,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{})
+		_, err := client.DomainsDNS.SetEmailForwardingWithContext(context.Background(), "example.com", []EmailForward{})
 		if err != nil {
 			t.Fatal("Unable to set email forwarding", err)
 		}
@@ -208,7 +209,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{
+		_, err := client.DomainsDNS.SetEmailForwardingWithContext(context.Background(), "example.com", []EmailForward{
 			{Mailbox: "info", ForwardTo: "user@gmail.com"},
 		})
 		assert.EqualError(t, err, "Domain is not associated with your account (2019166)")
@@ -219,7 +220,7 @@ func TestDomainsDNSService_SetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = "://bad"
 
-		_, err := client.DomainsDNS.SetEmailForwarding("example.com", []EmailForward{
+		_, err := client.DomainsDNS.SetEmailForwardingWithContext(context.Background(), "example.com", []EmailForward{
 			{Mailbox: "info", ForwardTo: "user@gmail.com"},
 		})
 		assert.Error(t, err)

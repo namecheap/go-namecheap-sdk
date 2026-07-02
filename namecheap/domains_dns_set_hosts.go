@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"regexp"
@@ -97,10 +98,10 @@ func (d DomainDNSSetHostsResult) String() string {
 	return fmt.Sprintf("{Domain: %v, IsSuccess: %v}", deref(d.Domain), deref(d.IsSuccess))
 }
 
-// SetHosts sets DNS host records settings for the requested domain
+// SetHostsWithContext sets DNS host records settings for the requested domain
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains-dns/set-hosts/
-func (dds *DomainsDNSService) SetHosts(args *DomainsDNSSetHostsArgs) (*DomainsDNSSetHostsCommandResponse, error) {
+func (dds *DomainsDNSService) SetHostsWithContext(ctx context.Context, args *DomainsDNSSetHostsArgs) (*DomainsDNSSetHostsCommandResponse, error) {
 	var response DomainsDNSSetHostsResponse
 
 	params := map[string]string{
@@ -124,7 +125,7 @@ func (dds *DomainsDNSService) SetHosts(args *DomainsDNSSetHostsArgs) (*DomainsDN
 		params[k] = v
 	}
 
-	_, err = dds.client.DoXML(params, &response)
+	_, err = dds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +135,14 @@ func (dds *DomainsDNSService) SetHosts(args *DomainsDNSSetHostsArgs) (*DomainsDN
 	}
 
 	return response.CommandResponse, nil
+}
+
+// SetHosts sets DNS host records settings for the requested domain.
+//
+// Deprecated: SetHosts runs without a context. Use SetHostsWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (dds *DomainsDNSService) SetHosts(args *DomainsDNSSetHostsArgs) (*DomainsDNSSetHostsCommandResponse, error) {
+	return dds.SetHostsWithContext(context.Background(), args)
 }
 
 // nolint: gocyclo

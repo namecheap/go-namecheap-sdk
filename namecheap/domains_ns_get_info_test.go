@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -45,7 +46,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.GetInfo("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.GetInfoWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 		if err != nil {
 			t.Fatal("Unable to get domain nameserver", err)
 		}
@@ -65,7 +66,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.GetInfo("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.GetInfoWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -82,7 +83,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.GetInfo("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.GetInfoWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -99,7 +100,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.GetInfo("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.GetInfoWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "unable to parse server response: expected element type <ApiResponse> but have <broken>")
 	})
@@ -128,7 +129,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.GetInfo("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.GetInfoWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "Domain not found (2019166)")
 	})
@@ -157,7 +158,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.GetInfo("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.GetInfoWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "Domain is not associated with your account (2016166)")
 	})
@@ -186,7 +187,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.GetInfo("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.GetInfoWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "Error From Enom when Errorcount <> 0 (3031510)")
 	})
@@ -215,7 +216,7 @@ func TestDomainNameserversGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.GetInfo("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.GetInfoWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "Unknown error from Enom (3050900)")
 	})

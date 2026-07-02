@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +41,7 @@ func TestDomainsDNSSetDefault(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetDefault("domain.net")
+		_, err := client.DomainsDNS.SetDefaultWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -63,7 +64,7 @@ func TestDomainsDNSSetDefault(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetDefault("domain.net")
+		_, err := client.DomainsDNS.SetDefaultWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -82,7 +83,7 @@ func TestDomainsDNSSetDefault(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.SetDefault("domain.net")
+		result, err := client.DomainsDNS.SetDefaultWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -105,7 +106,7 @@ func TestDomainsDNSSetDefault(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetDefault("notfound.com")
+		_, err := client.DomainsDNS.SetDefaultWithContext(context.Background(), "notfound.com")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "2019166")
 	})
@@ -115,7 +116,7 @@ func TestDomainsDNSSetDefault(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = "://bad"
 
-		_, err := client.DomainsDNS.SetDefault("domain.net")
+		_, err := client.DomainsDNS.SetDefaultWithContext(context.Background(), "domain.net")
 		assert.Error(t, err)
 	})
 
@@ -123,7 +124,7 @@ func TestDomainsDNSSetDefault(t *testing.T) {
 		t.Parallel()
 		client := setupClient(nil)
 
-		_, err := client.DomainsDNS.SetDefault("invalid")
+		_, err := client.DomainsDNS.SetDefaultWithContext(context.Background(), "invalid")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid domain")
 	})

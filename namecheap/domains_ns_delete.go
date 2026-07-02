@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 )
@@ -24,8 +25,8 @@ type DomainsNSDeleteResult struct {
 	IsSuccess  *bool   `xml:"IsSuccess,attr"`
 }
 
-// Delete deletes a nameserver associated with the requested domain.
-func (s *DomainsNSService) Delete(sld, tld, nameserver string) (*NameserversDeleteCommandResponse, error) {
+// DeleteWithContext deletes a nameserver associated with the requested domain.
+func (s *DomainsNSService) DeleteWithContext(ctx context.Context, sld, tld, nameserver string) (*NameserversDeleteCommandResponse, error) {
 	var response NameserversDeleteResponse
 
 	params := map[string]string{
@@ -35,7 +36,7 @@ func (s *DomainsNSService) Delete(sld, tld, nameserver string) (*NameserversDele
 		"Nameserver": nameserver,
 	}
 
-	_, err := s.client.DoXML(params, &response)
+	_, err := s.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -46,4 +47,12 @@ func (s *DomainsNSService) Delete(sld, tld, nameserver string) (*NameserversDele
 	}
 
 	return response.CommandResponse, nil
+}
+
+// Delete deletes a nameserver associated with the requested domain.
+//
+// Deprecated: Delete runs without a context. Use DeleteWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (s *DomainsNSService) Delete(sld, tld, nameserver string) (*NameserversDeleteCommandResponse, error) {
+	return s.DeleteWithContext(context.Background(), sld, tld, nameserver)
 }

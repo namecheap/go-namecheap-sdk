@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,7 @@ func TestDomainNameserversCreate(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Create("specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
+		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 		if err != nil {
 			t.Fatal("Unable to get domain nameserver", err)
 		}
@@ -61,7 +62,7 @@ func TestDomainNameserversCreate(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Create("specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
+		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -78,7 +79,7 @@ func TestDomainNameserversCreate(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Create("specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
+		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -95,7 +96,7 @@ func TestDomainNameserversCreate(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Create("specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
+		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 
 		assert.EqualError(t, err, "unable to parse server response: expected element type <ApiResponse> but have <broken>")
 	})
@@ -124,7 +125,7 @@ func TestDomainNameserversCreate(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Create("specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
+		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 
 		assert.EqualError(t, err, "Domain not found (2019166)")
 	})
@@ -153,7 +154,7 @@ func TestDomainNameserversCreate(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Create("specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
+		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 
 		assert.EqualError(t, err, "Domain is not associated with your account (2016166)")
 	})
@@ -182,7 +183,7 @@ func TestDomainNameserversCreate(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Create("specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
+		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 
 		assert.EqualError(t, err, "Error From Enom when Errorcount <> 0 (3031510)")
 	})
@@ -211,7 +212,7 @@ func TestDomainNameserversCreate(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Create("specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
+		_, err := client.DomainsNS.CreateWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com", "1.1.1.1")
 
 		assert.EqualError(t, err, "Unknown error from Enom (3050900)")
 	})

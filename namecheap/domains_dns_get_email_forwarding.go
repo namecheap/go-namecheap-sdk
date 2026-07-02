@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 )
@@ -29,11 +30,11 @@ type EmailForward struct {
 	ForwardTo string `xml:"ForwardTo,attr"`
 }
 
-// GetEmailForwarding returns the email forwarding rules configured for the domain.
+// GetEmailForwardingWithContext returns the email forwarding rules configured for the domain.
 // The domain must use Namecheap default DNS (FreeDNS).
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains-dns/get-email-forwarding/
-func (dds *DomainsDNSService) GetEmailForwarding(domain string) (*DomainsDNSGetEmailForwardingCommandResponse, error) {
+func (dds *DomainsDNSService) GetEmailForwardingWithContext(ctx context.Context, domain string) (*DomainsDNSGetEmailForwardingCommandResponse, error) {
 	var response DomainsDNSGetEmailForwardingResponse
 
 	params := map[string]string{
@@ -41,7 +42,7 @@ func (dds *DomainsDNSService) GetEmailForwarding(domain string) (*DomainsDNSGetE
 		"DomainName": domain,
 	}
 
-	_, err := dds.client.DoXML(params, &response)
+	_, err := dds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -51,4 +52,13 @@ func (dds *DomainsDNSService) GetEmailForwarding(domain string) (*DomainsDNSGetE
 	}
 
 	return response.CommandResponse, nil
+}
+
+// GetEmailForwarding returns the email forwarding rules configured for the domain.
+//
+// Deprecated: GetEmailForwarding runs without a context. Use
+// GetEmailForwardingWithContext. It is retained for backward compatibility and
+// will be removed in v3.
+func (dds *DomainsDNSService) GetEmailForwarding(domain string) (*DomainsDNSGetEmailForwardingCommandResponse, error) {
+	return dds.GetEmailForwardingWithContext(context.Background(), domain)
 }

@@ -1,7 +1,9 @@
 package syncretry
 
 import (
+	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -245,4 +247,66 @@ func TestSyncRetry_Do(t *testing.T) {
 		assert.ErrorIs(t, err, nonRetryErr)
 		assert.Equal(t, 2, count)
 	})
+}
+
+func TestDoContextCancelsWhileWaitingForSemaphore(t *testing.T) {
+	t.Parallel()
+	sr := NewSyncRetry(&Options{Delays: []int{30}})
+
+	g1Holding := make(chan struct{})
+	var once sync.Once
+
+	// Goroutine 1 enters the retry section and holds the semaphore for the
+	// duration of a 30s inter-retry sleep.
+	go func() {
+		_ = sr.DoContext(context.Background(), func(context.Context) error {
+			once.Do(func() { close(g1Holding) })
+			return ErrRetry
+		})
+	}()
+
+	// Wait for goroutine 1's first attempt, then give it a moment to acquire
+	// the semaphore and start sleeping while holding it.
+	<-g1Holding
+	time.Sleep(30 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		cancel()
+	}()
+
+	result := make(chan error, 1)
+	start := time.Now()
+	go func() {
+		// This call returns ErrRetry on its first attempt, then blocks waiting
+		// for the semaphore held by goroutine 1 until ctx is cancelled.
+		result <- sr.DoContext(ctx, func(context.Context) error {
+			return ErrRetry
+		})
+	}()
+
+	err := <-result
+	elapsed := time.Since(start)
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Less(t, elapsed, 5*time.Second, "should return promptly instead of waiting out the 30s delay")
+}
+
+func TestDoContextCancelledUpFront(t *testing.T) {
+	t.Parallel()
+	sr := NewSyncRetry(&Options{Delays: []int{1, 1}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before invoking DoContext
+
+	var called atomic.Bool
+	err := sr.DoContext(ctx, func(context.Context) error {
+		called.Store(true)
+		return nil
+	})
+
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.False(t, called.Load(), "f must not be called when ctx is already cancelled")
 }

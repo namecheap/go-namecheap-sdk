@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"strings"
@@ -31,11 +32,11 @@ type DomainCheckResult struct {
 	EapFee                   *float64 `xml:"EapFee,attr"`
 }
 
-// Check returns availability and pricing information for one or more domains.
+// CheckWithContext returns availability and pricing information for one or more domains.
 // The Namecheap API accepts up to 50 domains per call.
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains/check/
-func (ds *DomainsService) Check(domains ...string) (*DomainsCheckCommandResponse, error) {
+func (ds *DomainsService) CheckWithContext(ctx context.Context, domains ...string) (*DomainsCheckCommandResponse, error) {
 	var response DomainsCheckResponse
 
 	params := map[string]string{
@@ -43,7 +44,7 @@ func (ds *DomainsService) Check(domains ...string) (*DomainsCheckCommandResponse
 		"DomainList": strings.Join(domains, ","),
 	}
 
-	_, err := ds.client.DoXML(params, &response)
+	_, err := ds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -54,4 +55,12 @@ func (ds *DomainsService) Check(domains ...string) (*DomainsCheckCommandResponse
 	}
 
 	return response.CommandResponse, nil
+}
+
+// Check returns availability and pricing information for one or more domains.
+//
+// Deprecated: Check runs without a context. Use CheckWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (ds *DomainsService) Check(domains ...string) (*DomainsCheckCommandResponse, error) {
+	return ds.CheckWithContext(context.Background(), domains...)
 }

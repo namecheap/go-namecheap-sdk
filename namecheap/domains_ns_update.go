@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 )
@@ -24,8 +25,8 @@ type DomainsNSUpdateResult struct {
 	IsSuccess  *bool   `xml:"IsSuccess,attr"`
 }
 
-// Update modifies the IP address of a registered nameserver.
-func (s *DomainsNSService) Update(sld, tld, nameserver, oldIP, ip string) (*NameserversUpdateCommandResponse, error) {
+// UpdateWithContext modifies the IP address of a registered nameserver.
+func (s *DomainsNSService) UpdateWithContext(ctx context.Context, sld, tld, nameserver, oldIP, ip string) (*NameserversUpdateCommandResponse, error) {
 	var response NameserversUpdateResponse
 
 	params := map[string]string{
@@ -37,7 +38,7 @@ func (s *DomainsNSService) Update(sld, tld, nameserver, oldIP, ip string) (*Name
 		"IP":         ip,
 	}
 
-	_, err := s.client.DoXML(params, &response)
+	_, err := s.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -48,4 +49,12 @@ func (s *DomainsNSService) Update(sld, tld, nameserver, oldIP, ip string) (*Name
 	}
 
 	return response.CommandResponse, nil
+}
+
+// Update modifies the IP address of a registered nameserver.
+//
+// Deprecated: Update runs without a context. Use UpdateWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (s *DomainsNSService) Update(sld, tld, nameserver, oldIP, ip string) (*NameserversUpdateCommandResponse, error) {
+	return s.UpdateWithContext(context.Background(), sld, tld, nameserver, oldIP, ip)
 }
