@@ -49,6 +49,31 @@ make test-unit-quiet  # failures only (fast)
 make test             # verbose + race detector
 ```
 
+## Adding an auto-paging iterator to a new list endpoint
+
+Paged list endpoints expose `ListAll` / `ListAllSlice` iterators (see issue #120)
+built on the shared generic pager in `namecheap/pager.go`. Adding them to a new
+paged endpoint is mechanical — you write one small fetch adapter, the pager does
+the rest. Copy an existing `*_list_all.go` file (for example
+`domains_list_all.go`) and change four things:
+
+1. A `const <endpoint>MaxPageSize = 100` citing the documented maximum from
+   `docs/namecheap-api-v2.md`.
+2. A `ListAll(ctx, args) iter.Seq2[*ItemType, error]` method that returns
+   `pageAll(ctx, <fetch closure>)`.
+3. A `ListAllSlice(ctx, args) ([]*ItemType, error)` method that captures the
+   total into a variable inside the closure and returns
+   `collectAll(seq, &total)`.
+4. A `fetch<Endpoint>Page` helper: copy the caller's args (never mutate them),
+   set `Page` and default `PageSize` to the max when unset, call the existing
+   `GetListWithContext`, and return `(ptrsOf(resp.<Items>), TotalItems, err)`.
+
+The pager's semantics (laziness, clean early break, error-then-stop, context
+cancellation) are table-tested once in `pager_test.go`; a new endpoint only needs
+a small wiring test that its `ListAllSlice` returns the full multi-page set. Keep
+the existing `GetListWithContext` method unchanged so page-level control is
+preserved.
+
 ## Release
 
 We publish a new tagged release once significant changes accumulate. If you need a release with a specific fix,

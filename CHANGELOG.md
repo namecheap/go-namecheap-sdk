@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Auto-paging iterators for every paged list endpoint: `ListAll(ctx, args)`
+  returns a lazy, context-aware `iter.Seq2[*T, error]` (Go 1.23+ range-over-func)
+  that transparently walks all pages, and `ListAllSlice(ctx, args)` eagerly
+  collects the whole set (preallocated from the first page's `TotalItems`).
+  Shipped on `Domains` (`*Domain`), `DomainsTransfer` (`*DomainTransfer`), `SSL`
+  (`*SSLListCertificate`) and `DomainPrivacy` (`*DomainPrivacyGetListEntry`); the
+  flat, non-paged `UsersAddress.getList` also gains `ListAll`/`ListAllSlice`
+  (single fetch) for API uniformity. Iteration is lazy (page N+1 fetched only
+  when needed), a `break` stops cleanly with no goroutine leak (pull-based), a
+  fetch error is yielded once after the already-succeeded items and then stops,
+  and a context cancelled between pages surfaces as the next yielded error.
+  `PageSize` defaults to each endpoint's documented maximum (100) when unset to
+  minimize calls. The existing `GetListWithContext` methods are unchanged so
+  page-level control and raw paging metadata remain available. Built on a single
+  generic, table-tested pager (`namecheap/pager.go`); a new paged endpoint gains
+  its iterator by adding one small fetch adapter (see CONTRIBUTING.md) (#120).
 - New `DomainPrivacyService` (`client.DomainPrivacy`), context-first with the
   `WithContext` suffix, covering the `domainprivacy` (WhoisGuard) group — all 7
   commands: `GetListWithContext`, `EnableWithContext`, `DisableWithContext`,
