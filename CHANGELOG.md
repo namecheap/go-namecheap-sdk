@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-07-02
+
 ### Added
 
 - New exported `namecheaptest` package — testing infrastructure as a product
@@ -347,6 +349,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loop) has been removed and replaced by the new resilience pipeline. It was an
   internal package, so this is not a public API change (#112).
 
+## [2.6.4] - 2026-06-25
+
+### Changed
+
+- Dependency updates (Dependabot).
+
+## [2.6.3] - 2026-06-16
+
+### Security
+
+- Bumped `golang.org/x/net` to v0.56.0 to remediate transitive `x/crypto`
+  vulnerabilities (#102).
+
+## [2.6.2] - 2026-06-12
+
+### Changed
+
+- Dependency updates (Dependabot).
+
+## [2.6.1] - 2026-06-05
+
+### Changed
+
+- Dependency updates (Dependabot).
+
+## [2.6.0] - 2026-05-28
+
+### Added
+
+- Weekly auto-release workflow that tags the next version from
+  Conventional-Commit history (`feat:` → minor, otherwise patch) (#94).
+
+### Changed
+
+- CI parallelizes the lint/test jobs and enables Go module caching (#96);
+  CodeQL workflow upgraded to a newer `setup-go` (#95).
+- Test suite made fully parallel (`t.Parallel()`) with coverage raised to
+  ~99.7% and tuned parallelism (#97).
+- Documentation: added community health files (#98), updated README and
+  CONTRIBUTING for all API methods and DCO (#90), corrected the Go 1.26.3
+  prerequisite (#91), and documented plugin-free development (#93).
+
 ## [2.5.1] - 2026-05-28
 
 ### Fixed
@@ -495,7 +539,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switched from `hashicorp/terraform` to `hashicorp/terraform-plugin-sdk`
 - Upgraded to Go 1.13
 
-[Unreleased]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.5.1...HEAD
+[Unreleased]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.7.0...HEAD
+[2.7.0]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.6.4...v2.7.0
+[2.6.4]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.6.3...v2.6.4
+[2.6.3]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.6.2...v2.6.3
+[2.6.2]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.6.1...v2.6.2
+[2.6.1]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.6.0...v2.6.1
+[2.6.0]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.5.1...v2.6.0
 [2.5.1]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/namecheap/go-namecheap-sdk/compare/v2.4.0...v2.4.1
