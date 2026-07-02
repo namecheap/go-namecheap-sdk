@@ -3,7 +3,6 @@ package namecheap
 import (
 	"context"
 	"encoding/xml"
-	"fmt"
 )
 
 type DomainsDNSGetEmailForwardingResponse struct {
@@ -46,11 +45,6 @@ func (dds *DomainsDNSService) GetEmailForwardingWithContext(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	if response.Errors != nil && len(*response.Errors) > 0 {
-		apiErr := (*response.Errors)[0]
-		return nil, fmt.Errorf("%s (%s)", *apiErr.Message, *apiErr.Number)
-	}
-
 	return response.CommandResponse, nil
 }
 

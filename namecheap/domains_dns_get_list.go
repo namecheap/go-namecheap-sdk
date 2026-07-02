@@ -3,6 +3,7 @@ package namecheap
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 )
 
@@ -53,13 +54,10 @@ func (dds *DomainsDNSService) GetListWithContext(ctx context.Context, domain str
 
 	_, err = dds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
-		return nil, err
-	}
-	if response.Errors != nil && len(*response.Errors) > 0 {
-		apiErr := (*response.Errors)[0]
-
-		if *apiErr.Number != "2019166" {
-			return nil, fmt.Errorf("%s (%s)", *apiErr.Message, *apiErr.Number)
+		// A "domain not found" here means the domain is on FreeDNS; fall back to
+		// domains.getInfo to synthesise the DNS list. Any other error is real.
+		if !errors.Is(err, ErrDomainNotFound) {
+			return nil, err
 		}
 
 		var domainInfo *DomainsGetInfoCommandResponse

@@ -94,11 +94,6 @@ func (ds *DomainsService) GetListWithContext(ctx context.Context, args *DomainsG
 	if err != nil {
 		return nil, err
 	}
-	if domainsResponse.Errors != nil && len(*domainsResponse.Errors) > 0 {
-		apiErr := (*domainsResponse.Errors)[0]
-		return nil, fmt.Errorf("%s (%s)", *apiErr.Message, *apiErr.Number)
-	}
-
 	return domainsResponse.CommandResponse, nil
 }
 

@@ -59,11 +59,6 @@ func (dds *DomainsDNSService) SetCustomWithContext(ctx context.Context, domain s
 	if err != nil {
 		return nil, err
 	}
-	if response.Errors != nil && len(*response.Errors) > 0 {
-		apiErr := (*response.Errors)[0]
-		return nil, fmt.Errorf("%s (%s)", *apiErr.Message, *apiErr.Number)
-	}
-
 	return response.CommandResponse, nil
 }
 

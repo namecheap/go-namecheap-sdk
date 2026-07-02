@@ -3,7 +3,6 @@ package namecheap
 import (
 	"context"
 	"encoding/xml"
-	"fmt"
 )
 
 type NameserversUpdateResponse struct {
@@ -41,11 +40,6 @@ func (s *DomainsNSService) UpdateWithContext(ctx context.Context, sld, tld, name
 	_, err := s.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
-	}
-
-	if response.Errors != nil && len(*response.Errors) > 0 {
-		apiErr := (*response.Errors)[0]
-		return nil, fmt.Errorf("%s (%s)", *apiErr.Message, *apiErr.Number)
 	}
 
 	return response.CommandResponse, nil
