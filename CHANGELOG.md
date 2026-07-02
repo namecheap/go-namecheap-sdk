@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `SSLService` (`client.SSL`), context-first with the `WithContext` suffix,
+  covering the full `namecheap.ssl.*` group — all 13 commands across three phases:
+  inventory (`GetListWithContext`, `GetInfoWithContext`, `ParseCSRWithContext`),
+  activation (`ActivateWithContext`, `GetApproverEmailListWithContext`,
+  `ResendApproverEmailWithContext`, `EditDCVMethodWithContext`) and the
+  charge-bearing money operations (`CreateWithContext`, `RenewWithContext`,
+  `ReissueWithContext`, `PurchaseMoreSansWithContext`,
+  `RevokeCertificateWithContext`, `ResendFulfillmentEmailWithContext`).
+  Args/response structs match `docs/namecheap-api-v2.md` (ssl section, lines
+  785-1101); the 13th command is `editDCVMethod` per the doc (the issue's
+  "editDNSDSCRecords" is a typo) (#116).
+- Typed `DCVMethod` enum (`DCVMethodHTTP`, `DCVMethodDNS`, `DCVMethodEmail`) with
+  client-side, per-method required-field validation for `Activate` and
+  `EditDCVMethod`: an invalid method cannot be expressed as a valid value, and
+  email validation requires an `ApproverEmail`, reported together with every other
+  missing field via `*InvalidArgumentsError` (table-tested method × missing-field).
+  The doc names a `DCVMethod` parameter but enumerates no values, so the wire
+  tokens are grounded in the documented Namecheap DCV flow (flagged in code and
+  README) (#116).
+- Grounded `CertStatus` type mirroring the documented certificate-status
+  vocabulary (`ACTIVE`/`NEWPURCHASE`/`NEWRENEWAL`/`PURCHASED`/`PURCHASEERROR`/
+  `CANCELLED`/`UNKNOWN`, doc lines 948-957) with `ClassifyStatus`, plus
+  `SSLGetInfoResult.IsIssued()` (true only for `ACTIVE`) and
+  `IsExpiringSoon(within)`. All expiry math lives in one tested, timezone-safe
+  helper with an inclusive boundary (boundary-tested exactly at the threshold);
+  the raw status string is exposed verbatim (#116).
+- SSL money operations `Create`, `Renew`, `Reissue` and `PurchaseMoreSans` are
+  **non-idempotent**: they use the same retry classification as `domains.create`
+  (`doXML(..., false)`), so an ambiguous transport/server failure is never
+  auto-retried (only the pre-execution HTTP 405 rate-limit signal is). Read,
+  approver and revoke/resend calls are idempotent. A test asserts no re-fire after
+  a simulated server error (call-count == 1) for `Create` and `Reissue` (#116).
+- Multi-SAN (host-block) support on `Activate` and `EditDCVMethod`: N SAN entries
+  serialize deterministically (indexed `SANDomainName[i]`/`SANDCVMethod[i]` for
+  activate; comma-separated `DNSNames`/`DCVMethods` for editDCVMethod) and are
+  round-trip tested with 3+ SANs across mixed DCV methods (#116).
+- Key/CSR generation is documented as an explicit non-goal: the SDK transports the
+  CSR string only and never generates or stores private keys (README points at
+  `crypto/x509` for generating a CSR) (#116).
 - New `DomainsTransferService` (`client.DomainsTransfer`), context-first with the
   `WithContext` suffix, covering the full `namecheap.domains.transfer.*` group:
   `CreateWithContext`, `GetStatusWithContext`, `UpdateStatusWithContext` and
