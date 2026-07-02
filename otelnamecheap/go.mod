@@ -3,7 +3,7 @@ module github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap
 go 1.26.3
 
 require (
-	github.com/namecheap/go-namecheap-sdk/v2 v2.0.0-00010101000000-000000000000
+	github.com/namecheap/go-namecheap-sdk/v2 v2.7.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
@@ -23,8 +23,3 @@ require (
 	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
-
-// In-repo development: build the otelnamecheap submodule against the local core
-// module in the parent directory. Released consumers depend on the tagged core
-// module instead and can drop this replace.
-replace github.com/namecheap/go-namecheap-sdk/v2 => ../
