@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `DomainsTransferService` (`client.DomainsTransfer`), context-first with the
+  `WithContext` suffix, covering the full `namecheap.domains.transfer.*` group:
+  `CreateWithContext`, `GetStatusWithContext`, `UpdateStatusWithContext` and
+  `GetListWithContext` (filtered/paged). Args/response structs match
+  `docs/namecheap-api-v2.md` (lines 681-781) (#115).
+- `Create` is charge-bearing and **non-idempotent**: it uses the same retry
+  classification as `domains.create`, so an ambiguous transport/server failure is
+  never auto-retried (only the pre-execution HTTP 405 rate-limit signal is);
+  `GetStatus`/`UpdateStatus`/`GetList` are idempotent. A test asserts no duplicate
+  submit after a simulated server error/timeout (call-count == 1) (#115).
+- Grounded `TransferState` machine: constants `INPROGRESS`/`COMPLETED`/`CANCELLED`
+  /`UNKNOWN` mirror the documented `getList` category vocabulary, with
+  `ClassifyTransferStatus(status)`, `TransferState.IsTerminal()` and
+  `TransferState.IsActionRequired()` plus a `TransferState()` helper on the
+  getStatus response. The doc enumerates **no numeric `StatusID` codes**, so the
+  raw `StatusID` (int) and `Status` (string) are exposed verbatim and no numeric
+  constants are fabricated; classification is by case-insensitive keyword matching
+  and is table-tested (#115).
+- `WaitForCompletionWithContext(ctx, transferID, opts...)` polls `GetStatus` until
+  the transfer is terminal, with a configurable interval (`WithPollInterval`,
+  default 30s) and prompt mid-poll context cancellation (#115).
+- EPP code redaction: `EPPCode` is added to the observability secret-key set, so
+  the transfer authorization code is replaced with `***` on every hook and log
+  record (same mechanism as `ApiKey`); a grep-all-observable-output test asserts
+  the value appears zero times (#113, #115).
 - Observability: request/response hooks `ClientOptions.OnRequest` and
   `OnResponse` (new `RequestInfo`/`ResponseInfo` types) that fire once per HTTP
   attempt — retries included — with a 1-based `Attempt`. Ordering is documented:

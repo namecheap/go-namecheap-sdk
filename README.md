@@ -137,7 +137,62 @@ fmt.Printf("charged=%s\n", renewed.DomainRenewResult.ChargedAmount)
 | `getRegistrarLock` | Implemented |
 | `setRegistrarLock` | Implemented |
 | `getRegistrarLockStatus` (bulk) | Planned |
-| `transfer.*` | Planned |
+
+#### DomainsTransfer (`client.DomainsTransfer`)
+
+| Method | Description |
+|---|---|
+| `CreateWithContext(ctx, args)` | Start an inbound domain transfer (charge-bearing) |
+| `GetStatusWithContext(ctx, transferID)` | Get the status of a single transfer |
+| `UpdateStatusWithContext(ctx, args)` | Resubmit a transfer after releasing the registry lock |
+| `GetListWithContext(ctx, args)` | List transfers (filtered and paged) |
+| `WaitForCompletionWithContext(ctx, transferID, opts...)` | Poll GetStatus until the transfer is terminal |
+
+```go
+// Start an inbound transfer, then wait for it to finish. EPPCode is a transfer
+// authorization credential: it is redacted to "***" on every observability
+// surface (request/response hooks and slog), exactly like ApiKey.
+created, err := client.DomainsTransfer.CreateWithContext(ctx, &namecheap.DomainsTransferCreateArgs{
+    DomainName: "example.com",
+    Years:      1,
+    EPPCode:    "the-auth-code", // redacted in hooks/logs
+})
+if err != nil {
+    log.Fatal(err)
+}
+transferID := *created.DomainTransferCreateResult.TransferID
+fmt.Printf("transfer %d charged=%s\n", transferID, created.DomainTransferCreateResult.ChargedAmount)
+
+// Poll until the transfer reaches a terminal state (default interval 30s).
+final, err := client.DomainsTransfer.WaitForCompletionWithContext(ctx, transferID,
+    namecheap.WithPollInterval(60*time.Second))
+if err != nil {
+    log.Fatal(err) // includes a prompt return on ctx cancellation
+}
+fmt.Printf("final state=%s status=%q\n",
+    final.TransferState(), *final.DomainTransferGetStatusResult.Status)
+```
+
+> **Transfer status classification.** The Namecheap API doc does not enumerate
+> the numeric `StatusID` codes. This SDK exposes the raw `StatusID` (int) and the
+> free-text `Status` verbatim on every response, and offers a small typed
+> `TransferState` (`INPROGRESS` / `COMPLETED` / `CANCELLED` / `UNKNOWN`) grounded
+> in the documented `getList` category vocabulary. `ClassifyTransferStatus`,
+> `TransferState.IsTerminal()` and `TransferState.IsActionRequired()` classify a
+> description by case-insensitive keyword matching — no fabricated code table.
+>
+> **`Create` is charge-bearing and non-idempotent** — same treatment as
+> `domains.create`: never auto-retried on an ambiguous transport/server failure.
+> `GetStatus`, `UpdateStatus` and `GetList` are idempotent and retry as usual.
+
+#### DomainsTransfer API coverage matrix
+
+| `namecheap.domains.transfer.*` command | Status |
+|---|---|
+| `create` | Implemented |
+| `getStatus` | Implemented |
+| `updateStatus` | Implemented |
+| `getList` | Implemented |
 
 #### DomainsDNS (`client.DomainsDNS`)
 
@@ -544,8 +599,8 @@ work and allocates nothing.
 
 `RequestInfo.Params` is always a **redacted copy**: the value of every secret
 parameter is replaced with `***` before it ever reaches a hook or a log record.
-The redacted key set is **`ApiKey`, `NewPassword`, `OldPassword`, `ResetCode`**
-and is trivial to extend in one place. The SDK never hands a live parameter map
+The redacted key set is **`ApiKey`, `NewPassword`, `OldPassword`, `ResetCode`,
+`EPPCode`** and is trivial to extend in one place. The SDK never hands a live parameter map
 to a hook and never logs an unredacted parameter — redaction is enforced by
 construction, not by convention.
 

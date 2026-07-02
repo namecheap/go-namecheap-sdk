@@ -18,14 +18,15 @@ const redactedValue = "***"
 //
 // The set is deliberately a map so it is cheap to extend: add the new key here
 // and every observability surface redacts it automatically. It currently covers
-// the credential the SDK injects on every call (ApiKey) and the credential-like
+// the credential the SDK injects on every call (ApiKey), the credential-like
 // fields the users.changePassword call sends (NewPassword, OldPassword,
-// ResetCode).
+// ResetCode) and the domain-transfer authorization code (EPPCode).
 var secretParamKeys = map[string]struct{}{
 	"ApiKey":      {},
 	"NewPassword": {},
 	"OldPassword": {},
 	"ResetCode":   {},
+	"EPPCode":     {},
 }
 
 // RequestInfo describes a single outgoing HTTP attempt for an API call. It is
@@ -38,7 +39,7 @@ type RequestInfo struct {
 	Command string
 	// Params is a REDACTED copy of the request parameters: every secret key
 	// (see the package's secret-key set: ApiKey, NewPassword, OldPassword,
-	// ResetCode) has its value replaced with "***". It is never the live
+	// ResetCode, EPPCode) has its value replaced with "***". It is never the live
 	// parameter map and never carries a credential. Treat it as read-only.
 	Params map[string]string
 	// Attempt is the 1-based attempt number: 1 on the first try, 2 on the first
