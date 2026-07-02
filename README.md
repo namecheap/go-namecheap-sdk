@@ -115,16 +115,53 @@ _, err = client.DomainsNS.DeleteWithContext(ctx, "domain", "com", "ns1.domain.co
 
 ### Error handling
 
-API errors (e.g. invalid parameters, quota exceeded) are returned as Go errors with the Namecheap error message and code:
+When the API rejects a call it returns a typed `*namecheap.APIError` carrying the
+numeric code, the server message and the failing command. The error string keeps
+the legacy `"<message> (<number>)"` format, so code that matches on it today keeps
+working:
 
 ```go
-resp, err := client.Domains.CheckWithContext(ctx, "example.com")
+resp, err := client.Domains.GetInfoWithContext(ctx, "example.com")
 if err != nil {
-    log.Fatal(err) // e.g. "Parameter DomainList is Missing (2011166)"
+    log.Fatal(err) // e.g. "Domain not found (2019166)"
 }
 ```
 
-Network and parsing errors are wrapped with `%w`, so `errors.Is` / `errors.As` work for inspecting the underlying cause.
+Inspect the structured code with `errors.As`:
+
+```go
+var apiErr *namecheap.APIError
+if errors.As(err, &apiErr) {
+    log.Printf("code=%d message=%q command=%q", apiErr.Number, apiErr.Message, apiErr.Command)
+}
+```
+
+Branch on a documented category with `errors.Is` against a sentinel (matches
+through `errors.Join` for multi-error responses):
+
+```go
+if errors.Is(err, namecheap.ErrDomainNotFound) {
+    // the domain is gone: recreate it
+}
+```
+
+Available sentinels: `ErrDomainNotFound`, `ErrDomainNotAssociated`,
+`ErrDomainInvalid`, `ErrTooManyDomains`, `ErrPromotionCodeInvalid`,
+`ErrOrderNotFound`, `ErrAccessDenied`, `ErrServerError`.
+
+Decide whether to retry with `namecheap.IsRetryable`, which treats transient
+server-side codes and transport timeouts as retryable and classifies validation,
+not-found, auth, permission and context-cancellation failures as permanent:
+
+```go
+if namecheap.IsRetryable(err) {
+    // back off and try again
+}
+```
+
+Malformed responses return a `*namecheap.ParseError` (with a bounded snippet of
+the raw body); transport and context errors propagate unwrapped. All error types
+support `errors.Is` / `errors.As` for inspecting the underlying cause.
 
 ### Sandbox
 

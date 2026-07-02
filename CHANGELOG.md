@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Typed API errors. API failures now surface as a machine-matchable
+  `*APIError` (exposing `Number`, `Message` and `Command`) instead of a flat
+  string, so callers can inspect the Namecheap error code via `errors.As`.
+  Multi-error responses return an `errors.Join` of `*APIError` values.
+  Documented, actionable codes are matchable via `errors.Is` against exported
+  sentinels (`ErrDomainNotFound`, `ErrDomainNotAssociated`, `ErrDomainInvalid`,
+  `ErrTooManyDomains`, `ErrPromotionCodeInvalid`, `ErrOrderNotFound`,
+  `ErrAccessDenied`, `ErrServerError`; each code cross-checked against
+  `docs/namecheap-api-v2.md`). Malformed responses return a `*ParseError` with
+  a bounded body snippet, and `IsRetryable` classifies transient failures
+  (server-side codes and transport timeouts) as retryable. Existing error
+  strings are preserved verbatim (`"<message> (<number>)"` and
+  `"unable to parse server response: ..."`) so string-matching consumers keep
+  working (#111).
 - `context.Context` support across all client and service methods. New
   ctx-first `...WithContext` variants (`Client.NewRequestWithContext`,
   `Client.DoXMLWithContext`, and every service method such as

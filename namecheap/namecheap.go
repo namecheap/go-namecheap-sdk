@@ -1,4 +1,3 @@
-// Package namecheap provides a Go client for the Namecheap API v1.
 package namecheap
 
 import (
@@ -134,10 +133,19 @@ func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, o
 			return syncretry.ErrRetry
 		}
 
-		requestResponse = response
-		err = decodeBody(response.Body, obj)
+		data, readErr := io.ReadAll(response.Body)
 		response.Body.Close()
-		return err
+		if readErr != nil {
+			return readErr
+		}
+
+		requestResponse = response
+
+		if parseErr := decodeBody(bytes.NewReader(data), obj); parseErr != nil {
+			return parseErr
+		}
+
+		return parseAPIError(data, body["Command"])
 	})
 
 	if err != nil && errors.Is(err, syncretry.ErrRetryAttempts) {
@@ -157,14 +165,76 @@ func (c *Client) DoXML(body map[string]string, obj any) (*http.Response, error) 
 	return c.DoXMLWithContext(context.Background(), body, obj)
 }
 
-// decodeBody decodes the interface from received XML
+// apiResponseEnvelope is a minimal view of every Namecheap XML response used to
+// extract typed errors centrally, independent of the per-command response type.
+type apiResponseEnvelope struct {
+	Status string `xml:"Status,attr"`
+	Errors *[]struct {
+		Message *string `xml:",chardata"`
+		Number  *string `xml:"Number,attr"`
+	} `xml:"Errors>Error"`
+}
+
+// decodeBody reads and decodes the XML from reader into obj. A malformed body
+// yields a *ParseError carrying a bounded snippet of the raw response and the
+// underlying decode error (its message keeps the legacy
+// "unable to parse server response:" prefix).
 func decodeBody(reader io.Reader, obj any) error {
-	decoder := xml.NewDecoder(reader)
-	err := decoder.Decode(&obj)
+	data, err := io.ReadAll(reader)
 	if err != nil {
-		return fmt.Errorf("unable to parse server response: %w", err)
+		return &ParseError{Snippet: snippet(data), Err: err}
+	}
+	if err := xml.Unmarshal(data, obj); err != nil {
+		return &ParseError{Snippet: snippet(data), Err: err}
 	}
 	return nil
+}
+
+// parseAPIError extracts a typed API error from an already-decoded response
+// body. It returns a single *APIError when the response carries exactly one
+// <Error>, an errors.Join of *APIError values when it carries several, and nil
+// when the response is not an error. command is threaded onto each *APIError.
+func parseAPIError(data []byte, command string) error {
+	var env apiResponseEnvelope
+	if err := xml.Unmarshal(data, &env); err != nil {
+		// A body that decoded for the caller's type but not for the envelope is
+		// treated as "no API error"; a genuinely malformed body is already
+		// reported as a *ParseError by decodeBody.
+		return nil
+	}
+
+	var entries []struct {
+		Message *string `xml:",chardata"`
+		Number  *string `xml:"Number,attr"`
+	}
+	if env.Errors != nil {
+		entries = *env.Errors
+	}
+
+	if len(entries) == 0 {
+		if env.Status == "ERROR" {
+			return &APIError{Command: command, Message: "API returned an error status"}
+		}
+		return nil
+	}
+
+	apiErrors := make([]error, 0, len(entries))
+	for _, e := range entries {
+		message := ""
+		if e.Message != nil {
+			message = *e.Message
+		}
+		apiErrors = append(apiErrors, &APIError{
+			Number:  atoiOrZero(e.Number),
+			Message: message,
+			Command: command,
+		})
+	}
+
+	if len(apiErrors) == 1 {
+		return apiErrors[0]
+	}
+	return errors.Join(apiErrors...)
 }
 
 // encodeBody converts the map into query string

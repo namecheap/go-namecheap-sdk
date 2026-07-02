@@ -66,11 +66,6 @@ func (dds *DomainsDNSService) GetHostsWithContext(ctx context.Context, domain st
 	if err != nil {
 		return nil, err
 	}
-	if len(response.Errors) > 0 {
-		apiErr := response.Errors[0]
-		return nil, fmt.Errorf("%s (%s)", apiErr.Message, apiErr.Number)
-	}
-
 	return response.CommandResponse, nil
 }
 
