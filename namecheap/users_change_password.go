@@ -37,9 +37,10 @@ type UsersChangePasswordResult struct {
 //
 // Secret handling. OldPassword, ResetCode and NewPassword are placed only in the
 // outbound request parameters; they are never stored on the client, logged, or
-// echoed in errors by this SDK. The SDK has no logging/hook layer yet (that is
-// issue #113); once #113 lands, hook-level redaction of these fields is enforced
-// there. Do not add ad-hoc logging of these values.
+// echoed in errors by this SDK. They are members of the observability secret-key
+// set, so the request/response hooks and slog integration always redact them to
+// "***" (see RequestInfo and redactParams). Do not add ad-hoc logging of these
+// values.
 type UsersChangePasswordArgs struct {
 	// OldPassword is the user's current password (method 1). Mutually exclusive
 	// with ResetCode.
