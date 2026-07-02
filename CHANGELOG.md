@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New exported `namecheaptest` package — testing infrastructure as a product
+  surface for SDK consumers (Terraform provider, MCP server, internal tooling).
+  `NewServer(t)` starts an httptest-backed mock that routes on the `Command` form
+  field and auto-closes via `t.Cleanup`; `Client()` returns a pre-wired
+  `*namecheap.Client` (rate limiter disabled, single attempt, so each call maps
+  to one deterministic recorded request). Responses are registered by command
+  with `Stub`, `StubFixture`, `StubError` (synthesizes an ERROR envelope so
+  `errors.As` reaches `*APIError{Number}` — no per-command error files needed) and
+  `StubSequence` (call 1 → body 1, call 2 → body 2, last repeats; for
+  read-modify-write / polling). Requests are captured for `Calls(command)` and
+  `AssertCalled(t, command, wantParams)` (subset match). The mock is
+  concurrency-safe. `doc.go` carries a complete worked example and the semver
+  stance (#121).
+- Fixture corpus under `namecheaptest/fixtures/*.xml`, embedded via `//go:embed`
+  and exposed with `FixtureOK(name)` / `FixtureNames()`. One success fixture per
+  implemented command (58), named by the command with the `namecheap.` prefix
+  stripped and dots replaced by underscores (`namecheap.domains.getInfo` →
+  `domains_getInfo.xml`). A completeness test derives the command list by
+  grepping the `"Command": "…"` literals in `namecheap/*.go` and fails if any
+  command lacks a loadable, well-formed `Status="OK"` fixture — so future
+  command coverage must ship its fixture (#121).
+- Env-gated sandbox integration suite (`namecheap/sandbox_test.go`, build tag
+  `//go:build sandbox`, run via `make test-sandbox`) exercising read-only and
+  reversible commands (`domains.check`, `domains.getList`, `domains.getInfo`,
+  `users.getBalances`, `users.getPricing`, and a DNS get→set→restore round-trip
+  on a dedicated test domain). It reads `NAMECHEAP_SANDBOX_APIUSER/APIKEY/CLIENTIP`
+  (and optional `USERNAME`/`DOMAIN`) from the environment and skips cleanly when
+  absent; mutations capture and restore prior state so reruns are idempotent. A
+  `-update-fixtures` flag (`make update-fixtures`) re-captures the read-only
+  responses into the committed corpus for drift review. Excluded from the normal
+  build; not part of `make test` (#121).
+- Weekly `.github/workflows/sandbox.yml` (schedule + `workflow_dispatch` only —
+  never on `pull_request`/`push`, so sandbox secrets never fan out to fork PRs)
+  that runs the sandbox suite, re-captures fixtures, diffs them against the
+  committed corpus, and posts/refreshes a single drift note on the pinned
+  tracking issue (#122) on failure or drift. Requires the sandbox repo secrets to
+  be configured; until then it is a clean no-op (#121).
+- README "Testing your integration" section with a consumer-side `namecheaptest`
+  example and the semver stance (#121).
+- Dogfooding: a representative subset of the SDK's own tests (one each for
+  domains, domains.dns, ssl, users) migrated off hand-rolled `httptest` onto
+  `namecheaptest` with zero behavioral loss (`namecheap/dogfood_namecheaptest_test.go`).
+  Full migration of the remaining test files is a deliberate follow-up to avoid a
+  risky one-PR refactor and any coverage regression (#121).
 - Auto-paging iterators for every paged list endpoint: `ListAll(ctx, args)`
   returns a lazy, context-aware `iter.Seq2[*T, error]` (Go 1.23+ range-over-func)
   that transparently walks all pages, and `ListAllSlice(ctx, args)` eagerly

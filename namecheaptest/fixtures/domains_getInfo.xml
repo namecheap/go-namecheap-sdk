@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<Warnings />
+	<RequestedCommand>namecheap.domains.getinfo</RequestedCommand>
+	<CommandResponse Type="namecheap.domains.getInfo">
+		<DomainGetInfoResult ID="1706717" DomainName="horse-family.com.ua" OwnerName="NCStaffvladlenf" IsOwner="false" IsPremium="false">
+			<DomainDetails>
+				<CreatedDate>11/26/2021</CreatedDate>
+				<NumYears>0</NumYears>
+			</DomainDetails>
+			<LockDetails />
+			<Whoisguard Enabled="NotAlloted">
+				<ID>0</ID>
+			</Whoisguard>
+			<PremiumDnsSubscription>
+				<UseAutoRenew>false</UseAutoRenew>
+				<SubscriptionId>-1</SubscriptionId>
+				<CreatedDate>0001-01-01T00:00:00</CreatedDate>
+				<ExpirationDate>0001-01-01T00:00:00</ExpirationDate>
+				<IsActive>false</IsActive>
+			</PremiumDnsSubscription>
+			<DnsDetails ProviderType="FreeDNS" IsUsingOurDNS="true" HostCount="0" EmailType="No Email Service" DynamicDNSStatus="false" IsFailover="false">
+				<Nameserver>freedns1.registrar-servers.com</Nameserver>
+				<Nameserver>freedns2.registrar-servers.com</Nameserver>
+				<Nameserver>freedns3.registrar-servers.com</Nameserver>
+				<Nameserver>freedns4.registrar-servers.com</Nameserver>
+				<Nameserver>freedns5.registrar-servers.com</Nameserver>
+			</DnsDetails>
+			<Modificationrights />
+		</DomainGetInfoResult>
+	</CommandResponse>
+	<Server>PHX01APIEXT12</Server>
+	<GMTTimeDifference>--5:00</GMTTimeDifference>
+	<ExecutionTime>0.013</ExecutionTime>
+</ApiResponse>

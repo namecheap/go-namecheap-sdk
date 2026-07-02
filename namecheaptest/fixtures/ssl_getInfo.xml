@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<Warnings />
+	<RequestedCommand>namecheap.ssl.getinfo</RequestedCommand>
+	<CommandResponse Type="namecheap.ssl.getInfo">
+		<SSLGetInfoResult CertificateID="123456" Status="Active" Type="PositiveSSL" CommonName="example.com" Provider="Comodo" IssuedOn="09/22/2020" Expires="09/22/2099" />
+	</CommandResponse>
+	<Server>PHX01SBAPIEXT05</Server>
+	<GMTTimeDifference>--5:00</GMTTimeDifference>
+	<ExecutionTime>0.012</ExecutionTime>
+</ApiResponse>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApiResponse xmlns="http://api.namecheap.com/xml.response" Status="OK">
+	<Errors />
+	<RequestedCommand>namecheap.domains.ns.create</RequestedCommand>
+	<CommandResponse Type="namecheap.domains.ns.create">
+		<DomainNSCreateResult Domain="domain.com" Nameserver="ns1.domain.com" IP="1.1.1.1" IsSuccess="true" />
+	</CommandResponse>
+	<Server>SERVER-NAME</Server>
+	<GMTTimeDifference>+5</GMTTimeDifference>
+	<ExecutionTime>32.76</ExecutionTime>
+</ApiResponse>

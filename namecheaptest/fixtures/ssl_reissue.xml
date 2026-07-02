@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.ssl.reissue">
+		<SSLReissueResult ID="123456" IsSuccess="true">
+			<HttpDCValidation ValueAvailable="true">
+				<FileName>reissue.txt</FileName>
+				<FileContent>hash</FileContent>
+			</HttpDCValidation>
+		</SSLReissueResult>
+	</CommandResponse>
+</ApiResponse>

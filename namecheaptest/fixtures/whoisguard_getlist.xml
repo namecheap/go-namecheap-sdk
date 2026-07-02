@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<RequestedCommand>namecheap.whoisguard.getlist</RequestedCommand>
+	<CommandResponse Type="namecheap.whoisguard.getlist">
+		<WhoisguardGetListResult>
+			<Whoisguard ID="53536" DomainName="alpha.com" Created="10/22/2023" Expires="10/22/2024" Status="ENABLED" />
+			<Whoisguard ID="53537" DomainName="beta.net" Created="11/01/2023" Expires="11/01/2024" Status="DISABLED" />
+			<Whoisguard ID="53538" DomainName="" Created="12/01/2023" Expires="12/01/2024" Status="FREE" />
+		</WhoisguardGetListResult>
+		<Paging>
+			<TotalItems>5</TotalItems>
+			<CurrentPage>1</CurrentPage>
+			<PageSize>3</PageSize>
+		</Paging>
+	</CommandResponse>
+</ApiResponse>

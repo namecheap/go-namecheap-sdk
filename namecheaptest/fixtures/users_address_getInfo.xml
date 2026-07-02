@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.users.address.getInfo">
+		<GetAddressInfoResult>
+			<AddressId>777</AddressId>
+			<AddressName>Home</AddressName>
+			<DefaultYN>0</DefaultYN>
+			<EmailAddress>john@example.com</EmailAddress>
+			<FirstName>John</FirstName>
+			<LastName>Smith</LastName>
+			<JobTitle>Dev</JobTitle>
+			<Organization>NameCheap.com</Organization>
+			<Address1>8939 S.cross Blvd</Address1>
+			<Address2>Suite 600</Address2>
+			<City>Phoenix</City>
+			<StateProvince>AZ</StateProvince>
+			<StateProvinceChoice>S</StateProvinceChoice>
+			<Zip>85284</Zip>
+			<Country>US</Country>
+			<Phone>+1.6613102107</Phone>
+			<PhoneExt>123</PhoneExt>
+			<Fax>+1.6613102108</Fax>
+		</GetAddressInfoResult>
+	</CommandResponse>
+</ApiResponse>

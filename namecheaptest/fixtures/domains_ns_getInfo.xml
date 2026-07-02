@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ApiResponse xmlns="http://api.namecheap.com/xml.response" Status="OK">
+	<Errors />
+	<RequestedCommand>namecheap.domains.ns.getInfo</RequestedCommand>
+	<CommandResponse Type="namecheap.domains.ns.getInfo">
+		<DomainNSInfoResult Domain="domain.com" Nameserver="ns1.domain.com" IP="12.23.23.23">
+			<NameserverStatuses>
+				<Status>OK</Status>
+				<Status>Linked</Status>
+			</NameserverStatuses>
+		</DomainNSInfoResult>
+	</CommandResponse>
+	<Server>SERVER-NAME</Server>
+	<GMTTimeDifference>+5</GMTTimeDifference>
+	<ExecutionTime>32.76</ExecutionTime>
+</ApiResponse>

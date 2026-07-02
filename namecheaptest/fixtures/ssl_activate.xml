@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<CommandResponse Type="namecheap.ssl.activate">
+		<SSLActivateResult ID="123456" IsSuccess="true">
+			<HttpDCValidation ValueAvailable="true">
+				<FileName>A1B2C3.txt</FileName>
+				<FileContent>hash-content</FileContent>
+			</HttpDCValidation>
+		</SSLActivateResult>
+	</CommandResponse>
+</ApiResponse>
