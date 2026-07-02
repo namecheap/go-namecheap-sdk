@@ -1,4 +1,4 @@
-module github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap
+module github.com/namecheap/go-namecheap-sdk/otelnamecheap
 
 go 1.26.3
 

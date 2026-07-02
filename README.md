@@ -945,7 +945,7 @@ extract the command name — never a secret.
 ```go
 import (
     "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
-    "github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap"
+    "github.com/namecheap/go-namecheap-sdk/otelnamecheap"
 )
 
 client := namecheap.NewClient(&namecheap.ClientOptions{
@@ -959,7 +959,7 @@ client := namecheap.NewClient(&namecheap.ClientOptions{
 Add it to your project with:
 
 ```sh
-go get github.com/namecheap/go-namecheap-sdk/v2/otelnamecheap
+go get github.com/namecheap/go-namecheap-sdk/otelnamecheap
 ```
 
 #### Why no wire-level HTTP dumps
