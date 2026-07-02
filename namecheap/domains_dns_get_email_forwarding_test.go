@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -45,7 +46,7 @@ func TestDomainsDNSService_GetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetEmailForwarding("example.com")
+		_, err := client.DomainsDNS.GetEmailForwardingWithContext(context.Background(), "example.com")
 		if err != nil {
 			t.Fatal("Unable to get email forwarding", err)
 		}
@@ -68,7 +69,7 @@ func TestDomainsDNSService_GetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetEmailForwarding("example.com")
+		_, err := client.DomainsDNS.GetEmailForwardingWithContext(context.Background(), "example.com")
 		if err != nil {
 			t.Fatal("Unable to get email forwarding", err)
 		}
@@ -86,7 +87,7 @@ func TestDomainsDNSService_GetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.GetEmailForwarding("example.com")
+		result, err := client.DomainsDNS.GetEmailForwardingWithContext(context.Background(), "example.com")
 		if err != nil {
 			t.Fatal("Unable to get email forwarding", err)
 		}
@@ -126,7 +127,7 @@ func TestDomainsDNSService_GetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.GetEmailForwarding("example.com")
+		result, err := client.DomainsDNS.GetEmailForwardingWithContext(context.Background(), "example.com")
 		if err != nil {
 			t.Fatal("Unable to get email forwarding", err)
 		}
@@ -140,7 +141,7 @@ func TestDomainsDNSService_GetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = "://bad"
 
-		_, err := client.DomainsDNS.GetEmailForwarding("example.com")
+		_, err := client.DomainsDNS.GetEmailForwardingWithContext(context.Background(), "example.com")
 		assert.Error(t, err)
 	})
 
@@ -169,7 +170,7 @@ func TestDomainsDNSService_GetEmailForwarding(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetEmailForwarding("example.com")
+		_, err := client.DomainsDNS.GetEmailForwardingWithContext(context.Background(), "example.com")
 		assert.EqualError(t, err, "Domain is not associated with your account (2019166)")
 	})
 }

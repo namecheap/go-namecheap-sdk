@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -66,7 +67,7 @@ func TestDomainsGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.Domains.GetInfo("horse-family.com.ua")
+		_, err := client.Domains.GetInfoWithContext(context.Background(), "horse-family.com.ua")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -86,7 +87,7 @@ func TestDomainsGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("horse-family.com.ua")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "horse-family.com.ua")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -103,7 +104,7 @@ func TestDomainsGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -120,7 +121,7 @@ func TestDomainsGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 
 		assert.EqualError(t, err, "unable to parse server response: expected element type <ApiResponse> but have <broken>")
 	})
@@ -149,7 +150,7 @@ func TestDomainsGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 
 		assert.EqualError(t, err, "Invalid Address (2050900)")
 	})
@@ -168,7 +169,7 @@ func TestDomainsGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.Domains.GetInfo("notfound.com")
+		_, err := client.Domains.GetInfoWithContext(context.Background(), "notfound.com")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "2019166")
 	})
@@ -178,7 +179,7 @@ func TestDomainsGetInfo(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = "://bad"
 
-		_, err := client.Domains.GetInfo("domain.com")
+		_, err := client.Domains.GetInfoWithContext(context.Background(), "domain.com")
 		assert.Error(t, err)
 	})
 }

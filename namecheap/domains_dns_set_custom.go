@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"strings"
@@ -28,11 +29,11 @@ func (d DomainsDNSSetCustomResult) String() string {
 	return fmt.Sprintf("{Domain: %v, Updated: %v}", deref(d.Domain), deref(d.Updated))
 }
 
-// SetCustom sets domain to use custom DNS servers
+// SetCustomWithContext sets domain to use custom DNS servers
 // NOTE: Services like URL forwarding, Email forwarding, Dynamic DNS will not work for domains using custom nameservers
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains-dns/set-custom/
-func (dds *DomainsDNSService) SetCustom(domain string, nameservers []string) (*DomainsDNSSetCustomCommandResponse, error) {
+func (dds *DomainsDNSService) SetCustomWithContext(ctx context.Context, domain string, nameservers []string) (*DomainsDNSSetCustomCommandResponse, error) {
 	var response DomainsDNSSetCustomResponse
 
 	params := map[string]string{
@@ -54,7 +55,7 @@ func (dds *DomainsDNSService) SetCustom(domain string, nameservers []string) (*D
 
 	params["Nameservers"] = *nameserversString
 
-	_, err = dds.client.DoXML(params, &response)
+	_, err = dds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +65,14 @@ func (dds *DomainsDNSService) SetCustom(domain string, nameservers []string) (*D
 	}
 
 	return response.CommandResponse, nil
+}
+
+// SetCustom sets domain to use custom DNS servers.
+//
+// Deprecated: SetCustom runs without a context. Use SetCustomWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (dds *DomainsDNSService) SetCustom(domain string, nameservers []string) (*DomainsDNSSetCustomCommandResponse, error) {
+	return dds.SetCustomWithContext(context.Background(), domain, nameservers)
 }
 
 func validateAndParseCustomNameservers(nameservers []string) (*string, error) {

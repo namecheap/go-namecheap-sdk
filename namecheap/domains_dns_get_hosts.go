@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 )
@@ -43,10 +44,10 @@ func (d DomainsDNSHostRecordDetailed) String() string {
 		deref(d.HostId), deref(d.Name), deref(d.Type), deref(d.Address), deref(d.MXPref), deref(d.TTL), deref(d.AssociatedAppTitle), deref(d.FriendlyName), deref(d.IsActive), deref(d.IsDDNSEnabled))
 }
 
-// GetHosts retrieves DNS host record settings for the requested domain.
+// GetHostsWithContext retrieves DNS host record settings for the requested domain.
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains-dns/get-hosts/
-func (dds *DomainsDNSService) GetHosts(domain string) (*DomainsDNSGetHostsCommandResponse, error) {
+func (dds *DomainsDNSService) GetHostsWithContext(ctx context.Context, domain string) (*DomainsDNSGetHostsCommandResponse, error) {
 	var response DomainsDNSGetHostsResponse
 
 	params := map[string]string{
@@ -61,7 +62,7 @@ func (dds *DomainsDNSService) GetHosts(domain string) (*DomainsDNSGetHostsComman
 	params["SLD"] = parsedDomain.SLD
 	params["TLD"] = parsedDomain.TLD
 
-	_, err = dds.client.DoXML(params, &response)
+	_, err = dds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -71,4 +72,12 @@ func (dds *DomainsDNSService) GetHosts(domain string) (*DomainsDNSGetHostsComman
 	}
 
 	return response.CommandResponse, nil
+}
+
+// GetHosts retrieves DNS host record settings for the requested domain.
+//
+// Deprecated: GetHosts runs without a context. Use GetHostsWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (dds *DomainsDNSService) GetHosts(domain string) (*DomainsDNSGetHostsCommandResponse, error) {
+	return dds.GetHostsWithContext(context.Background(), domain)
 }

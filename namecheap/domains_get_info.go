@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 )
@@ -35,8 +36,8 @@ type DnsDetails struct { // nolint: stylecheck,revive
 	Nameservers   *[]string `xml:"Nameserver"`
 }
 
-// GetInfo returns detailed information about the requested domain.
-func (ds *DomainsService) GetInfo(domain string) (*DomainsGetInfoCommandResponse, error) {
+// GetInfoWithContext returns detailed information about the requested domain.
+func (ds *DomainsService) GetInfoWithContext(ctx context.Context, domain string) (*DomainsGetInfoCommandResponse, error) {
 	var response DomainsGetInfoResponse
 
 	params := map[string]string{
@@ -45,7 +46,7 @@ func (ds *DomainsService) GetInfo(domain string) (*DomainsGetInfoCommandResponse
 		"HostName":   domain,
 	}
 
-	_, err := ds.client.DoXML(params, &response)
+	_, err := ds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -56,4 +57,12 @@ func (ds *DomainsService) GetInfo(domain string) (*DomainsGetInfoCommandResponse
 	}
 
 	return response.CommandResponse, nil
+}
+
+// GetInfo returns detailed information about the requested domain.
+//
+// Deprecated: GetInfo runs without a context. Use GetInfoWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (ds *DomainsService) GetInfo(domain string) (*DomainsGetInfoCommandResponse, error) {
+	return ds.GetInfoWithContext(context.Background(), domain)
 }

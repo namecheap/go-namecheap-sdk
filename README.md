@@ -14,7 +14,11 @@ $ go get github.com/namecheap/go-namecheap-sdk/v2
 ### Usage
 
 ```go
-import "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
+import (
+    "context"
+
+    "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
+)
 
 client := namecheap.NewClient(&namecheap.ClientOptions{
     UserName:   "UserName",
@@ -23,7 +27,17 @@ client := namecheap.NewClient(&namecheap.ClientOptions{
     ClientIp:   "10.10.10.10",
     UseSandbox: false,
 })
+
+// Every call takes a context.Context as its first argument. Cancelling the
+// context aborts the in-flight HTTP request, any pending retry sleep, and
+// waiting on the internal retry lock.
+ctx := context.Background()
 ```
+
+> **Note:** The context-less methods (`Domains.GetInfo`, `DomainsDNS.SetHosts`,
+> `DomainsNS.Create`, `Client.DoXML`, etc.) are deprecated. They delegate to
+> their `...WithContext` counterparts with `context.Background()` and will be
+> removed in v3. Prefer the `...WithContext` variants shown below.
 
 ### Available methods
 
@@ -31,13 +45,13 @@ client := namecheap.NewClient(&namecheap.ClientOptions{
 
 | Method | Description |
 |---|---|
-| `GetList(args)` | List domains for the account |
-| `GetInfo(domain)` | Get detailed info about a domain |
-| `Check(domains...)` | Check availability of one or more domains |
+| `GetListWithContext(ctx, args)` | List domains for the account |
+| `GetInfoWithContext(ctx, domain)` | Get detailed info about a domain |
+| `CheckWithContext(ctx, domains...)` | Check availability of one or more domains |
 
 ```go
 // Check domain availability
-resp, err := client.Domains.Check("example.com", "example.net")
+resp, err := client.Domains.CheckWithContext(ctx, "example.com", "example.net")
 if err != nil {
     log.Fatal(err)
 }
@@ -50,17 +64,17 @@ for _, result := range *resp.DomainCheckResults {
 
 | Method | Description |
 |---|---|
-| `GetList(domain)` | Get the nameservers for a domain |
-| `SetDefault(domain)` | Switch domain to Namecheap default DNS |
-| `SetCustom(domain, nameservers)` | Switch domain to custom nameservers |
-| `GetHosts(domain)` | Get DNS host records |
-| `SetHosts(args)` | Set DNS host records |
-| `GetEmailForwarding(domain)` | Get email forwarding rules |
-| `SetEmailForwarding(domain, forwards)` | Set email forwarding rules |
+| `GetListWithContext(ctx, domain)` | Get the nameservers for a domain |
+| `SetDefaultWithContext(ctx, domain)` | Switch domain to Namecheap default DNS |
+| `SetCustomWithContext(ctx, domain, nameservers)` | Switch domain to custom nameservers |
+| `GetHostsWithContext(ctx, domain)` | Get DNS host records |
+| `SetHostsWithContext(ctx, args)` | Set DNS host records |
+| `GetEmailForwardingWithContext(ctx, domain)` | Get email forwarding rules |
+| `SetEmailForwardingWithContext(ctx, domain, forwards)` | Set email forwarding rules |
 
 ```go
 // Set DNS host records
-resp, err := client.DomainsDNS.SetHosts(&namecheap.DomainsDNSSetHostsArgs{
+resp, err := client.DomainsDNS.SetHostsWithContext(ctx, &namecheap.DomainsDNSSetHostsArgs{
     Domain: namecheap.String("domain.com"),
     Records: &[]namecheap.DomainsDNSHostRecord{
         {
@@ -72,12 +86,12 @@ resp, err := client.DomainsDNS.SetHosts(&namecheap.DomainsDNSSetHostsArgs{
 })
 
 // Get DNS host records
-resp, err := client.DomainsDNS.GetHosts("domain.com")
+resp, err := client.DomainsDNS.GetHostsWithContext(ctx, "domain.com")
 
 // Manage email forwarding
-forwards, err := client.DomainsDNS.GetEmailForwarding("domain.com")
+forwards, err := client.DomainsDNS.GetEmailForwardingWithContext(ctx, "domain.com")
 
-_, err = client.DomainsDNS.SetEmailForwarding("domain.com", []namecheap.EmailForward{
+_, err = client.DomainsDNS.SetEmailForwardingWithContext(ctx, "domain.com", []namecheap.EmailForward{
     {Mailbox: "info", ForwardTo: "user@example.com"},
 })
 ```
@@ -86,17 +100,17 @@ _, err = client.DomainsDNS.SetEmailForwarding("domain.com", []namecheap.EmailFor
 
 | Method | Description |
 |---|---|
-| `Create(sld, tld, nameserver, ip)` | Register a new nameserver |
-| `GetInfo(sld, tld, nameserver)` | Get info about a registered nameserver |
-| `Update(sld, tld, nameserver, oldIP, ip)` | Update a nameserver IP address |
-| `Delete(sld, tld, nameserver)` | Delete a registered nameserver |
+| `CreateWithContext(ctx, sld, tld, nameserver, ip)` | Register a new nameserver |
+| `GetInfoWithContext(ctx, sld, tld, nameserver)` | Get info about a registered nameserver |
+| `UpdateWithContext(ctx, sld, tld, nameserver, oldIP, ip)` | Update a nameserver IP address |
+| `DeleteWithContext(ctx, sld, tld, nameserver)` | Delete a registered nameserver |
 
 ```go
 // Create a custom nameserver
-_, err := client.DomainsNS.Create("domain", "com", "ns1.domain.com", "1.2.3.4")
+_, err := client.DomainsNS.CreateWithContext(ctx, "domain", "com", "ns1.domain.com", "1.2.3.4")
 
 // Delete a nameserver
-_, err = client.DomainsNS.Delete("domain", "com", "ns1.domain.com")
+_, err = client.DomainsNS.DeleteWithContext(ctx, "domain", "com", "ns1.domain.com")
 ```
 
 ### Error handling
@@ -104,7 +118,7 @@ _, err = client.DomainsNS.Delete("domain", "com", "ns1.domain.com")
 API errors (e.g. invalid parameters, quota exceeded) are returned as Go errors with the Namecheap error message and code:
 
 ```go
-resp, err := client.Domains.Check("example.com")
+resp, err := client.Domains.CheckWithContext(ctx, "example.com")
 if err != nil {
     log.Fatal(err) // e.g. "Parameter DomainList is Missing (2011166)"
 }

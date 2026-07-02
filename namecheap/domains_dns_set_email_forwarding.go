@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"strconv"
@@ -24,12 +25,12 @@ type DomainDNSSetEmailForwardingResult struct {
 	IsSuccess *bool   `xml:"IsSuccess,attr"`
 }
 
-// SetEmailForwarding configures email forwarding rules for the domain, replacing all existing rules.
+// SetEmailForwardingWithContext configures email forwarding rules for the domain, replacing all existing rules.
 // The domain must use Namecheap default DNS (FreeDNS).
 // Each EmailForward maps a local mailbox alias (e.g. "info") to a destination address.
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains-dns/set-email-forwarding/
-func (dds *DomainsDNSService) SetEmailForwarding(domain string, forwards []EmailForward) (*DomainsDNSSetEmailForwardingCommandResponse, error) {
+func (dds *DomainsDNSService) SetEmailForwardingWithContext(ctx context.Context, domain string, forwards []EmailForward) (*DomainsDNSSetEmailForwardingCommandResponse, error) {
 	var response DomainsDNSSetEmailForwardingResponse
 
 	params := map[string]string{
@@ -43,7 +44,7 @@ func (dds *DomainsDNSService) SetEmailForwarding(domain string, forwards []Email
 		params["ForwardTo"+n] = fwd.ForwardTo
 	}
 
-	_, err := dds.client.DoXML(params, &response)
+	_, err := dds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -53,4 +54,13 @@ func (dds *DomainsDNSService) SetEmailForwarding(domain string, forwards []Email
 	}
 
 	return response.CommandResponse, nil
+}
+
+// SetEmailForwarding configures email forwarding rules for the domain, replacing all existing rules.
+//
+// Deprecated: SetEmailForwarding runs without a context. Use
+// SetEmailForwardingWithContext. It is retained for backward compatibility and
+// will be removed in v3.
+func (dds *DomainsDNSService) SetEmailForwarding(domain string, forwards []EmailForward) (*DomainsDNSSetEmailForwardingCommandResponse, error) {
+	return dds.SetEmailForwardingWithContext(context.Background(), domain, forwards)
 }

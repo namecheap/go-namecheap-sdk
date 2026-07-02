@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `context.Context` support across all client and service methods. New
+  ctx-first `...WithContext` variants (`Client.NewRequestWithContext`,
+  `Client.DoXMLWithContext`, and every service method such as
+  `Domains.GetInfoWithContext`, `DomainsDNS.SetHostsWithContext`,
+  `DomainsNS.CreateWithContext`, plus `syncretry.SyncRetry.DoContext`) thread a
+  context through the request. Cancelling the context now aborts an in-flight
+  HTTP request, a pending inter-retry sleep, and waiting on the internal retry
+  lock (#110).
+
+### Deprecated
+
+- The existing non-context methods (`Client.NewRequest`, `Client.DoXML`,
+  `syncretry.SyncRetry.Do`, and every service method such as `Domains.GetInfo`,
+  `DomainsDNS.SetHosts`, `DomainsNS.Create`) are deprecated. They now delegate
+  to their `...WithContext` counterparts with `context.Background()` and are
+  slated for removal in v3 (#110).
+
 ## [2.5.1] - 2026-05-28
 
 ### Fixed

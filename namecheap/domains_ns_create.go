@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 )
@@ -25,8 +26,8 @@ type DomainsNSCreateResult struct {
 	IsSuccess  *bool   `xml:"IsSuccess,attr"`
 }
 
-// Create creates a new nameserver.
-func (s *DomainsNSService) Create(sld, tld, nameserver, ipAddress string) (*NameserversCreateCommandResponse, error) {
+// CreateWithContext creates a new nameserver.
+func (s *DomainsNSService) CreateWithContext(ctx context.Context, sld, tld, nameserver, ipAddress string) (*NameserversCreateCommandResponse, error) {
 	var response NameserversCreateResponse
 
 	params := map[string]string{
@@ -37,7 +38,7 @@ func (s *DomainsNSService) Create(sld, tld, nameserver, ipAddress string) (*Name
 		"IP":         ipAddress,
 	}
 
-	_, err := s.client.DoXML(params, &response)
+	_, err := s.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -48,4 +49,12 @@ func (s *DomainsNSService) Create(sld, tld, nameserver, ipAddress string) (*Name
 	}
 
 	return response.CommandResponse, nil
+}
+
+// Create creates a new nameserver.
+//
+// Deprecated: Create runs without a context. Use CreateWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (s *DomainsNSService) Create(sld, tld, nameserver, ipAddress string) (*NameserversCreateCommandResponse, error) {
+	return s.CreateWithContext(context.Background(), sld, tld, nameserver, ipAddress)
 }

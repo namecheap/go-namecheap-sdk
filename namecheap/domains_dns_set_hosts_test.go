@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -44,7 +45,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain: String("domain.net"),
 		})
 		if err != nil {
@@ -69,7 +70,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain:    String("domain.net"),
 			EmailType: String(EmailTypeForward),
 			Flag:      UInt8(100),
@@ -101,7 +102,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain:    String("domain.net"),
 			EmailType: String("MX"),
 			Records: &[]DomainsDNSHostRecord{
@@ -151,7 +152,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain:    String("domain.net"),
 			EmailType: String(EmailTypeMXE),
 			Records: &[]DomainsDNSHostRecord{
@@ -190,7 +191,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain: String("domain.net"),
 			Records: &[]DomainsDNSHostRecord{
 				{
@@ -224,7 +225,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain: String("domain.net"),
 			Records: &[]DomainsDNSHostRecord{
 				{
@@ -258,7 +259,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain: String("domain.net"),
 			Records: &[]DomainsDNSHostRecord{
 				{
@@ -292,7 +293,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain: String("domain.net"),
 			Records: &[]DomainsDNSHostRecord{
 				{
@@ -326,7 +327,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{
 			Domain: String("domain.net"),
 			Records: &[]DomainsDNSHostRecord{
 				{
@@ -573,7 +574,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			client := setupClient(nil)
 			client.BaseURL = mockServer.URL
 
-			_, err := client.DomainsDNS.SetHosts(errorCase.Args)
+			_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), errorCase.Args)
 
 			assert.EqualError(t, err, errorCase.ExpectedError)
 		})
@@ -593,7 +594,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{Domain: String("notfound.com")})
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{Domain: String("notfound.com")})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "2019166")
 	})
@@ -603,7 +604,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = "://bad"
 
-		_, err := client.DomainsDNS.SetHosts(&DomainsDNSSetHostsArgs{Domain: String("domain.net")})
+		_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{Domain: String("domain.net")})
 		assert.Error(t, err)
 	})
 }

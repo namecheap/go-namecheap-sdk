@@ -3,6 +3,7 @@ package namecheap
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -71,8 +72,10 @@ func NewClient(options *ClientOptions) *Client {
 	return client
 }
 
-// NewRequest creates a new request with the params
-func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
+// NewRequestWithContext creates a new request with the params, bound to ctx.
+// The returned *http.Request carries ctx, so cancelling it aborts the in-flight
+// call when the request is executed.
+func (c *Client) NewRequestWithContext(ctx context.Context, body map[string]string) (*http.Request, error) {
 	u, err := url.Parse(c.BaseURL)
 
 	if err != nil {
@@ -87,7 +90,7 @@ func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
 	rBody := encodeBody(body)
 
 	// Build the request
-	req, err := http.NewRequest("POST", u.String(), bytes.NewBufferString(rBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), bytes.NewBufferString(rBody))
 
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
@@ -99,10 +102,24 @@ func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
 	return req, nil
 }
 
-func (c *Client) DoXML(body map[string]string, obj any) (*http.Response, error) {
+// NewRequest creates a new request with the params.
+//
+// Deprecated: NewRequest builds a request with no context, so the call cannot
+// be cancelled or time-bounded. Use NewRequestWithContext. NewRequest is
+// retained for backward compatibility and will be removed in v3.
+func (c *Client) NewRequest(body map[string]string) (*http.Request, error) {
+	return c.NewRequestWithContext(context.Background(), body)
+}
+
+// DoXMLWithContext performs the API call described by body, decoding the XML
+// response into obj. The call is bound to ctx: cancelling ctx aborts the
+// in-flight HTTP request, any pending inter-retry sleep, and waiting to enter
+// the retry section. context.Canceled and context.DeadlineExceeded propagate
+// to the caller unwrapped (they are never rewritten into a retry-limit error).
+func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, obj any) (*http.Response, error) {
 	var requestResponse *http.Response
-	err := c.sr.Do(func() error {
-		request, err := c.NewRequest(body)
+	err := c.sr.DoContext(ctx, func(ctx context.Context) error {
+		request, err := c.NewRequestWithContext(ctx, body)
 		if err != nil {
 			return err
 		}
@@ -113,6 +130,7 @@ func (c *Client) DoXML(body map[string]string, obj any) (*http.Response, error) 
 		}
 
 		if response.StatusCode == 405 {
+			response.Body.Close()
 			return syncretry.ErrRetry
 		}
 
@@ -127,6 +145,16 @@ func (c *Client) DoXML(body map[string]string, obj any) (*http.Response, error) 
 	}
 
 	return requestResponse, err
+}
+
+// DoXML performs the API call described by body, decoding the XML response
+// into obj.
+//
+// Deprecated: DoXML runs without a context, so the call cannot be cancelled or
+// time-bounded. Use DoXMLWithContext. DoXML is retained for backward
+// compatibility and will be removed in v3.
+func (c *Client) DoXML(body map[string]string, obj any) (*http.Response, error) {
+	return c.DoXMLWithContext(context.Background(), body, obj)
 }
 
 // decodeBody decodes the interface from received XML

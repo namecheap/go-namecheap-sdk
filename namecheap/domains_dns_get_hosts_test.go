@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -45,7 +46,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -68,7 +69,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -87,7 +88,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain")
 
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "invalid domain: incorrect format")
@@ -103,7 +104,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		response, err := client.DomainsDNS.GetHosts("domain.net")
+		response, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -123,7 +124,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		response, err := client.DomainsDNS.GetHosts("domain.net")
+		response, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -183,7 +184,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		response, err := client.DomainsDNS.GetHosts("domain.net")
+		response, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -203,7 +204,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -220,7 +221,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -237,7 +238,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 
 		assert.EqualError(t, err, "unable to parse server response: expected element type <ApiResponse> but have <broken>")
 	})
@@ -266,7 +267,7 @@ func TestDomainsDNSGetHosts(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetHosts("domain.net")
+		_, err := client.DomainsDNS.GetHostsWithContext(context.Background(), "domain.net")
 
 		assert.EqualError(t, err, "Invalid Address (2050900)")
 	})

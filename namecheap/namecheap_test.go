@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/namecheap/go-namecheap-sdk/v2/namecheap/internal/syncretry"
 	"github.com/stretchr/testify/assert"
@@ -349,4 +351,92 @@ func TestDoXMLHTTPFailure(t *testing.T) {
 	var result any
 	_, err := client.DoXML(map[string]string{"Command": "test"}, &result)
 	assert.Error(t, err)
+}
+
+func TestDoXMLWithContextCancelsInFlightRequest(t *testing.T) {
+	t.Parallel()
+	// The server blocks well past the point at which we cancel, so a prompt
+	// return can only happen if cancellation aborts the in-flight request.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		time.Sleep(2 * time.Second)
+		_, _ = writer.Write([]byte(`<?xml version="1.0"?><ApiResponse Status="OK"/>`))
+	}))
+	defer mockServer.Close()
+
+	client := setupClient(nil)
+	client.BaseURL = mockServer.URL
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		cancel()
+	}()
+
+	start := time.Now()
+	var result any
+	_, err := client.DoXMLWithContext(ctx, map[string]string{"Command": "test"}, &result)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, context.Canceled), "expected context.Canceled, got %v", err)
+	assert.Less(t, elapsed, time.Second, "call should have returned promptly after cancellation")
+}
+
+func TestDoXMLWithContextCancelsRetrySleep(t *testing.T) {
+	t.Parallel()
+	// 405 forces the retry loop; a 30s inter-retry delay would dominate unless
+	// the context deadline cancels the sleep.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusMethodNotAllowed)
+	}))
+	defer mockServer.Close()
+
+	client := setupClient(nil)
+	client.sr = syncretry.NewSyncRetry(&syncretry.Options{Delays: []int{30}})
+	client.BaseURL = mockServer.URL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	var result any
+	_, err := client.DoXMLWithContext(ctx, map[string]string{"Command": "test"}, &result)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, context.DeadlineExceeded), "expected context.DeadlineExceeded, got %v", err)
+	// Context errors propagate unwrapped, never rewritten to the retry-limit error.
+	assert.NotContains(t, err.Error(), "API retry limit exceeded")
+	assert.Less(t, elapsed, 5*time.Second, "call should have returned promptly after the deadline")
+}
+
+func TestDeprecatedWrapperDelegates(t *testing.T) {
+	t.Parallel()
+	// Regression: the deprecated, context-less wrapper must still work by
+	// delegating to the ctx variant with context.Background().
+	fakeResponse := `<?xml version="1.0" encoding="utf-8"?>
+		<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+			<Errors />
+			<Warnings />
+			<RequestedCommand>namecheap.domains.getInfo</RequestedCommand>
+			<CommandResponse Type="namecheap.domains.getInfo">
+				<DomainGetInfoResult ID="123" DomainName="domain.com" IsPremium="false">
+					<DnsDetails ProviderType="FreeDNS" IsUsingOurDNS="true" HostCount="0" />
+				</DomainGetInfoResult>
+			</CommandResponse>
+		</ApiResponse>`
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(fakeResponse))
+	}))
+	defer mockServer.Close()
+
+	client := setupClient(nil)
+	client.BaseURL = mockServer.URL
+
+	result, err := client.Domains.GetInfo("domain.com")
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "domain.com", *result.DomainDNSGetListResult.DomainName)
 }

@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 )
@@ -27,11 +28,11 @@ func (d DomainDNSSetDefaultResult) String() string {
 	return fmt.Sprintf("{Domain: %v, Updated: %v}", deref(d.Domain), deref(d.Updated))
 }
 
-// SetDefault sets domain to use our default DNS servers.
+// SetDefaultWithContext sets domain to use our default DNS servers.
 // Required for free services like Host record management, URL forwarding, email forwarding, dynamic dns and other value added services.
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains-dns/set-default/
-func (dds *DomainsDNSService) SetDefault(domain string) (*DomainsDNSSetDefaultCommandResponse, error) {
+func (dds *DomainsDNSService) SetDefaultWithContext(ctx context.Context, domain string) (*DomainsDNSSetDefaultCommandResponse, error) {
 	var response DomainsDNSSetDefaultResponse
 
 	params := map[string]string{
@@ -46,7 +47,7 @@ func (dds *DomainsDNSService) SetDefault(domain string) (*DomainsDNSSetDefaultCo
 	params["SLD"] = parsedDomain.SLD
 	params["TLD"] = parsedDomain.TLD
 
-	_, err = dds.client.DoXML(params, &response)
+	_, err = dds.client.DoXMLWithContext(ctx, params, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -56,4 +57,12 @@ func (dds *DomainsDNSService) SetDefault(domain string) (*DomainsDNSSetDefaultCo
 	}
 
 	return response.CommandResponse, nil
+}
+
+// SetDefault sets domain to use our default DNS servers.
+//
+// Deprecated: SetDefault runs without a context. Use SetDefaultWithContext. It
+// is retained for backward compatibility and will be removed in v3.
+func (dds *DomainsDNSService) SetDefault(domain string) (*DomainsDNSSetDefaultCommandResponse, error) {
+	return dds.SetDefaultWithContext(context.Background(), domain)
 }

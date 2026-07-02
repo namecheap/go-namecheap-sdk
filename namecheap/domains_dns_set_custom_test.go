@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -44,7 +45,7 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetCustom("domain.net", fakeNameservers)
+		_, err := client.DomainsDNS.SetCustomWithContext(context.Background(), "domain.net", fakeNameservers)
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -67,7 +68,7 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetCustom("domain.net", fakeNameservers)
+		_, err := client.DomainsDNS.SetCustomWithContext(context.Background(), "domain.net", fakeNameservers)
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -91,7 +92,7 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetCustom("domain.net", fakeNameservers)
+		_, err := client.DomainsDNS.SetCustomWithContext(context.Background(), "domain.net", fakeNameservers)
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -111,7 +112,7 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.SetCustom("domain.net", fakeNameservers)
+		result, err := client.DomainsDNS.SetCustomWithContext(context.Background(), "domain.net", fakeNameservers)
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -134,7 +135,7 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.SetCustom("domain.net", fakeNameservers)
+		_, err := client.DomainsDNS.SetCustomWithContext(context.Background(), "domain.net", fakeNameservers)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "2019166")
 	})
@@ -144,7 +145,7 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = "://bad"
 
-		_, err := client.DomainsDNS.SetCustom("domain.net", fakeNameservers)
+		_, err := client.DomainsDNS.SetCustomWithContext(context.Background(), "domain.net", fakeNameservers)
 		assert.Error(t, err)
 	})
 
@@ -152,7 +153,7 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 		t.Parallel()
 		client := setupClient(nil)
 
-		_, err := client.DomainsDNS.SetCustom("invalid", fakeNameservers)
+		_, err := client.DomainsDNS.SetCustomWithContext(context.Background(), "invalid", fakeNameservers)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid domain")
 	})
@@ -175,7 +176,7 @@ func TestDomainsDNSSetCustom(t *testing.T) {
 			client := setupClient(nil)
 			client.BaseURL = mockServer.URL
 
-			_, err := client.DomainsDNS.SetCustom("domain.net", errorCase.Nameservers)
+			_, err := client.DomainsDNS.SetCustomWithContext(context.Background(), "domain.net", errorCase.Nameservers)
 
 			assert.EqualError(t, err, "invalid nameservers: must contain minimum two items")
 		})

@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +41,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Delete("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.DeleteWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 		if err != nil {
 			t.Fatal("Unable to get domain nameserver", err)
 		}
@@ -58,7 +59,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsNS.Delete("domain", "com", "ns1.domain.com")
+		result, err := client.DomainsNS.DeleteWithContext(context.Background(), "domain", "com", "ns1.domain.com")
 		if err != nil {
 			t.Fatal("Unable to delete domain nameserver", err)
 		}
@@ -80,7 +81,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Delete("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.DeleteWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -97,7 +98,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Delete("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.DeleteWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "unable to parse server response: EOF")
 	})
@@ -114,7 +115,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Delete("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.DeleteWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "unable to parse server response: expected element type <ApiResponse> but have <broken>")
 	})
@@ -143,7 +144,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Delete("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.DeleteWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "Domain not found (2019166)")
 	})
@@ -172,7 +173,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Delete("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.DeleteWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "Domain is not associated with your account (2016166)")
 	})
@@ -201,7 +202,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Delete("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.DeleteWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "Error From Enom when Errorcount <> 0 (3031510)")
 	})
@@ -230,7 +231,7 @@ func TestDomainNameserversDelete(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsNS.Delete("specific-sld", "specific-tld", "ns1.domain.com")
+		_, err := client.DomainsNS.DeleteWithContext(context.Background(), "specific-sld", "specific-tld", "ns1.domain.com")
 
 		assert.EqualError(t, err, "Unknown error from Enom (3050900)")
 	})

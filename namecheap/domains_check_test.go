@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +43,7 @@ func TestDomainsService_Check(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.Domains.Check("example.com")
+		_, err := client.Domains.CheckWithContext(context.Background(), "example.com")
 		if err != nil {
 			t.Fatal("Unable to check domain", err)
 		}
@@ -65,7 +66,7 @@ func TestDomainsService_Check(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.Domains.Check("example.com")
+		_, err := client.Domains.CheckWithContext(context.Background(), "example.com")
 		if err != nil {
 			t.Fatal("Unable to check domain", err)
 		}
@@ -104,7 +105,7 @@ func TestDomainsService_Check(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.Domains.Check("example.com", "example.net")
+		result, err := client.Domains.CheckWithContext(context.Background(), "example.com", "example.net")
 		if err != nil {
 			t.Fatal("Unable to check domains", err)
 		}
@@ -125,7 +126,7 @@ func TestDomainsService_Check(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.Domains.Check("example.com")
+		result, err := client.Domains.CheckWithContext(context.Background(), "example.com")
 		if err != nil {
 			t.Fatal("Unable to check domain", err)
 		}
@@ -167,7 +168,7 @@ func TestDomainsService_Check(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.Domains.Check("example.com")
+		result, err := client.Domains.CheckWithContext(context.Background(), "example.com")
 		if err != nil {
 			t.Fatal("Unable to check domain", err)
 		}
@@ -198,7 +199,7 @@ func TestDomainsService_Check(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.Domains.Check("bad")
+		_, err := client.Domains.CheckWithContext(context.Background(), "bad")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "1011150")
 	})
@@ -208,7 +209,7 @@ func TestDomainsService_Check(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = "://bad"
 
-		_, err := client.Domains.Check("example.com")
+		_, err := client.Domains.CheckWithContext(context.Background(), "example.com")
 		assert.Error(t, err)
 	})
 }

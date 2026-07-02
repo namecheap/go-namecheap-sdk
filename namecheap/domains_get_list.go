@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"strconv"
@@ -66,13 +67,13 @@ type DomainsGetListArgs struct {
 	SortBy *string
 }
 
-// GetList returns a list of domains for the particular user
+// GetListWithContext returns a list of domains for the particular user
 // Returns DomainsGetListCommandResponse with list of user Domain and paging DomainsGetListPaging
 // DomainsGetListArgs is the input arguments. When nil is passed, then nothing will be passed through.
 // In this case revert to the official documentation to check defaults
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains/get-list/
-func (ds *DomainsService) GetList(args *DomainsGetListArgs) (*DomainsGetListCommandResponse, error) {
+func (ds *DomainsService) GetListWithContext(ctx context.Context, args *DomainsGetListArgs) (*DomainsGetListCommandResponse, error) {
 	var domainsResponse DomainsGetListResponse
 	params := map[string]string{
 		"Command": "namecheap.domains.getList",
@@ -89,7 +90,7 @@ func (ds *DomainsService) GetList(args *DomainsGetListArgs) (*DomainsGetListComm
 		params[k] = v
 	}
 
-	_, err = ds.client.DoXML(params, &domainsResponse)
+	_, err = ds.client.DoXMLWithContext(ctx, params, &domainsResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +100,14 @@ func (ds *DomainsService) GetList(args *DomainsGetListArgs) (*DomainsGetListComm
 	}
 
 	return domainsResponse.CommandResponse, nil
+}
+
+// GetList returns a list of domains for the particular user.
+//
+// Deprecated: GetList runs without a context. Use GetListWithContext. It is
+// retained for backward compatibility and will be removed in v3.
+func (ds *DomainsService) GetList(args *DomainsGetListArgs) (*DomainsGetListCommandResponse, error) {
+	return ds.GetListWithContext(context.Background(), args)
 }
 
 func parseDomainsGetListArgs(args *DomainsGetListArgs) (map[string]string, error) {

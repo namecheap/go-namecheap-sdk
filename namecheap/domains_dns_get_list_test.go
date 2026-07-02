@@ -1,6 +1,7 @@
 package namecheap
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +44,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetList("domain.net")
+		_, err := client.DomainsDNS.GetListWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -66,7 +67,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetList("domain.net")
+		_, err := client.DomainsDNS.GetListWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -85,7 +86,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.GetList("domain.net")
+		result, err := client.DomainsDNS.GetListWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -106,7 +107,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.GetList("domain.net")
+		result, err := client.DomainsDNS.GetListWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -139,7 +140,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.GetList("domain.net")
+		result, err := client.DomainsDNS.GetListWithContext(context.Background(), "domain.net")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -214,7 +215,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		result, err := client.DomainsDNS.GetList("horse-family.com.ua")
+		result, err := client.DomainsDNS.GetListWithContext(context.Background(), "horse-family.com.ua")
 		if err != nil {
 			t.Fatal("Unable to get domains", err)
 		}
@@ -251,7 +252,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetList("notfound.com")
+		_, err := client.DomainsDNS.GetListWithContext(context.Background(), "notfound.com")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "2050900")
 	})
@@ -261,7 +262,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = "://bad"
 
-		_, err := client.DomainsDNS.GetList("domain.net")
+		_, err := client.DomainsDNS.GetListWithContext(context.Background(), "domain.net")
 		assert.Error(t, err)
 	})
 
@@ -269,7 +270,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		t.Parallel()
 		client := setupClient(nil)
 
-		_, err := client.DomainsDNS.GetList("invalid")
+		_, err := client.DomainsDNS.GetListWithContext(context.Background(), "invalid")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid domain")
 	})
@@ -294,7 +295,7 @@ func TestDomainsDNSGetList(t *testing.T) {
 		client := setupClient(nil)
 		client.BaseURL = mockServer.URL
 
-		_, err := client.DomainsDNS.GetList("horse-family.com.ua")
+		_, err := client.DomainsDNS.GetListWithContext(context.Background(), "horse-family.com.ua")
 		assert.Error(t, err)
 	})
 }
