@@ -26,6 +26,16 @@ Or run the full suite at once:
 make
 ```
 
+## Pull request titles
+
+PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, `ci:`, `perf:`,
+`build:`, `revert:`) — the PR Title Check workflow fails non-conforming PRs.
+PRs are squash-merged, so the title becomes the commit message on `master`,
+which [release-please](https://github.com/googleapis/release-please) parses to
+compute the next version and changelog entry (`fix:` → patch, `feat:` → minor,
+`feat!:`/`BREAKING CHANGE:` → major). See [RELEASE.md](RELEASE.md).
+
 ## DCO sign-off
 
 This project requires a [Developer Certificate of Origin](https://developercertificate.org/) sign-off on every commit.
@@ -76,5 +86,7 @@ preserved.
 
 ## Release
 
-We publish a new tagged release once significant changes accumulate. If you need a release with a specific fix,
-open an issue or contact us.
+Releases are semi-automated with release-please: merged changes accumulate in a
+long-lived release PR, and a maintainer merges it to tag and publish a new
+version. See [RELEASE.md](RELEASE.md) for the full flow. If you need a release
+with a specific fix, open an issue or contact us.

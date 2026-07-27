@@ -1,0 +1,40 @@
+name: Versioning
+
+# release-please maintains a long-lived "release PR" off the default branch.
+# Merging that PR creates the vX.Y.Z tag and the GitHub release. Gated on a
+# successful CI run so a release is only ever proposed/cut from green commits.
+# See RELEASE.md for the full flow.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      # A dedicated GitHub App authors the release PR. Events authored by the
+      # default GITHUB_TOKEN do not re-trigger workflows; App-authored events do.
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ steps.generate-token.outputs.token }}
