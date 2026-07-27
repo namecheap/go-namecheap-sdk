@@ -4,8 +4,24 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # Go module bumps ship in tagged SDK releases (consumers `go get` a tag),
+    # so they must use a releasing Conventional Commit type. release-please
+    # maps `fix:` -> patch; the default `chore(deps):` is NON-releasing, so a
+    # bump would never cut a release. `include: scope` yields `fix(deps): ...`.
+    # `fix` (not a `deps:`-type commit) because only feat/fix/breaking reliably
+    # bump the version in release-please's default strategy.
+    commit-message:
+      prefix: fix
+      include: scope
+    # Dependencies are vendored; without this a bump PR would leave vendor/
+    # out of sync with go.mod and fail CI.
+    vendor: true
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    # Action bumps are CI-only; keep them non-releasing.
+    commit-message:
+      prefix: ci
+      include: scope
