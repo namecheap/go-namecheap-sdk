@@ -69,7 +69,10 @@ func (us *UsersService) ChangePasswordWithContext(ctx context.Context, args *Use
 	}
 
 	var response UsersChangePasswordResponse
-	_, err := us.client.DoXMLWithContext(ctx, args.params(), &response)
+	// Pass the command literal explicitly (idempotent=true): the params map holds
+	// OldPassword/ResetCode/NewPassword, so the command value used for logging and
+	// stats must not be read back out of it. See Client.doXMLWithCommand.
+	_, err := us.client.doXMLWithCommand(ctx, "namecheap.users.changePassword", args.params(), &response, true)
 	if err != nil {
 		return nil, err
 	}
