@@ -95,7 +95,10 @@ func (dts *DomainsTransferService) CreateWithContext(ctx context.Context, args *
 
 	var response DomainsTransferCreateResponse
 	// idempotent=false: never retry a charge-bearing call on an ambiguous error.
-	_, err := dts.client.doXML(ctx, args.params(), &response, false)
+	// Pass the command literal explicitly: the params map holds EPPCode, so the
+	// command value used for logging and stats must not be read back out of it.
+	// See Client.doXMLWithCommand.
+	_, err := dts.client.doXMLWithCommand(ctx, "namecheap.domains.transfer.create", args.params(), &response, false)
 	if err != nil {
 		return nil, err
 	}

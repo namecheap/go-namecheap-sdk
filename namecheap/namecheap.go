@@ -220,9 +220,11 @@ func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, o
 	return c.doXML(ctx, body, obj, true)
 }
 
-// doXML is the shared engine behind DoXMLWithContext. It performs the API call
-// described by body, decoding the XML response into obj, and threads idempotent
-// into the retry driver.
+// doXML performs the API call described by body, decoding the XML response into
+// obj, and threads idempotent into the retry driver. It takes the command name
+// from body["Command"] and delegates to doXMLWithCommand. Callers whose body
+// carries a per-call secret should call doXMLWithCommand directly with the
+// command literal instead.
 //
 // idempotent must be true for safely-repeatable calls (every read and every
 // non-charge-bearing write) and false for charge-bearing, non-idempotent calls
@@ -231,8 +233,21 @@ func (c *Client) DoXMLWithContext(ctx context.Context, body map[string]string, o
 // charged the account — is never resent; only Namecheap's pre-execution HTTP 405
 // rate-limit signal is retried. See shouldRetry.
 func (c *Client) doXML(ctx context.Context, body map[string]string, obj any, idempotent bool) (*http.Response, error) {
-	command := body["Command"]
+	return c.doXMLWithCommand(ctx, body["Command"], body, obj, idempotent)
+}
 
+// doXMLWithCommand is the shared engine behind doXML. command is the API command
+// name used for observability (hooks and slog), the per-command stats key, and
+// error attribution.
+//
+// command is deliberately a separate argument rather than being read back out of
+// body inside this function: callers whose body also carries a per-call secret
+// (users.changePassword, domains.transfer.create) pass the trusted command
+// literal directly. That keeps the command value — which is logged and used as a
+// map key — provably free of any secret, since it never originates from an index
+// into the same map that holds the secret. Do not reintroduce a body["Command"]
+// read here.
+func (c *Client) doXMLWithCommand(ctx context.Context, command string, body map[string]string, obj any, idempotent bool) (*http.Response, error) {
 	// The redacted view handed to observers must reflect exactly what goes on the
 	// wire, including the credentials NewRequestWithContext injects per attempt.
 	// Build it only when an observer is configured so the hot path stays clean.
@@ -270,7 +285,7 @@ func (c *Client) doXML(ctx context.Context, body map[string]string, obj any, ide
 			return response.StatusCode, parseErr
 		}
 
-		return response.StatusCode, parseAPIError(data, body["Command"])
+		return response.StatusCode, parseAPIError(data, command)
 	})
 
 	return requestResponse, err
