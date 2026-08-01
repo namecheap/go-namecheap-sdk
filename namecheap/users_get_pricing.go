@@ -83,12 +83,18 @@ type Price struct {
 	// (doc line 1133). It is empty when the server omits the attribute, so a
 	// caller that needs a guaranteed currency should fall back to getBalances.
 	Currency string `xml:"Currency,attr"`
-	// PromotionPrice is the promotional price for this tier (doc line 1134). It
-	// is empty when the server omits the attribute; what a zero value means is
-	// not documented, so it is passed through rather than interpreted. Price
-	// already reflects an active promotion (see EffectivePrice); PromotionPrice
-	// is what makes the discount that produced it identifiable rather than
-	// guessed from Price != RegularPrice. Use Promo to test presence.
+	// PromotionPrice is the promotional price for this tier (doc line 1134).
+	//
+	// The live API sends PromotionPrice="0.0" on tiers that carry no promotion
+	// (observed against the sandbox for .com REGISTER/RENEW/TRANSFER), so its
+	// presence does not mean a discount applies — test PromotionPrice.IsPositive()
+	// for that, and use Promo only when you need to distinguish a value the
+	// server sent from one it omitted. The amount is passed through as received
+	// either way.
+	//
+	// Price already reflects an active promotion (see EffectivePrice);
+	// PromotionPrice is what makes the discount that produced it identifiable
+	// rather than guessed from Price != RegularPrice.
 	PromotionPrice Amount `xml:"PromotionPrice,attr"`
 }
 
@@ -207,7 +213,7 @@ func (p *PricingProduct) priceFor(years int) (Price, bool) {
 // still sees the raw server value rather than a fabricated one.
 func (p Price) EffectivePrice() Amount {
 	for _, a := range []Amount{p.Price, p.YourPrice, p.RegularPrice} {
-		if isPositiveAmount(a) {
+		if a.IsPositive() {
 			return a
 		}
 	}
@@ -218,12 +224,12 @@ func (p Price) EffectivePrice() Amount {
 // attribute at all: the raw amount and true when present, the zero Amount and
 // false when the response omitted it (or left it blank).
 //
-// Presence is all it reports. The API documentation does not say what a zero
-// PromotionPrice means — a free-first-year promotion and "no promotion" are not
-// distinguishable from the value alone — so this SDK does not decide for the
-// caller: "0.00" is returned as a present promotion, and interpreting it is the
-// caller's policy. The amount is passed through exactly as received, like every
-// other Amount.
+// Presence is all it reports, and presence is usually the wrong question: the
+// live API sends PromotionPrice="0.0" on un-promoted tiers, so Promo returns
+// true for them. To ask "is there a discount", use
+// price.PromotionPrice.IsPositive(). Promo exists for the narrower case of
+// telling a value the server sent from one it omitted, and it passes the amount
+// through exactly as received, like every other Amount.
 //
 // Promo reports which discount applied; it is not the amount to charge. An
 // active promotion is already folded into Price by the server (doc line 1130),
@@ -233,19 +239,6 @@ func (p Price) Promo() (Amount, bool) {
 		return "", false
 	}
 	return p.PromotionPrice, true
-}
-
-// isPositiveAmount reports whether a is a present, positive money value. It is
-// decimal-safe: it never parses the amount to a float (see Amount), it only
-// checks for the presence of a non-zero digit, so "0.00" and "" are false while
-// "8.88" and "10.00" are true.
-func isPositiveAmount(a Amount) bool {
-	for _, r := range strings.TrimSpace(string(a)) {
-		if r >= '1' && r <= '9' {
-			return true
-		}
-	}
-	return false
 }
 
 // setIfNotNil writes key=*value into params only when value is non-nil and the
