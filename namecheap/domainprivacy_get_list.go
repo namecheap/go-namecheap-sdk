@@ -9,7 +9,7 @@ import (
 )
 
 // allowedPrivacyListTypeValues is the documented ListType filter vocabulary for
-// namecheap.whoisguard.getlist (docs/namecheap-api-v2.md line 1567). The
+// namecheap.whoisguard.getlist (docs/namecheap-api-v2.md line 1563). The
 // "ALLOTED" spelling is the API's own (nonstandard) token and is sent verbatim.
 var allowedPrivacyListTypeValues = []string{"ALL", "ALLOTED", "FREE", "DISCARD"}
 
@@ -43,7 +43,7 @@ type DomainPrivacyGetListPaging struct {
 
 // DomainPrivacyGetListEntry is a single domain-privacy subscription in a getList
 // page. Fields follow the getList response table in docs/namecheap-api-v2.md
-// (lines 1569-1575): the doc's "Whoisguard ID" column is the numeric ID (typed
+// (lines 1571-1577): the doc's "Whoisguard ID" column is the numeric ID (typed
 // int, not string), and its "Domainname" column is the domain the subscription
 // is attached to, modeled here as the idiomatic DomainName wire attribute.
 type DomainPrivacyGetListEntry struct {
@@ -89,7 +89,7 @@ func (e DomainPrivacyGetListEntry) IsEnabled() bool {
 
 // DomainPrivacyGetListArgs are the arguments for GetListWithContext. Field names
 // and constraints follow the getList request table in docs/namecheap-api-v2.md
-// (lines 1559-1565). A nil arg (or a nil field) leaves the API default.
+// (lines 1561-1567). A nil arg (or a nil field) leaves the API default.
 type DomainPrivacyGetListArgs struct {
 	// ListType filters by category. Possible values: ALL, ALLOTED, FREE, DISCARD.
 	// Default: ALL.

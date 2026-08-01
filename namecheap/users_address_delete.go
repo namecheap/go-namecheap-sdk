@@ -23,7 +23,7 @@ type UsersAddressDeleteCommandResponse struct {
 }
 
 // UsersAddressDeleteResult is the outcome of an address delete. Field names
-// follow the response table in docs/namecheap-api-v2.md (lines 1383-1387).
+// follow the response table in docs/namecheap-api-v2.md (lines 1385-1389).
 type UsersAddressDeleteResult struct {
 	// Success reports whether the address was deleted.
 	Success *bool `xml:"Success,attr"`

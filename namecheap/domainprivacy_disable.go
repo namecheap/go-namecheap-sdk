@@ -23,7 +23,7 @@ type DomainPrivacyDisableCommandResponse struct {
 }
 
 // DomainPrivacyDisableResult is the outcome of disabling privacy. Fields follow
-// the disable response table in docs/namecheap-api-v2.md (lines 1545-1548): the
+// the disable response table in docs/namecheap-api-v2.md (lines 1547-1550): the
 // doc's "Domainname" column and IsSuccess. It is modeled as the idiomatic
 // DomainName wire attribute.
 type DomainPrivacyDisableResult struct {
@@ -35,7 +35,7 @@ type DomainPrivacyDisableResult struct {
 }
 
 // DisableWithContext turns off domain-privacy protection for the subscription
-// identified by privacyID (docs/namecheap-api-v2.md lines 1530-1549; req
+// identified by privacyID (docs/namecheap-api-v2.md lines 1532-1551; req
 // WhoisguardID). The subscription stays attached to its domain — disable only
 // toggles protection off, it does not detach (that is UnallotWithContext).
 //

@@ -1130,6 +1130,8 @@ Returns pricing information for a requested product type.
 | Price | Final price (from regular, userprice, special, promo, or tier price) |
 | RegularPrice | Regular price |
 | YourPrice | User's price |
+| Currency | Currency in which the price is listed |
+| PromotionPrice | Promotional price, when a promotion applies to the tier |
 
 ---
 

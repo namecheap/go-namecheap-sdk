@@ -30,7 +30,7 @@ type UsersGetPricingCommandResponse struct {
 type UsersGetPricingResult struct {
 	// ProductTypes lists the pricing tree for each product type in the response,
 	// e.g. "domains". Element/attribute names follow the getPricing response table
-	// in docs/namecheap-api-v2.md (lines 1123-1132).
+	// in docs/namecheap-api-v2.md (lines 1123-1134).
 	ProductTypes []PricingProductType `xml:"ProductType"`
 }
 
@@ -63,7 +63,7 @@ type PricingProduct struct {
 }
 
 // Price is a single price tier. Field names and money semantics follow the
-// getPricing response table in docs/namecheap-api-v2.md (lines 1128-1132). Every
+// getPricing response table in docs/namecheap-api-v2.md (lines 1128-1134). Every
 // monetary field is an Amount (an exact decimal string) so a charge-bearing price
 // is never silently mangled by binary floating point.
 type Price struct {
@@ -79,6 +79,17 @@ type Price struct {
 	RegularPrice Amount `xml:"RegularPrice,attr"`
 	// YourPrice is the account/user-specific price (doc line 1132).
 	YourPrice Amount `xml:"YourPrice,attr"`
+	// Currency is the currency the tier's amounts are denominated in, e.g. "USD"
+	// (doc line 1133). It is empty when the server omits the attribute, so a
+	// caller that needs a guaranteed currency should fall back to getBalances.
+	Currency string `xml:"Currency,attr"`
+	// PromotionPrice is the promotional price for this tier (doc line 1134). It
+	// is empty when the server omits the attribute; what a zero value means is
+	// not documented, so it is passed through rather than interpreted. Price
+	// already reflects an active promotion (see EffectivePrice); PromotionPrice
+	// is what makes the discount that produced it identifiable rather than
+	// guessed from Price != RegularPrice. Use Promo to test presence.
+	PromotionPrice Amount `xml:"PromotionPrice,attr"`
 }
 
 // UsersGetPricingArgs are the arguments for GetPricingWithContext. Field names
@@ -201,6 +212,27 @@ func (p Price) EffectivePrice() Amount {
 		}
 	}
 	return p.RegularPrice
+}
+
+// Promo returns the tier's PromotionPrice and whether the server sent the
+// attribute at all: the raw amount and true when present, the zero Amount and
+// false when the response omitted it (or left it blank).
+//
+// Presence is all it reports. The API documentation does not say what a zero
+// PromotionPrice means — a free-first-year promotion and "no promotion" are not
+// distinguishable from the value alone — so this SDK does not decide for the
+// caller: "0.00" is returned as a present promotion, and interpreting it is the
+// caller's policy. The amount is passed through exactly as received, like every
+// other Amount.
+//
+// Promo reports which discount applied; it is not the amount to charge. An
+// active promotion is already folded into Price by the server (doc line 1130),
+// so EffectivePrice remains the answer to "what does this cost".
+func (p Price) Promo() (Amount, bool) {
+	if strings.TrimSpace(string(p.PromotionPrice)) == "" {
+		return "", false
+	}
+	return p.PromotionPrice, true
 }
 
 // isPositiveAmount reports whether a is a present, positive money value. It is

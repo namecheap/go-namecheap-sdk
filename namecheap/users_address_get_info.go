@@ -23,8 +23,8 @@ type UsersAddressGetInfoCommandResponse struct {
 }
 
 // UsersAddressGetInfoResult is the full stored address. The doc gives no response
-// table for address.getInfo (docs/namecheap-api-v2.md lines 1391-1408, only error
-// codes), so the fields mirror the create request fields (lines 1347-1365), which
+// table for address.getInfo (docs/namecheap-api-v2.md lines 1393-1410, only error
+// codes), so the fields mirror the create request fields (lines 1349-1367), which
 // getInfo echoes back; on the wire they are child elements. Every field is a
 // pointer so a field the server omits stays nil rather than an empty value.
 type UsersAddressGetInfoResult struct {

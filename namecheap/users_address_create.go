@@ -17,7 +17,7 @@ type UsersAddressCreateResponse struct {
 }
 
 // UsersAddressCreateCommandResponse wraps the create result. The doc lists no
-// response table for address.create (docs/namecheap-api-v2.md lines 1339-1365);
+// response table for address.create (docs/namecheap-api-v2.md lines 1341-1367);
 // the result element carries the new address id and a Success flag on the wire.
 type UsersAddressCreateCommandResponse struct {
 	AddressCreateResult *UsersAddressCreateResult `xml:"AddressCreateResult"`

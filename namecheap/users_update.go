@@ -16,7 +16,7 @@ type UsersUpdateResponse struct {
 }
 
 // UsersUpdateCommandResponse wraps the update result. The doc lists no response
-// table for users.update (docs/namecheap-api-v2.md lines 1186-1210); the result
+// table for users.update (docs/namecheap-api-v2.md lines 1188-1212); the result
 // element carries a Success flag on the wire.
 type UsersUpdateCommandResponse struct {
 	UserUpdateResult *UsersUpdateResult `xml:"UserUpdateResult"`
@@ -30,7 +30,7 @@ type UsersUpdateResult struct {
 
 // UsersUpdateArgs are the arguments for UpdateWithContext. Field names and
 // required/optional status follow the update request table in
-// docs/namecheap-api-v2.md (lines 1196-1209).
+// docs/namecheap-api-v2.md (lines 1198-1211).
 //
 // Note the field naming differs from the domain ContactInfo shape: this command
 // uses "Zip" (not "PostalCode"), "Organization" (not "OrganizationName") and adds

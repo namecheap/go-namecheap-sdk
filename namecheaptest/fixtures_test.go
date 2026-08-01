@@ -163,6 +163,26 @@ func TestRepresentativeFixturesDecodeIntoStructs(t *testing.T) {
 		}
 	})
 
+	t.Run("users_getPricing", func(t *testing.T) {
+		t.Parallel()
+		var resp namecheap.UsersGetPricingResponse
+		if err := xml.Unmarshal([]byte(FixtureOK("users_getPricing")), &resp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if resp.CommandResponse == nil || resp.CommandResponse.UserGetPricingResult == nil {
+			t.Fatal("UserGetPricingResult not populated")
+		}
+		price, ok := resp.CommandResponse.UserGetPricingResult.PriceFor("register", "com", 1)
+		if !ok {
+			t.Fatal("register/com/1y tier not found in getPricing fixture")
+		}
+		// Currency is carried by every Price node of the captured response, so a
+		// parse that silently drops it would regress the fixture's own shape.
+		if price.Currency == "" {
+			t.Errorf("Currency not populated: %+v", price)
+		}
+	})
+
 	t.Run("ssl_getInfo", func(t *testing.T) {
 		t.Parallel()
 		var resp namecheap.SSLGetInfoResponse
