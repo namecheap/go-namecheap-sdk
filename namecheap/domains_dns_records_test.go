@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -905,7 +906,7 @@ func TestValidateEmailType(t *testing.T) {
 	}
 }
 
-// TestRequiredEmailType pins what a record set demands of the zone.
+// TestRequiredEmailType pins the transition a change needs, in both directions.
 func TestRequiredEmailType(t *testing.T) {
 	t.Parallel()
 
@@ -913,12 +914,148 @@ func TestRequiredEmailType(t *testing.T) {
 	mxe := DomainsDNSHostRecord{RecordType: String(RecordTypeMXE)}
 	a := DomainsDNSHostRecord{RecordType: String(RecordTypeA)}
 
-	assert.Empty(t, requiredEmailType(nil))
-	assert.Empty(t, requiredEmailType([]DomainsDNSHostRecord{a}))
-	assert.Equal(t, EmailTypeMX, requiredEmailType([]DomainsDNSHostRecord{a, mx}))
-	assert.Equal(t, EmailTypeMXE, requiredEmailType([]DomainsDNSHostRecord{a, mxe}))
-	// Unsatisfiable sets impose no single requirement; validateEmailType explains.
-	assert.Empty(t, requiredEmailType([]DomainsDNSHostRecord{mx, mxe}))
-	// Record type matching is case-insensitive, like the rest of the layer.
-	assert.Equal(t, EmailTypeMX, requiredEmailType([]DomainsDNSHostRecord{{RecordType: String("mx")}}))
+	tests := []struct {
+		name            string
+		records         []DomainsDNSHostRecord
+		current         string
+		want            string
+		wantSatisfiable bool
+	}{
+		{"no records, NONE zone", nil, EmailTypeNone, "", true},
+		{"plain records need nothing", []DomainsDNSHostRecord{a}, EmailTypeNone, "", true},
+		{"first MX moves up", []DomainsDNSHostRecord{a, mx}, EmailTypeNone, EmailTypeMX, true},
+		{"MX on an MX zone is already there", []DomainsDNSHostRecord{a, mx}, EmailTypeMX, "", true},
+		// The direction the first version missed entirely.
+		{"last MX removed moves down", []DomainsDNSHostRecord{a}, EmailTypeMX, EmailTypeNone, true},
+		{"first MXE moves up", []DomainsDNSHostRecord{a, mxe}, EmailTypeNone, EmailTypeMXE, true},
+		{"MXE on an MXE zone is already there", []DomainsDNSHostRecord{mxe}, EmailTypeMXE, "", true},
+		{"last MXE removed moves down", []DomainsDNSHostRecord{a}, EmailTypeMXE, EmailTypeNone, true},
+		// Unsatisfiable sets must be distinguishable from "nothing to do".
+		{"MX and MXE together", []DomainsDNSHostRecord{mx, mxe}, EmailTypeMX, "", false},
+		{"two MXE records", []DomainsDNSHostRecord{mxe, mxe}, EmailTypeNone, "", false},
+		// Matching is case-insensitive, like the rest of the layer.
+		{"lower-case type", []DomainsDNSHostRecord{{RecordType: String("mx")}}, EmailTypeNone, EmailTypeMX, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, satisfiable := requiredEmailType(tc.records, tc.current)
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.wantSatisfiable, satisfiable)
+		})
+	}
+}
+
+// TestPlanSurfacesDownTransition covers the mirror of the add case: Plan must
+// tell a caller that removing the last MX record needs WithEmailType too.
+func TestPlanSurfacesDownTransition(t *testing.T) {
+	t.Parallel()
+	m := newDNSMock(EmailTypeMX, []DomainsDNSHostRecordDetailed{
+		detailed("@", RecordTypeA, "10.0.0.1", nil, 1800),
+		detailed("@", RecordTypeMX, "mail.example.com", Int(10), 1800),
+	})
+	client, server := mockedClient(m)
+	defer server.Close()
+
+	diff, err := client.DomainsDNS.PlanWithContext(context.Background(), "domain.net",
+		DeleteOp(RecordSelector{RecordType: String(RecordTypeMX)}))
+	assert.NoError(t, err)
+	assert.Equal(t, EmailTypeMX, diff.EmailType)
+	assert.Equal(t, EmailTypeNone, diff.RequiredEmailType, "removing the last MX record must surface the move down")
+	assert.True(t, diff.Satisfiable)
+	assert.Contains(t, diff.String(), "EmailType: MX -> NONE")
+}
+
+// TestPlanReportsUnsatisfiableSet guards the third state: a set no EmailType can
+// carry must not read as "no transition needed".
+func TestPlanReportsUnsatisfiableSet(t *testing.T) {
+	t.Parallel()
+	m := newDNSMock(EmailTypeMX, []DomainsDNSHostRecordDetailed{
+		detailed("@", RecordTypeMX, "mail.example.com", Int(10), 1800),
+	})
+	client, server := mockedClient(m)
+	defer server.Close()
+
+	diff, err := client.DomainsDNS.PlanWithContext(context.Background(), "domain.net",
+		AddOp(DomainsDNSHostRecord{HostName: String("@"), RecordType: String(RecordTypeMXE), Address: String("10.0.0.5"), TTL: Int(1800)}))
+	assert.NoError(t, err)
+	assert.False(t, diff.Satisfiable, "MX + MXE cannot be written under any EmailType")
+	assert.Empty(t, diff.RequiredEmailType)
+}
+
+// TestDiffStringOmitsUnchangedEmailType pins that a zone already carrying the
+// required type renders no transition line — without this, every ordinary MX
+// zone would print a bogus "MX -> MX".
+func TestDiffStringOmitsUnchangedEmailType(t *testing.T) {
+	t.Parallel()
+	diff := RecordDiff{EmailType: EmailTypeMX, RequiredEmailType: EmailTypeMX, Satisfiable: true}
+	assert.NotContains(t, diff.String(), "EmailType:")
+
+	moved := RecordDiff{EmailType: EmailTypeNone, RequiredEmailType: EmailTypeMX, Satisfiable: true}
+	assert.Contains(t, moved.String(), "EmailType: NONE -> MX")
+}
+
+// TestEmailTypeErrorsAreTyped pins that a caller can distinguish an invalid
+// request from a failed API call without matching on strings.
+func TestEmailTypeErrorsAreTyped(t *testing.T) {
+	t.Parallel()
+	m := newDNSMock(EmailTypeNone, nil)
+	client, server := mockedClient(m)
+	defer server.Close()
+
+	_, err := client.DomainsDNS.AddRecordsWithContext(context.Background(), "domain.net",
+		[]DomainsDNSHostRecord{
+			{HostName: String("@"), RecordType: String(RecordTypeMX), Address: String("mail.example.com"), MXPref: UInt8(10), TTL: Int(1800)},
+		})
+	assert.Error(t, err)
+	var invalid *InvalidArgumentsError
+	assert.ErrorAs(t, err, &invalid, "record-level validation must return a typed error, like the rest of the package")
+	assert.Contains(t, invalid.Fields, "EmailType")
+}
+
+// TestWithEmailTypeRejectsUnknownValue covers the most likely caller mistake:
+// the argument itself being wrong. It must fail naming the option, not die later
+// inside SetHosts with a message that never mentions it.
+func TestWithEmailTypeRejectsUnknownValue(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"", "mx", "bogus", "NONE "} {
+		t.Run(fmt.Sprintf("%q", value), func(t *testing.T) {
+			t.Parallel()
+			m := newDNSMock(EmailTypeNone, []DomainsDNSHostRecordDetailed{
+				detailed("@", RecordTypeA, "10.0.0.1", nil, 1800),
+			})
+			client, server := mockedClient(m)
+			defer server.Close()
+
+			_, err := client.DomainsDNS.AddRecordsWithContext(context.Background(), "domain.net",
+				[]DomainsDNSHostRecord{
+					{HostName: String("www"), RecordType: String(RecordTypeA), Address: String("10.0.0.2"), TTL: Int(1800)},
+				}, WithEmailType(value))
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "WithEmailType", "the error must name the option that is wrong")
+			assert.Empty(t, m.setParams, "an invalid EmailType must not be written")
+		})
+	}
+}
+
+// TestEmailTypeConflictOnConcurrentRevert is the guarantee WithEmailType has to
+// carry: if another writer reverts the EmailType between the write and the
+// verifying re-read, that is a conflict, not a success. Without this the caller
+// is told mail routing was switched on when it was not — and the zone is left
+// holding an MX record the layer then refuses to touch.
+func TestEmailTypeConflictOnConcurrentRevert(t *testing.T) {
+	t.Parallel()
+	m := newDNSMock(EmailTypeNone, []DomainsDNSHostRecordDetailed{
+		detailed("@", RecordTypeA, "10.0.0.1", nil, 1800),
+	})
+	m.afterSet = func(m *dnsMock, _ int) { m.emailType = EmailTypeNone }
+	client, server := mockedClient(m)
+	defer server.Close()
+
+	_, err := client.DomainsDNS.AddRecordsWithContext(context.Background(), "domain.net",
+		[]DomainsDNSHostRecord{
+			{HostName: String("@"), RecordType: String(RecordTypeMX), Address: String("mail.example.com"), MXPref: UInt8(10), TTL: Int(1800)},
+		}, WithEmailType(EmailTypeMX))
+	assert.ErrorIs(t, err, ErrConcurrentModification,
+		"a reverted EmailType must be detected, not reported as a successful transition")
 }
