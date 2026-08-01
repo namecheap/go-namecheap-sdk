@@ -22,7 +22,7 @@ type UsersChangePasswordCommandResponse struct {
 }
 
 // UsersChangePasswordResult is the outcome of a password change. Field names
-// follow the response table in docs/namecheap-api-v2.md (lines 1179-1182).
+// follow the response table in docs/namecheap-api-v2.md (lines 1181-1184).
 type UsersChangePasswordResult struct {
 	// Success reports whether the password was changed.
 	Success *bool `xml:"Success,attr"`
@@ -31,7 +31,7 @@ type UsersChangePasswordResult struct {
 }
 
 // UsersChangePasswordArgs are the arguments for ChangePasswordWithContext. It
-// supports both documented methods (docs/namecheap-api-v2.md lines 1163-1175):
+// supports both documented methods (docs/namecheap-api-v2.md lines 1165-1177):
 // old-password (OldPassword + NewPassword) and reset-code (ResetCode +
 // NewPassword). Provide exactly one of OldPassword or ResetCode.
 //

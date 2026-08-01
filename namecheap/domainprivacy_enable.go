@@ -23,7 +23,7 @@ type DomainPrivacyEnableCommandResponse struct {
 }
 
 // DomainPrivacyEnableResult is the outcome of enabling privacy. Fields follow
-// the enable response table in docs/namecheap-api-v2.md (lines 1524-1527):
+// the enable response table in docs/namecheap-api-v2.md (lines 1526-1529):
 // DomainName and IsSuccess.
 type DomainPrivacyEnableResult struct {
 	// DomainName is the domain for which privacy was enabled.
@@ -34,7 +34,7 @@ type DomainPrivacyEnableResult struct {
 
 // EnableWithContext turns on domain-privacy protection for the subscription
 // identified by privacyID and sets forwardedToEmail as the address privacy
-// emails are forwarded to. Per docs/namecheap-api-v2.md (lines 1508-1528) BOTH
+// emails are forwarded to. Per docs/namecheap-api-v2.md (lines 1510-1530) BOTH
 // WhoisguardID and ForwardedToEmail are required; note that enable takes a
 // forwarding EMAIL address, not a domain.
 //

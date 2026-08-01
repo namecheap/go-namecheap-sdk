@@ -25,7 +25,7 @@ type DomainPrivacyChangeEmailAddressCommandResponse struct {
 
 // DomainPrivacyChangeEmailAddressResult is the outcome of changing the privacy
 // email address. Fields follow the changeemailaddress response table in
-// docs/namecheap-api-v2.md (lines 1500-1505): ID, IsSuccess, WGEmail and
+// docs/namecheap-api-v2.md (lines 1502-1507): ID, IsSuccess, WGEmail and
 // WGOldEmail.
 type DomainPrivacyChangeEmailAddressResult struct {
 	// ID is the unique integer identifying the subscription. Typed int.

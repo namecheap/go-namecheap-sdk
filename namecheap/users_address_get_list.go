@@ -19,7 +19,7 @@ type UsersAddressGetListResponse struct {
 // UsersAddressGetListCommandResponse wraps the list of address entries.
 //
 // Unlike domains.getList, the doc's address.getList
-// (docs/namecheap-api-v2.md lines 1412-1428) defines no request parameters and no
+// (docs/namecheap-api-v2.md lines 1414-1430) defines no request parameters and no
 // paging block, so none is modeled here: the response is a flat list of every
 // address on the account.
 type UsersAddressGetListCommandResponse struct {
@@ -27,7 +27,7 @@ type UsersAddressGetListCommandResponse struct {
 }
 
 // UsersAddressListEntry is one address-book entry in the list. Field names follow
-// the getList response table in docs/namecheap-api-v2.md (lines 1424-1425).
+// the getList response table in docs/namecheap-api-v2.md (lines 1426-1427).
 type UsersAddressListEntry struct {
 	// AddressID is the unique integer representing the address profile.
 	AddressID *int `xml:"AddressId,attr"`

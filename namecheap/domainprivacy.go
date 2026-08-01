@@ -37,9 +37,9 @@ type DomainPrivacyService service
 // subscription's lifecycle/allotment state.
 //
 // Grounding and the documented gap. docs/namecheap-api-v2.md (domainprivacy
-// section, getlist lines 1551-1575) does NOT enumerate the values of the getList
+// section, getlist lines 1553-1577) does NOT enumerate the values of the getList
 // Status field; it only documents the getList ListType filter vocabulary — ALL |
-// ALLOTED | FREE | DISCARD (line 1567). This SDK therefore does NOT invent a
+// ALLOTED | FREE | DISCARD (line 1563). This SDK therefore does NOT invent a
 // status code table. Instead it always exposes the raw Status verbatim on every
 // entry (see DomainPrivacyGetListEntry.Status) and offers this small state whose
 // constants are grounded in that documented ListType vocabulary.
@@ -70,7 +70,7 @@ const (
 
 // ClassifyPrivacyStatus maps a getList Status description onto a PrivacyState by
 // case-insensitive keyword matching against the documented getList ListType
-// category vocabulary (ALL | ALLOTED | FREE | DISCARD, line 1567).
+// category vocabulary (ALL | ALLOTED | FREE | DISCARD, line 1563).
 //
 // Because the doc enumerates no Status values, classification keys off the
 // free-text description rather than a fabricated code table:

@@ -7,10 +7,10 @@ import (
 
 // AddFundsStatus is the state of an add-funds request as reported by
 // namecheap.users.getAddFundsStatus. The documented values are listed in
-// docs/namecheap-api-v2.md (line 1256).
+// docs/namecheap-api-v2.md (line 1258).
 type AddFundsStatus string
 
-// Documented add-funds statuses (docs/namecheap-api-v2.md line 1256).
+// Documented add-funds statuses (docs/namecheap-api-v2.md line 1258).
 const (
 	// AddFundsStatusCreated means the request was created but not yet submitted.
 	AddFundsStatusCreated AddFundsStatus = "CREATED"
@@ -25,7 +25,7 @@ const (
 )
 
 // PaymentTypeCreditcard is the only documented PaymentType for
-// createaddfundsrequest (docs/namecheap-api-v2.md line 1224).
+// createaddfundsrequest (docs/namecheap-api-v2.md line 1226).
 const PaymentTypeCreditcard = "Creditcard"
 
 // UsersCreateAddFundsRequestResponse is the raw envelope for
@@ -46,7 +46,7 @@ type UsersCreateAddFundsRequestCommandResponse struct {
 }
 
 // UsersCreateAddFundsRequestResult is the outcome of an add-funds request. Field
-// names follow the response table in docs/namecheap-api-v2.md (lines 1230-1234).
+// names follow the response table in docs/namecheap-api-v2.md (lines 1232-1236).
 type UsersCreateAddFundsRequestResult struct {
 	// TokenID is the unique ID used to redirect the user to the add-funds page and
 	// to poll GetAddFundsStatusWithContext.
@@ -59,7 +59,7 @@ type UsersCreateAddFundsRequestResult struct {
 
 // UsersCreateAddFundsRequestArgs are the arguments for
 // CreateAddFundsRequestWithContext. Field names and required status follow the
-// request table in docs/namecheap-api-v2.md (lines 1221-1226).
+// request table in docs/namecheap-api-v2.md (lines 1223-1228).
 //
 // The doc's "Username" parameter is not exposed here: the transport reserves the
 // "Username" request parameter for the authenticated account (ClientOptions.
@@ -151,7 +151,7 @@ type UsersGetAddFundsStatusCommandResponse struct {
 }
 
 // UsersGetAddFundsStatusResult is the status of an add-funds request. Field names
-// follow the response table in docs/namecheap-api-v2.md (lines 1252-1256).
+// follow the response table in docs/namecheap-api-v2.md (lines 1254-1258).
 type UsersGetAddFundsStatusResult struct {
 	// TransactionID is the unique integer identifying the transaction.
 	TransactionID *int `xml:"TransactionID,attr"`

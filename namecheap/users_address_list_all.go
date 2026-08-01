@@ -8,7 +8,7 @@ import (
 // ListAll returns an iterator over every address-book entry on the account.
 //
 // Unlike the paged endpoints, users.address.getList is a flat, non-paged list
-// (docs/namecheap-api-v2.md lines 1412-1428: no request parameters and no paging
+// (docs/namecheap-api-v2.md lines 1414-1430: no request parameters and no paging
 // block), so ListAll performs exactly one fetch and yields each returned entry;
 // there is no page N+1 to fetch lazily. It is provided for API uniformity with
 // the paged services' ListAll iterators. The (entry, error) yield contract

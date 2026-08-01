@@ -15,8 +15,8 @@ type UsersAddressService service
 
 // UsersAddressDetails holds the mutable fields of an address-book entry shared by
 // create and update. Field names and required/optional status follow the
-// address.create request table in docs/namecheap-api-v2.md (lines 1347-1365); the
-// same fields (plus AddressId) drive address.update (lines 1460-1477).
+// address.create request table in docs/namecheap-api-v2.md (lines 1349-1367); the
+// same fields (plus AddressId) drive address.update (lines 1462-1479).
 //
 // Field naming differs from the domain ContactInfo shape: the address book uses
 // "Zip" (not "PostalCode") and "Organization" (not "OrganizationName"), and it

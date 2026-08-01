@@ -23,7 +23,7 @@ type UsersAddressSetDefaultCommandResponse struct {
 }
 
 // UsersAddressSetDefaultResult is the outcome of a setDefault. Field names follow
-// the response table in docs/namecheap-api-v2.md (lines 1443-1446).
+// the response table in docs/namecheap-api-v2.md (lines 1445-1448).
 type UsersAddressSetDefaultResult struct {
 	// Success reports whether the default address was set.
 	Success *bool `xml:"Success,attr"`

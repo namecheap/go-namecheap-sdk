@@ -342,7 +342,11 @@ single-tier lookup. Money is never parsed to `float64`: every amount is an
 `Amount` (the exact server decimal string). `Price.EffectivePrice()` resolves the
 documented precedence — server-resolved `Price` (which already reflects any
 promo/special), then `YourPrice` (account price), then `RegularPrice` (list
-price). The sheet is large and slow-changing, so fetch it once and cache it.
+price). A tier also exposes the `Currency` it is denominated in and a
+`PromotionPrice`, both of which the server may omit; `Price.Promo()` reports the
+promotion as an explicit "(amount, present)" so an absent attribute is not
+confused with a zero one. The sheet is large and slow-changing, so fetch it once
+and cache it.
 
 ```go
 // Example: check the balance before a bulk renew.

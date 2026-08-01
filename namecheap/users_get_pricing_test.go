@@ -14,8 +14,9 @@ import (
 // pricingDomainResponse is a realistic captured-style DOMAIN price sheet. The
 // register tiers for com/net/org are crafted to exercise EffectivePrice
 // precedence: com has a promo Price, net falls through to YourPrice (Price zero),
-// org falls through to RegularPrice (Price empty, YourPrice zero). Extra
-// attributes (Currency, PricingType, ...) mirror the live API and must be ignored.
+// org falls through to RegularPrice (Price empty, YourPrice zero). Currency is
+// parsed; the remaining extra attributes (PricingType, RegularPriceType, ...)
+// mirror the live API and must be ignored.
 const pricingDomainResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
@@ -38,6 +39,34 @@ const pricingDomainResponse = `<?xml version="1.0" encoding="utf-8"?>
 				<ProductCategory Name="renew">
 					<Product Name="com">
 						<Price Duration="1" DurationType="YEAR" Price="11.00" RegularPrice="12.88" YourPrice="11.50" Currency="USD" />
+					</Product>
+				</ProductCategory>
+			</ProductType>
+		</UserGetPricingResult>
+	</CommandResponse>
+	<Server>PHX01SBAPIEXT06</Server>
+	<GMTTimeDifference>--4:00</GMTTimeDifference>
+	<ExecutionTime>2.345</ExecutionTime>
+</ApiResponse>`
+
+// pricingPromotionResponse exercises the optional per-tier attributes. The
+// 1-year shop tier carries Currency and PromotionPrice, with Price, YourPrice
+// and PromotionPrice deliberately all different so an EffectivePrice assertion
+// on it can only pass for one of them. The 2-year tier omits both optional
+// attributes entirely, and the 3-year tier sends them present-but-empty — the
+// two shapes a server can use to say "nothing here".
+const pricingPromotionResponse = `<?xml version="1.0" encoding="utf-8"?>
+<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+	<Errors />
+	<RequestedCommand>namecheap.users.getPricing</RequestedCommand>
+	<CommandResponse Type="namecheap.users.getPricing">
+		<UserGetPricingResult>
+			<ProductType Name="domains">
+				<ProductCategory Name="register">
+					<Product Name="shop">
+						<Price Duration="1" DurationType="YEAR" Price="1.16" RegularPrice="19.99" YourPrice="9.99" Currency="EUR" PromotionPrice="0.99" />
+						<Price Duration="2" DurationType="YEAR" Price="39.98" RegularPrice="39.98" YourPrice="39.98" />
+						<Price Duration="3" DurationType="YEAR" Price="59.97" RegularPrice="59.97" YourPrice="59.97" Currency="" PromotionPrice="" />
 					</Product>
 				</ProductCategory>
 			</ProductType>
@@ -121,6 +150,60 @@ func TestUsersService_GetPricing_Domain(t *testing.T) {
 	assert.Equal(t, Amount("8.88"), comYear1.Price)
 	assert.Equal(t, Amount("10.87"), comYear1.RegularPrice)
 	assert.Equal(t, Amount("9.99"), comYear1.YourPrice)
+	assert.Equal(t, "USD", comYear1.Currency)
+
+	// This sheet carries no promotion, so PromotionPrice stays absent and Promo
+	// reports it rather than returning a fabricated zero amount.
+	assert.Equal(t, Amount(""), comYear1.PromotionPrice)
+	promo, hasPromo := comYear1.Promo()
+	assert.False(t, hasPromo)
+	assert.Equal(t, Amount(""), promo)
+}
+
+// TestUsersService_GetPricing_PromotionAttributes covers the optional Currency
+// and PromotionPrice attributes: present on the promo tier, absent on the tier
+// below it. An absent attribute must unmarshal to the zero value rather than
+// failing the decode, because the live API omits both on some product types.
+func TestUsersService_GetPricing_PromotionAttributes(t *testing.T) {
+	t.Parallel()
+
+	client := usersMockClient(t, pricingPromotionResponse, nil)
+	resp, err := client.Users.GetPricingWithContext(context.Background(), &UsersGetPricingArgs{ProductType: String("DOMAIN")})
+	mustNoError(t, err)
+	result := resp.UserGetPricingResult
+	mustNotNil(t, result)
+
+	discounted, ok := result.PriceFor("REGISTER", "shop", 1)
+	mustTrue(t, ok)
+	assert.Equal(t, "EUR", discounted.Currency)
+	assert.Equal(t, Amount("0.99"), discounted.PromotionPrice)
+	promo, hasPromo := discounted.Promo()
+	mustTrue(t, hasPromo)
+	assert.Equal(t, Amount("0.99"), promo)
+
+	// The promotion is already folded into Price server-side, so Price is what a
+	// caller pays. Price, YourPrice and PromotionPrice all differ on this tier,
+	// so this assertion fails if parsing PromotionPrice ever displaces the
+	// documented precedence.
+	assert.Equal(t, Amount("1.16"), discounted.EffectivePrice())
+
+	// Same product, second year: the optional attributes are absent entirely.
+	plain, ok := result.PriceFor("REGISTER", "shop", 2)
+	mustTrue(t, ok)
+	assert.Equal(t, "", plain.Currency)
+	assert.Equal(t, Amount(""), plain.PromotionPrice)
+	_, hasPromo = plain.Promo()
+	assert.False(t, hasPromo)
+	assert.Equal(t, Amount("39.98"), plain.EffectivePrice())
+
+	// Third year: the attributes are present but empty, which must decode (and
+	// report) identically to being absent.
+	blank, ok := result.PriceFor("REGISTER", "shop", 3)
+	mustTrue(t, ok)
+	assert.Equal(t, "", blank.Currency)
+	assert.Equal(t, Amount(""), blank.PromotionPrice)
+	_, hasPromo = blank.Promo()
+	assert.False(t, hasPromo)
 }
 
 func TestUsersService_GetPricing_PriceForPrecedence(t *testing.T) {
@@ -235,6 +318,74 @@ func TestUsersService_GetPricing_Validation(t *testing.T) {
 		_, hasAction := sent["ActionName"]
 		assert.False(t, hasAction)
 	})
+}
+
+// TestPrice_Promo unit-tests the promotion accessor directly on Price values,
+// independent of parsing. Promo reports presence, not interpretation: only an
+// attribute the server did not send (or sent blank) is "no promotion", and
+// whatever it did send comes back verbatim — including values the API is not
+// documented to produce, which the SDK passes through rather than sanitizing.
+func TestPrice_Promo(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		p       Price
+		want    Amount
+		wantHas bool
+	}{
+		{"promotion present", Price{PromotionPrice: "1.16", Price: "1.16", RegularPrice: "19.99"}, "1.16", true},
+		{"attribute absent", Price{Price: "8.88", RegularPrice: "10.87"}, "", false},
+		{"attribute present but empty", Price{PromotionPrice: ""}, "", false},
+		{"whitespace only is absent", Price{PromotionPrice: "  "}, "", false},
+		{"sub-unit promotion", Price{PromotionPrice: "0.01"}, "0.01", true},
+		// A zero promotional price is reported as present: the API does not
+		// document what it means, and a free-first-year promotion is a real
+		// product, so the SDK must not silently call it "no promotion".
+		{"zero decimal is present", Price{PromotionPrice: "0.00"}, "0.00", true},
+		{"short zero is present", Price{PromotionPrice: "0.0"}, "0.0", true},
+		{"bare zero is present", Price{PromotionPrice: "0"}, "0", true},
+		{"many-decimal zero is present", Price{PromotionPrice: "0.000000"}, "0.000000", true},
+		// Values the documented API never returns still round-trip unchanged;
+		// the SDK is not a validator (see the Amount doc comment).
+		{"negative passes through", Price{PromotionPrice: "-1.00"}, "-1.00", true},
+		{"comma decimal passes through", Price{PromotionPrice: "1,16"}, "1,16", true},
+		{"exponent passes through", Price{PromotionPrice: "1e-2"}, "1e-2", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, has := tc.p.Promo()
+			assert.Equal(t, tc.wantHas, has)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestPrice_PromoDoesNotAffectEffectivePrice pins the separation of concerns:
+// PromotionPrice reports which discount applied, EffectivePrice reports what is
+// charged, and adding the former must never move the latter.
+func TestPrice_PromoDoesNotAffectEffectivePrice(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		p    Price
+		want Amount
+	}{
+		// Every case keeps PromotionPrice distinct from the expected result, so a
+		// precedence that wrongly consulted it would fail here.
+		{"promo folded into Price", Price{Price: "1.16", YourPrice: "9.99", RegularPrice: "19.99", PromotionPrice: "0.99"}, "1.16"},
+		{"promo present but Price zero", Price{Price: "0.00", YourPrice: "9.99", RegularPrice: "19.99", PromotionPrice: "0.99"}, "9.99"},
+		{"promo present, only regular set", Price{RegularPrice: "19.99", PromotionPrice: "0.99"}, "19.99"},
+		{"zero promo does not zero the price", Price{Price: "8.88", YourPrice: "9.99", RegularPrice: "10.87", PromotionPrice: "0.00"}, "8.88"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.p.EffectivePrice())
+		})
+	}
 }
 
 // TestPrice_EffectivePrice unit-tests the precedence directly on Price values,

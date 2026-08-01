@@ -6,7 +6,7 @@ import (
 )
 
 // privacyMaxPageSize is the documented maximum PageSize for whoisguard.getlist
-// (docs/namecheap-api-v2.md line 1563: "Min: 2, Max: 100"). ListAll requests this
+// (docs/namecheap-api-v2.md line 1565: "Min: 2, Max: 100"). ListAll requests this
 // many items per page when PageSize is unset.
 const privacyMaxPageSize = 100
 

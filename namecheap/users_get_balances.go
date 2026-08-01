@@ -21,7 +21,7 @@ type UsersGetBalancesCommandResponse struct {
 }
 
 // UsersGetBalancesResult holds the account funds. Field names follow the
-// getBalances response table in docs/namecheap-api-v2.md (lines 1146-1153). Every
+// getBalances response table in docs/namecheap-api-v2.md (lines 1148-1155). Every
 // monetary field is an Amount (an exact decimal string) so a balance used to gate
 // a charge is never mangled by binary floating point; Currency is a plain string.
 type UsersGetBalancesResult struct {
