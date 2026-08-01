@@ -79,12 +79,27 @@ type RecordDiff struct {
 	Add    []DomainsDNSHostRecord
 	Remove []DomainsDNSHostRecord
 	Keep   []DomainsDNSHostRecord
+	// EmailType is the zone's current EmailType, as read from getHosts.
+	EmailType string
+	// RequiredEmailType is the EmailType the resulting record set demands, which
+	// is not always the current one: setHosts rejects an MX record unless the
+	// zone is EmailType=MX, and an MXE record unless it is MXE. When it differs
+	// from EmailType, applying this diff needs WithEmailType(RequiredEmailType)
+	// — otherwise the write is rejected client-side before it is sent.
+	//
+	// It is empty when the record set imposes no requirement, which is the usual
+	// case: any EmailType may carry A/CNAME/TXT records, so the zone's existing
+	// value is preserved.
+	RequiredEmailType string
 }
 
 // String renders the diff as a stable, human-readable summary.
 func (d RecordDiff) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "RecordDiff: +%d -%d =%d", len(d.Add), len(d.Remove), len(d.Keep))
+	if d.RequiredEmailType != "" && d.RequiredEmailType != d.EmailType {
+		fmt.Fprintf(&b, "\n  EmailType: %s -> %s", d.EmailType, d.RequiredEmailType)
+	}
 	for _, r := range d.Add {
 		fmt.Fprintf(&b, "\n  + %s", recordString(r))
 	}
@@ -115,6 +130,9 @@ type RecordOption func(*recordOptions)
 
 type recordOptions struct {
 	maxAttempts int
+	// emailType, when non-nil, replaces the zone EmailType read from getHosts
+	// instead of preserving it.
+	emailType *string
 }
 
 // WithRetryOnConflict enables automatic retry of the whole
@@ -128,6 +146,36 @@ func WithRetryOnConflict(maxAttempts int) RecordOption {
 			maxAttempts = 1
 		}
 		o.maxAttempts = maxAttempts
+	}
+}
+
+// WithEmailType sets the zone EmailType to write with this mutation instead of
+// preserving the value read from getHosts.
+//
+// It exists because setHosts couples mail records to the zone EmailType: an MX
+// record is rejected unless the zone is EmailType=MX, an MXE record unless it is
+// MXE, and an MX zone requires at least one MX record. Preserving the existing
+// value — the default, and the right behaviour for ordinary A/CNAME/TXT changes —
+// therefore makes the mail lifecycle unreachable: the first MX record cannot be
+// added to a NONE zone, and the last one cannot be removed from an MX zone.
+//
+//	// Add the first MX record to a zone that has no mail routing yet.
+//	AddRecordsWithContext(ctx, domain, mx, WithEmailType(EmailTypeMX))
+//
+//	// Remove the last MX record and turn mail routing off in the same write.
+//	DeleteRecordsWithContext(ctx, domain, sel, WithEmailType(EmailTypeNone))
+//
+// Use it only when the mutation is meant to change mail routing. On a zone whose
+// mail is managed elsewhere — EmailTypeForward alongside setEmailForwarding, or
+// EmailTypePrivate/EmailTypeGmail pointing at a hosted mailbox — passing an
+// EmailType silently reroutes that mail, so leave the option off and let the
+// value be preserved.
+//
+// The resulting record set is validated against the requested EmailType before
+// anything is written; see PlanWithContext to preview the transition.
+func WithEmailType(emailType string) RecordOption {
+	return func(o *recordOptions) {
+		o.emailType = &emailType
 	}
 }
 
@@ -440,6 +488,82 @@ func recordSetsEqual(a, b []DomainsDNSHostRecord) bool {
 	return true
 }
 
+// requiredEmailType reports the EmailType that records demand of the zone, or ""
+// when they impose none. setHosts accepts an MX record only on an MX zone and an
+// MXE record only on an MXE zone, so a set containing either pins the EmailType;
+// everything else is compatible with any value.
+//
+// A set containing both MX and MXE records is unsatisfiable — no single
+// EmailType admits both — and is reported as such by validateEmailType rather
+// than here.
+func requiredEmailType(records []DomainsDNSHostRecord) string {
+	var hasMX, hasMXE bool
+	for _, r := range records {
+		switch normRecordType(derefStr(r.RecordType)) {
+		case RecordTypeMX:
+			hasMX = true
+		case RecordTypeMXE:
+			hasMXE = true
+		}
+	}
+	switch {
+	case hasMX && hasMXE:
+		return "" // unsatisfiable; validateEmailType explains it
+	case hasMX:
+		return EmailTypeMX
+	case hasMXE:
+		return EmailTypeMXE
+	default:
+		return ""
+	}
+}
+
+// validateEmailType checks the resulting record set against the EmailType the
+// write will carry, before any request is sent. setHosts enforces the same rules
+// server-side and the SDK's own SetHosts validator repeats them, but neither can
+// say what a record-level caller should do about it — these errors name
+// WithEmailType, because that is the fix.
+func validateEmailType(records []DomainsDNSHostRecord, emailType string, explicit bool) error {
+	var hasMX, mxeCount int
+	for _, r := range records {
+		switch normRecordType(derefStr(r.RecordType)) {
+		case RecordTypeMX:
+			hasMX++
+		case RecordTypeMXE:
+			mxeCount++
+		}
+	}
+
+	if hasMX > 0 && mxeCount > 0 {
+		return fmt.Errorf("record set contains both MX and MXE records, which no EmailType accepts: "+
+			"MX records require EmailType=%s and MXE records require EmailType=%s", EmailTypeMX, EmailTypeMXE)
+	}
+
+	source := "the zone's current EmailType"
+	if explicit {
+		source = "the EmailType passed to WithEmailType"
+	}
+
+	if hasMX > 0 && emailType != EmailTypeMX {
+		return fmt.Errorf("the resulting record set has %d MX record(s), which setHosts accepts only on an "+
+			"EmailType=%s zone, but %s is %q: pass WithEmailType(EmailTypeMX)", hasMX, EmailTypeMX, source, emailType)
+	}
+	if mxeCount > 0 && emailType != EmailTypeMXE {
+		return fmt.Errorf("the resulting record set has %d MXE record(s), which setHosts accepts only on an "+
+			"EmailType=%s zone, but %s is %q: pass WithEmailType(EmailTypeMXE)", mxeCount, EmailTypeMXE, source, emailType)
+	}
+	if emailType == EmailTypeMX && hasMX == 0 {
+		return fmt.Errorf("%s is %s, which setHosts requires at least one MX record for, but the resulting "+
+			"record set has none: pass WithEmailType(EmailTypeNone) to turn mail routing off in the same write",
+			source, EmailTypeMX)
+	}
+	if emailType == EmailTypeMXE && mxeCount != 1 {
+		return fmt.Errorf("%s is %s, which setHosts requires exactly one MXE record for, but the resulting "+
+			"record set has %d", source, EmailTypeMXE, mxeCount)
+	}
+	return nil
+}
+
 // recordsFromResult extracts the settable record set and the zone EmailType from
 // a getHosts response. A nil or empty EmailType defaults to EmailTypeNone so a
 // partial update never silently clears email routing.
@@ -474,7 +598,8 @@ func buildSetHostsArgs(domain string, records []DomainsDNSHostRecord, emailType 
 }
 
 // AddRecordsWithContext appends records to domain's zone, preserving every
-// existing record (and the zone EmailType), then verifies the result by
+// existing record (and, unless WithEmailType is supplied, the zone EmailType),
+// then verifies the result by
 // re-reading the zone. It returns ErrConcurrentModification if the zone changed
 // under it, unless WithRetryOnConflict is supplied. See the package README on
 // the non-transactional setHosts API.
@@ -483,7 +608,8 @@ func (dds *DomainsDNSService) AddRecordsWithContext(ctx context.Context, domain 
 }
 
 // DeleteRecordsWithContext removes every record matching selector from domain's
-// zone, preserving the rest (and the zone EmailType), then verifies the result.
+// zone, preserving the rest (and, unless WithEmailType is supplied, the zone
+// EmailType), then verifies the result.
 // An empty selector is rejected before any request; use
 // RecordSelector{MatchAll: true} to intentionally delete all records. It returns
 // ErrConcurrentModification on a detected race unless WithRetryOnConflict is
@@ -493,8 +619,8 @@ func (dds *DomainsDNSService) DeleteRecordsWithContext(ctx context.Context, doma
 }
 
 // UpsertRecordsWithContext replaces exactly the records matching selector with
-// records, preserving all other records (and the zone EmailType), then verifies
-// the result. An empty selector is rejected before any request. It returns
+// records, preserving all other records (and, unless WithEmailType is supplied,
+// the zone EmailType), then verifies the result. An empty selector is rejected before any request. It returns
 // ErrConcurrentModification on a detected race unless WithRetryOnConflict is
 // supplied.
 func (dds *DomainsDNSService) UpsertRecordsWithContext(ctx context.Context, domain string, selector RecordSelector, records []DomainsDNSHostRecord, opts ...RecordOption) (*RecordChangeResult, error) {
@@ -513,8 +639,10 @@ func (dds *DomainsDNSService) PlanWithContext(ctx context.Context, domain string
 	if err != nil {
 		return RecordDiff{}, err
 	}
-	current, _ := recordsFromResult(getResp)
-	diff, _ := computeDiff(current, ops)
+	current, emailType := recordsFromResult(getResp)
+	diff, final := computeDiff(current, ops)
+	diff.EmailType = emailType
+	diff.RequiredEmailType = requiredEmailType(final)
 	return diff, nil
 }
 
@@ -529,7 +657,7 @@ func (dds *DomainsDNSService) applyRecordOps(ctx context.Context, domain string,
 
 	var lastErr error
 	for attempt := 0; attempt < cfg.maxAttempts; attempt++ {
-		result, conflict, err := dds.attemptRecordOps(ctx, domain, ops)
+		result, conflict, err := dds.attemptRecordOps(ctx, domain, ops, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -545,7 +673,7 @@ func (dds *DomainsDNSService) applyRecordOps(ctx context.Context, domain string,
 // conflict (second return value) when the verifying re-read does not match the
 // record set it intended to write; a conflict is not an error so the caller can
 // decide whether to retry.
-func (dds *DomainsDNSService) attemptRecordOps(ctx context.Context, domain string, ops []RecordOp) (*RecordChangeResult, bool, error) {
+func (dds *DomainsDNSService) attemptRecordOps(ctx context.Context, domain string, ops []RecordOp, cfg recordOptions) (*RecordChangeResult, bool, error) {
 	getResp, err := dds.GetHostsWithContext(ctx, domain)
 	if err != nil {
 		return nil, false, err
@@ -553,6 +681,16 @@ func (dds *DomainsDNSService) attemptRecordOps(ctx context.Context, domain strin
 	current, emailType := recordsFromResult(getResp)
 
 	diff, final := computeDiff(current, ops)
+
+	// WithEmailType replaces the preserved value; without it the zone keeps the
+	// EmailType it already had.
+	explicitEmailType := cfg.emailType != nil
+	if explicitEmailType {
+		emailType = *cfg.emailType
+	}
+	if err := validateEmailType(final, emailType, explicitEmailType); err != nil {
+		return nil, false, err
+	}
 
 	setResp, err := dds.SetHostsWithContext(ctx, buildSetHostsArgs(domain, final, emailType))
 	if err != nil {

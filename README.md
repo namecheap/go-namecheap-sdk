@@ -304,6 +304,44 @@ address ignored, MXPref exact). An empty selector is **rejected** with a typed
 > that) — but it turns a silent data-loss footgun into an explicit, handleable
 > error.
 
+### Mail records and the zone EmailType
+
+`setHosts` couples mail records to the zone's `EmailType`: an `MX` record is
+rejected unless the zone is `EmailType=MX`, an `MXE` record unless it is `MXE`,
+and an `MX` zone must keep at least one `MX` record. The record helpers preserve
+the EmailType they read, which is right for ordinary A/CNAME/TXT changes but
+makes the mail lifecycle impossible — you cannot add the *first* MX record to a
+`NONE` zone, or remove the *last* one from an `MX` zone.
+
+`WithEmailType` writes a different EmailType with the mutation:
+
+```go
+// Add the first MX record and switch mail routing on, in one write.
+_, err := client.DomainsDNS.AddRecordsWithContext(ctx, "example.com", mxRecords,
+    namecheap.WithEmailType(namecheap.EmailTypeMX))
+
+// Remove the last MX record and switch it off.
+_, err = client.DomainsDNS.DeleteRecordsWithContext(ctx, "example.com",
+    namecheap.RecordSelector{RecordType: namecheap.String(namecheap.RecordTypeMX)},
+    namecheap.WithEmailType(namecheap.EmailTypeNone))
+```
+
+The resulting record set is validated against the EmailType before anything is
+sent, so an invalid combination fails early with an error naming the option
+rather than as an opaque API rejection. `Plan` reports the transition up front:
+
+```go
+diff, _ := client.DomainsDNS.PlanWithContext(ctx, "example.com", namecheap.AddOp(mx...))
+if diff.RequiredEmailType != "" && diff.RequiredEmailType != diff.EmailType {
+    // applying this needs WithEmailType(diff.RequiredEmailType)
+}
+```
+
+> **Leave the option off when mail is managed elsewhere.** On an `FWD` zone
+> (alongside `setEmailForwarding`) or an `OX`/`GMAIL` zone pointing at a hosted
+> mailbox, passing an EmailType silently reroutes that mail. Preserving the
+> existing value — the default — is what you want there.
+
 `NormalizeRecord` and `RecordsEqual` are exported so consumers can reuse the same
 comparison logic (TTL defaults to 1799, hostname lower-cased, `@` apex handling,
 trailing-dot handling, record type upper-cased).
