@@ -304,6 +304,60 @@ address ignored, MXPref exact). An empty selector is **rejected** with a typed
 > that) — but it turns a silent data-loss footgun into an explicit, handleable
 > error.
 
+#### Mail records and the zone EmailType
+
+The SDK's client-side `setHosts` validation couples mail records to the zone's
+`EmailType`: an `MX` record is rejected unless the zone is `EmailType=MX`, an
+`MXE` record unless it is `MXE`, and an `MX` zone must keep at least one `MX`
+record. (These rules are the SDK's own — the published API reference documents
+none of them.) The record helpers preserve
+the EmailType they read, which is right for ordinary A/CNAME/TXT changes but
+makes the mail lifecycle impossible — you cannot add the *first* MX record to a
+`NONE` zone, or remove the *last* one from an `MX` zone.
+
+`WithEmailType` writes a different EmailType with the mutation:
+
+```go
+// Add the first MX record and switch mail routing on, in one write.
+_, err := client.DomainsDNS.AddRecordsWithContext(ctx, "example.com", mxRecords,
+    namecheap.WithEmailType(namecheap.EmailTypeMX))
+
+// Remove the last MX record and switch it off.
+_, err = client.DomainsDNS.DeleteRecordsWithContext(ctx, "example.com",
+    namecheap.RecordSelector{RecordType: namecheap.String(namecheap.RecordTypeMX)},
+    namecheap.WithEmailType(namecheap.EmailTypeNone))
+```
+
+The resulting record set is validated against the EmailType before anything is
+written — a `getHosts` still happens, since the final set has to be computed
+before it can be checked — so an invalid combination fails with a typed
+`*InvalidArgumentsError` naming the option, rather than an opaque rejection.
+`Plan` reports the transition up front, in both directions:
+
+```go
+diff, _ := client.DomainsDNS.PlanWithContext(ctx, "example.com", namecheap.AddOp(mx...))
+if !diff.Satisfiable {
+    // no EmailType can carry this set (MX and MXE together, or several MXE)
+}
+if diff.RequiredEmailType != "" {
+    // applying this needs WithEmailType(diff.RequiredEmailType) — this covers
+    // both adding the first MX record and removing the last one
+}
+```
+
+> **Leave the option off when mail is managed elsewhere.** On an `FWD` zone
+> (alongside `setEmailForwarding`), passing an EmailType silently reroutes that
+> mail. Preserving the existing value — the default — is what you want there.
+>
+> **Known limitation — `OX` (Private Email) and `GMAIL` zones.** These keep their
+> provider's MX records in the host list while the zone type stays `OX`/`GMAIL`,
+> a combination the SDK's `setHosts` validation rejects. The record helpers
+> therefore cannot mutate such a zone at all, not even to change an unrelated A
+> record, and the error suggests `WithEmailType(EmailTypeMX)` — which would
+> switch the domain off the hosted mailbox. **Do not follow that suggestion on an
+> OX/GMAIL zone.** Use `GetHosts`/`SetHosts` directly there until the rule is
+> verified against the live API.
+
 `NormalizeRecord` and `RecordsEqual` are exported so consumers can reuse the same
 comparison logic (TTL defaults to 1799, hostname lower-cased, `@` apex handling,
 trailing-dot handling, record type upper-cased).
