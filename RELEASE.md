@@ -39,8 +39,28 @@ Supporting configuration:
 
 - PR title must follow Conventional Commits; `pr-title.yml` fails the PR
   otherwise.
-- PRs are squash-merged, so the PR title becomes the commit message that
+- PRs are squash-merged, so the PR title becomes the commit subject that
   release-please classifies.
+- **The PR *body* becomes the commit body, and release-please parses that too.**
+  A body line that begins with an identifier immediately followed by `(` — a Go
+  call at the start of a line in a fenced example, say — is read as a
+  `type(scope)` header, and a nested parenthesis makes the whole commit
+  unparseable:
+
+  ```
+  commit could not be parsed: 8f94f7a feat(dns): add WithEmailType ... (#161)
+  error message: Error: unexpected token '(' at 27:53, valid tokens [)]
+  Considering: 0 commits — No commits for path: ., skipping
+  ```
+
+  release-please then opens **no release PR at all** and the change silently does
+  not ship. It happened to #161. Either indent such lines inside the fence so
+  they do not start at column 0, or pass an explicit body when merging:
+
+  ```shell
+  gh pr merge <n> --squash --body "Short prose summary, no code."
+  ```
+
 - `ci.yml` runs on the PR and again on the resulting merge commit.
 
 At this point nothing is released — the commit simply sits on `master`.
