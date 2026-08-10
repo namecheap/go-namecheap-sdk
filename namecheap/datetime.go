@@ -1,6 +1,9 @@
 package namecheap
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // DateTime represents a time that can be unmarshalled from an XML
 type DateTime struct {
@@ -11,13 +14,19 @@ func (dt DateTime) String() string {
 	return dt.Time.String()
 }
 
+// UnmarshalText parses an API date in MM/DD/YYYY form, ignoring surrounding
+// whitespace. Empty or whitespace-only input yields the zero time without
+// error: the API omits or empties date elements for domains that lack them,
+// and failing there would abort decoding of the entire response.
 func (dt *DateTime) UnmarshalText(text []byte) (err error) {
-	dt.Time, err = time.Parse("01/02/2006", string(text))
-	if err != nil {
-		return err
+	trimmed := strings.TrimSpace(string(text))
+	if trimmed == "" {
+		dt.Time = time.Time{}
+		return nil
 	}
 
-	return nil
+	dt.Time, err = time.Parse("01/02/2006", trimmed)
+	return err
 }
 
 // Equal reports whether dt and u are equal based on time.Equal
