@@ -25,6 +25,13 @@ type DomainsGetInfoCommandResponse struct {
 	DomainDNSGetListResult *DomainsGetInfoResult `xml:"DomainGetInfoResult"`
 }
 
+// Result returns the getInfo result under its correct name. It exists
+// because the DomainDNSGetListResult field is misnamed; when the field is
+// renamed to DomainGetInfoResult in v3, Result remains valid.
+func (r *DomainsGetInfoCommandResponse) Result() *DomainsGetInfoResult {
+	return r.DomainDNSGetListResult
+}
+
 // DomainsGetInfoResult is the detailed information about a single domain
 // returned by namecheap.domains.getInfo.
 //

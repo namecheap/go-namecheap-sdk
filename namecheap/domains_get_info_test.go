@@ -356,4 +356,23 @@ func TestDomainsGetInfo(t *testing.T) {
 		_, err := client.Domains.GetInfoWithContext(context.Background(), "domain.com")
 		assert.Error(t, err)
 	})
+
+	t.Run("result_accessor_returns_deprecated_field", func(t *testing.T) {
+		t.Parallel()
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			_, _ = writer.Write([]byte(fakeResponse))
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		resp, err := client.Domains.GetInfoWithContext(context.Background(), "horse-family.com.ua")
+		if err != nil {
+			t.Fatal("Unable to get domain info", err)
+		}
+
+		assert.NotNil(t, resp.Result())
+		assert.Same(t, resp.DomainDNSGetListResult, resp.Result())
+	})
 }
