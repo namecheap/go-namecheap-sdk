@@ -386,6 +386,14 @@ Returns information about the requested domain.
 | OwnerName | User account under which domain is registered |
 | IsOwner | Whether the API user is the domain owner |
 | IsPremium | Whether the domain name is premium |
+| DomainDetails | Child element: CreatedDate, ExpiredDate (MM/DD/YYYY), NumYears |
+| LockDetails | Child element: observed empty in all captures; use namecheap.domains.getRegistrarLock for lock state |
+| Whoisguard | Child element: Enabled attr ("True", "False", "NotAlloted"), ID (0 = not alloted), ExpiredDate, EmailDetails (WhoisGuardEmail, ForwardedTo, LastAutoEmailChangeDate — empty or MM/DD/YYYY, AutoEmailChangeFrequencyDays) |
+| PremiumDnsSubscription | Child element: UseAutoRenew (the subscription's flag, not the domain's), SubscriptionId (-1 = none), CreatedDate/ExpirationDate (ISO; 0001-01-01T00:00:00 = never), IsActive |
+| DnsDetails | Child element: ProviderType, IsUsingOurDNS, HostCount, EmailType, DynamicDNSStatus, IsFailover attrs; Nameserver children |
+| Modificationrights | Child element: All attr; Rights children with Type attr (dns, eforward, rlock, parkpage, hosts, ddns, extend, nameserver, autorenew, whoisguard, premiumDns, dnsSec) and chardata value ("OK") |
+
+Note: getInfo has no domain-level auto-renew field; domain auto-renew and lock booleans are returned by `namecheap.domains.getList` (`AutoRenew`, `IsLocked`).
 
 #### Error Codes
 
