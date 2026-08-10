@@ -146,8 +146,8 @@ points to `GetRegistrarLockWithContext` as the authoritative check.
    panics there today. Guard each pointer; absent data degrades to nil/false
    fields in the synthesized result. This call site is also the in-repo
    consumer of the deprecated field (likely origin of the copy-paste name) —
-   it keeps using the field internally until the v3 rename, with the
-   `//nolint:staticcheck` that requires.
+   it keeps using the field internally until the v3 rename (no `nolint`
+   needed: staticcheck's SA1019 does not flag same-package uses).
 6. **`ClassifyPrivacyStatus` inversion for the getInfo vocabulary** —
    `"NotAlloted"` normalizes to `"notalloted"`, which contains `"allot"` but
    not `"unallot"`, so the classifier returns `PrivacyStateAllotted` — the
@@ -183,7 +183,7 @@ value). Domain auto-renew and lock booleans live on `domains.getList`
   them.
 - Deprecated field format matches the file's existing convention: leading
   descriptive sentence, blank `//`, then `Deprecated: misnamed; use
-  Result(). The field will be renamed to DomainGetInfoResult in v3.`
+  Result. The field will be renamed to DomainGetInfoResult in v3.`
 - Extend `docs/namecheap-api-v2.md` (getInfo section, ~line 379): it
   currently documents only the six attributes and no child elements.
 
@@ -207,9 +207,8 @@ from real captures rather than hand-written XML:
 
 Test-design rules: assert **non-nil per struct**, not just `err == nil` — a
 tag-casing typo ships green otherwise. Accessor test asserts `Result()`
-returns the same pointer as the deprecated field; that one comparison line
-carries a justified `//nolint:staticcheck // SA1019: deprecated field is the
-accessor's backing store`. `DateTime` tests cover empty element, padded
+returns the same pointer as the deprecated field; no `nolint` is needed for
+the comparison — SA1019 does not fire on same-package uses. `DateTime` tests cover empty element, padded
 text, and `MM/DD/YYYY` (Decision 4). Classifier test covers `"NotAlloted"`.
 
 Implementation follows TDD. Verification gates: `make format`, `make check`,
