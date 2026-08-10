@@ -32,6 +32,9 @@ func TestClassifyPrivacyStatus(t *testing.T) {
 		{"discard", "DISCARD", PrivacyStateDiscard},
 		{"discarded", "Discarded", PrivacyStateDiscard},
 		{"unrecognized", "something else", PrivacyStateUnknown},
+		{"notalloted_capital", "NotAlloted", PrivacyStateFree},
+		{"notalloted_lower", "notalloted", PrivacyStateFree},
+		{"notallotted_proper", "NotAllotted", PrivacyStateFree},
 	}
 
 	for _, tc := range cases {
