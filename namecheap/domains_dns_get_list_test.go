@@ -229,6 +229,61 @@ func TestDomainsDNSGetList(t *testing.T) {
 		assert.Equal(t, expectedNameservers, result.DomainDNSGetListResult.Nameservers)
 	})
 
+	t.Run("freedns_fallback_sparse_getinfo_response", func(t *testing.T) {
+		t.Parallel()
+		fakeDNSGetListResponse := `
+			<?xml version="1.0" encoding="utf-8"?>
+			<ApiResponse Status="ERROR" xmlns="http://api.namecheap.com/xml.response">
+				<Errors>
+					<Error Number="2019166">Domain name not found</Error>
+				</Errors>
+				<RequestedCommand>namecheap.domains.dns.getlist</RequestedCommand>
+				<CommandResponse Type="namecheap.domains.dns.getList" />
+			</ApiResponse>
+		`
+
+		fakeGetInfoResponse := `
+			<?xml version="1.0" encoding="utf-8"?>
+			<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+				<Errors />
+				<RequestedCommand>namecheap.domains.getinfo</RequestedCommand>
+				<CommandResponse Type="namecheap.domains.getInfo">
+					<DomainGetInfoResult Status="Ok" ID="313319" DomainName="domain1.com" OwnerName="apisample" IsOwner="true">
+						<DnsDetails ProviderType="ENOM" />
+					</DomainGetInfoResult>
+				</CommandResponse>
+			</ApiResponse>
+		`
+
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			body, _ := io.ReadAll(request.Body)
+			query, _ := url.ParseQuery(string(body))
+			if query.Get("Command") == "namecheap.domains.dns.getList" {
+				_, _ = writer.Write([]byte(fakeDNSGetListResponse))
+			} else {
+				_, _ = writer.Write([]byte(fakeGetInfoResponse))
+			}
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		result, err := client.DomainsDNS.GetListWithContext(context.Background(), "domain1.com")
+		if err != nil {
+			t.Fatal("Unable to get DNS list", err)
+		}
+
+		if result.DomainDNSGetListResult == nil {
+			t.Fatal("GetListWithContext() fallback result is nil, want synthesized DomainDNSGetListResult")
+		}
+		assert.Equal(t, "domain1.com", *result.DomainDNSGetListResult.Domain)
+		assert.Equal(t, false, *result.DomainDNSGetListResult.IsUsingFreeDNS)
+		assert.Nil(t, result.DomainDNSGetListResult.IsPremiumDNS)
+		assert.Nil(t, result.DomainDNSGetListResult.IsUsingOurDNS)
+		assert.Nil(t, result.DomainDNSGetListResult.Nameservers)
+	})
+
 	t.Run("server_respond_with_error", func(t *testing.T) {
 		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

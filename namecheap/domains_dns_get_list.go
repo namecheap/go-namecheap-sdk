@@ -66,16 +66,24 @@ func (dds *DomainsDNSService) GetListWithContext(ctx context.Context, domain str
 			return nil, err
 		}
 
-		IsUsingFreeDNS := *domainInfo.DomainDNSGetListResult.DnsDetails.ProviderType == "FreeDNS"
+		synthesized := &DomainDNSGetListResult{}
+		if info := domainInfo.DomainDNSGetListResult; info != nil {
+			synthesized.Domain = info.DomainName
+			if info.DnsDetails != nil {
+				synthesized.IsUsingOurDNS = info.DnsDetails.IsUsingOurDNS
+				synthesized.Nameservers = info.DnsDetails.Nameservers
+				if info.DnsDetails.ProviderType != nil {
+					isUsingFreeDNS := *info.DnsDetails.ProviderType == "FreeDNS"
+					synthesized.IsUsingFreeDNS = &isUsingFreeDNS
+				}
+			}
+			if info.PremiumDnsSubscription != nil {
+				synthesized.IsPremiumDNS = info.PremiumDnsSubscription.IsActive
+			}
+		}
 
 		return &DomainsDNSGetListCommandResponse{
-			DomainDNSGetListResult: &DomainDNSGetListResult{
-				Domain:         domainInfo.DomainDNSGetListResult.DomainName,
-				IsUsingOurDNS:  domainInfo.DomainDNSGetListResult.DnsDetails.IsUsingOurDNS,
-				IsPremiumDNS:   domainInfo.DomainDNSGetListResult.PremiumDnsSubscription.IsActive,
-				IsUsingFreeDNS: &IsUsingFreeDNS,
-				Nameservers:    domainInfo.DomainDNSGetListResult.DnsDetails.Nameservers,
-			},
+			DomainDNSGetListResult: synthesized,
 		}, nil
 	}
 
