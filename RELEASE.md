@@ -130,17 +130,23 @@ Dependabot opens weekly PRs (see
 ## The `otelnamecheap` module
 
 The nested module `github.com/namecheap/go-namecheap-sdk/otelnamecheap` is
-**not** managed by release-please. It is released manually by tagging
-`otelnamecheap/vX.Y.Z` (the directory-prefixed form Go requires for nested
-modules):
+**not** managed by release-please (root-package commits exclude the
+`otelnamecheap/` path, so its changes never trigger an SDK release). It is
+released manually:
+
+1. Bump the `github.com/namecheap/go-namecheap-sdk/v2` requirement in
+   `otelnamecheap/go.mod` to the latest SDK release — nothing bumps it
+   automatically, so it drifts behind on every root release.
+2. Tag using the directory-prefixed form Go requires for nested modules:
 
 ```
 git tag -a otelnamecheap/vX.Y.Z -m "otelnamecheap vX.Y.Z" && git push origin otelnamecheap/vX.Y.Z
 ```
 
-> Note: the historical tag `votelnamecheap/v0.1.1` is malformed (extra leading
-> `v`) and invisible to the Go module proxy — otelnamecheap v0.1.1 is
-> effectively unreleased. The latest usable tag is `otelnamecheap/v0.1.0`.
+> Note: the historical tags `votelnamecheap/v0.1.1` and `votelnamecheap/v0.1.2`
+> are malformed (extra leading `v`) and invisible to the Go module proxy —
+> otelnamecheap v0.1.1 and v0.1.2 are effectively unreleased. The latest usable
+> tag is `otelnamecheap/v0.1.0`.
 
 ## Required configuration
 
@@ -152,13 +158,31 @@ git tag -a otelnamecheap/vX.Y.Z -m "otelnamecheap vX.Y.Z" && git push origin ote
 The org's release GitHub App must be installed on this repository (with
 `contents: write` and `pull-requests: write`) for the above to work.
 
+The flow also assumes these repository settings:
+
+- **Squash merging only**, with the squash commit title taken from the **PR
+  title** (`squash_merge_commit_title: PR_TITLE`) — otherwise a single-commit
+  PR lands its commit subject, bypassing the title check. Rebase merging must
+  stay disabled for the same reason.
+- Squash commit **message** set to `PR_BODY` or blank — with
+  `COMMIT_MESSAGES`, a stray `BREAKING CHANGE:` footer in an intermediate
+  commit would trigger an unintended major bump.
+- The **Conventional PR Title** check listed as a required status check, so a
+  non-conforming title actually blocks merge.
+
 ## Manual / emergency release
 
-Prefer the normal flow. In rare cases (release-please unavailable, out-of-band
-hotfix), a release can be cut by hand:
+If `master` is red for reasons unrelated to the code (for example a newly
+disclosed CVE failing the Trivy scan), `versioning.yml` never auto-runs and
+releases quietly stop. It can be started by hand via **workflow_dispatch**
+(Actions → Versioning → Run workflow) — note this deliberately bypasses the
+green-CI gate.
 
-1. Bump the version in `.release-please-manifest.json` and add the
-   corresponding entry to `CHANGELOG.md`. Commit to `master`.
-2. Tag the commit:
+If release-please itself is unavailable, a release can be cut fully by hand:
+
+1. Open a PR that bumps the version in `.release-please-manifest.json` and adds
+   the corresponding entry to `CHANGELOG.md` (direct pushes to `master` are
+   blocked by branch protection), and merge it.
+2. Tag the merge commit:
    `git tag -a vX.Y.Z -m "Release vX.Y.Z" && git push origin vX.Y.Z`.
 3. The next release-please run reconciles its state with the updated manifest.
