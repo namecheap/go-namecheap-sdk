@@ -144,10 +144,10 @@ func TestRepresentativeFixturesDecodeIntoStructs(t *testing.T) {
 		if err := xml.Unmarshal([]byte(FixtureOK("domains_getInfo")), &resp); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if resp.CommandResponse == nil || resp.CommandResponse.DomainDNSGetListResult == nil {
+		if resp.CommandResponse == nil || resp.CommandResponse.Result() == nil {
 			t.Fatal("CommandResponse/DomainGetInfoResult not populated")
 		}
-		if got := resp.CommandResponse.DomainDNSGetListResult.DomainName; got == nil || *got == "" {
+		if got := resp.CommandResponse.Result().DomainName; got == nil || *got == "" {
 			t.Errorf("DomainName not populated: %v", got)
 		}
 	})

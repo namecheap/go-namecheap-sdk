@@ -19,8 +19,8 @@ func TestServer_StubFixtureAndAssertCalled(t *testing.T) {
 	client := srv.Client()
 	resp, err := client.Domains.GetInfoWithContext(context.Background(), "example.com")
 	assert.NoError(t, err)
-	if assert.NotNil(t, resp) && assert.NotNil(t, resp.DomainDNSGetListResult) {
-		assert.NotNil(t, resp.DomainDNSGetListResult.DomainName)
+	if assert.NotNil(t, resp) && assert.NotNil(t, resp.Result()) {
+		assert.NotNil(t, resp.Result().DomainName)
 	}
 
 	// AssertCalled matches on a subset of the sent params.
@@ -73,16 +73,16 @@ func TestServer_StubSequence(t *testing.T) {
 	client := srv.Client()
 	first, err := client.Domains.GetInfoWithContext(context.Background(), "x")
 	assert.NoError(t, err)
-	assert.Equal(t, "one.com", *first.DomainDNSGetListResult.DomainName)
+	assert.Equal(t, "one.com", *first.Result().DomainName)
 
 	second, err := client.Domains.GetInfoWithContext(context.Background(), "x")
 	assert.NoError(t, err)
-	assert.Equal(t, "two.com", *second.DomainDNSGetListResult.DomainName)
+	assert.Equal(t, "two.com", *second.Result().DomainName)
 
 	// Exhausted sequence: last entry repeats.
 	third, err := client.Domains.GetInfoWithContext(context.Background(), "x")
 	assert.NoError(t, err)
-	assert.Equal(t, "two.com", *third.DomainDNSGetListResult.DomainName)
+	assert.Equal(t, "two.com", *third.Result().DomainName)
 
 	assert.Len(t, srv.Calls("namecheap.domains.getInfo"), 3)
 }
