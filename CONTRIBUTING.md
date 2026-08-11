@@ -59,6 +59,24 @@ make test-unit-quiet  # failures only (fast)
 make test             # verbose + race detector
 ```
 
+### Acceptance tests (live API)
+
+A build-tagged suite (`namecheap/sandbox_test.go`) runs read-only and reversible
+commands against the live API. It is never part of `make test`:
+
+```shell
+export NAMECHEAP_API_USER=...     # API user
+export NAMECHEAP_API_KEY=...      # API key
+export NAMECHEAP_CLIENT_IP=...    # your whitelisted public IP
+export NAMECHEAP_TEST_DOMAIN=...  # optional disposable domain for getInfo/DNS tests
+export NAMECHEAP_USE_SANDBOX=true # optional; targets the sandbox endpoint
+make testacc
+```
+
+Without credentials the suite skips cleanly. In CI it runs via
+[acceptance.yml](.github/workflows/acceptance.yml) on an EC2 runner holding the
+repo's whitelisted Elastic IP.
+
 ## Adding an auto-paging iterator to a new list endpoint
 
 Paged list endpoints expose `ListAll` / `ListAllSlice` iterators (see issue #120)

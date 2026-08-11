@@ -1,19 +1,21 @@
 //go:build sandbox
 
-// Package namecheap_test's sandbox suite exercises the real Namecheap sandbox
-// API. It is excluded from the normal build by the "sandbox" build tag and only
-// compiled/run via `make test-sandbox` (go test -tags sandbox). It reads
-// credentials from the environment and skips cleanly when they are absent, so it
-// never fails a credential-less run.
+// Package namecheap_test's live suite exercises the real Namecheap API. It is
+// excluded from the normal build by the "sandbox" build tag and only
+// compiled/run via `make testacc` (go test -tags sandbox). It reads credentials
+// from the environment and skips cleanly when they are absent, so it never
+// fails a credential-less run. NAMECHEAP_USE_SANDBOX selects the endpoint:
+// "true" targets the sandbox API, anything else targets production.
 //
 // Only read-only and reversible commands are exercised. Every mutation captures
 // the prior state and restores it (defer), so reruns are idempotent and no
-// sandbox state is left changed. Production is never touched: the client is built
-// with UseSandbox: true.
+// account state is left changed.
 //
 // With -update-fixtures, the read-only responses are re-captured into
 // ../namecheaptest/fixtures so CI can diff them against the committed corpus and
-// surface server-shape drift as a reviewable diff.
+// surface server-shape drift as a reviewable diff. Fixture capture requires
+// NAMECHEAP_USE_SANDBOX=true: the committed corpus is sandbox-shaped, and
+// production responses must never overwrite it.
 package namecheap_test
 
 import (
@@ -24,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -37,36 +40,39 @@ var updateFixtures = flag.Bool("update-fixtures", false,
 	"re-capture read-only sandbox responses into ../namecheaptest/fixtures")
 
 const (
-	envAPIUser  = "NAMECHEAP_SANDBOX_APIUSER"
-	envAPIKey   = "NAMECHEAP_SANDBOX_APIKEY"
-	envClientIP = "NAMECHEAP_SANDBOX_CLIENTIP"
-	envUserName = "NAMECHEAP_SANDBOX_USERNAME"
-	// envDomain names a dedicated, disposable test domain in the sandbox account
+	envAPIUser    = "NAMECHEAP_API_USER"
+	envAPIKey     = "NAMECHEAP_API_KEY"
+	envClientIP   = "NAMECHEAP_CLIENT_IP"
+	envUserName   = "NAMECHEAP_USER_NAME"
+	envUseSandbox = "NAMECHEAP_USE_SANDBOX"
+	// envDomain names a dedicated, disposable test domain in the target account
 	// used for the reversible DNS round-trip. The DNS test skips when it is unset.
-	envDomain = "NAMECHEAP_SANDBOX_DOMAIN"
+	envDomain = "NAMECHEAP_TEST_DOMAIN"
 )
 
-// sandboxClient builds a sandbox-pointed client from environment credentials,
-// skipping the test when any required variable is missing.
-func sandboxClient(t *testing.T) *namecheap.Client {
+// liveClient builds a client for the live API from environment credentials,
+// skipping the test when any required variable is missing. The endpoint is
+// production unless NAMECHEAP_USE_SANDBOX is true.
+func liveClient(t *testing.T) *namecheap.Client {
 	t.Helper()
 	apiUser := os.Getenv(envAPIUser)
 	apiKey := os.Getenv(envAPIKey)
 	clientIP := os.Getenv(envClientIP)
 	if apiUser == "" || apiKey == "" || clientIP == "" {
-		t.Skipf("sandbox credentials not set; skipping (need %s, %s, %s[, %s, %s])",
+		t.Skipf("live API credentials not set; skipping (need %s, %s, %s[, %s, %s])",
 			envAPIUser, envAPIKey, envClientIP, envUserName, envDomain)
 	}
 	userName := os.Getenv(envUserName)
 	if userName == "" {
 		userName = apiUser
 	}
+	useSandbox, _ := strconv.ParseBool(os.Getenv(envUseSandbox))
 	return namecheap.NewClient(&namecheap.ClientOptions{
 		UserName:   userName,
 		ApiUser:    apiUser,
 		ApiKey:     apiKey,
 		ClientIp:   clientIP,
-		UseSandbox: true,
+		UseSandbox: useSandbox,
 	})
 }
 
@@ -79,7 +85,7 @@ func ctx(t *testing.T) context.Context {
 }
 
 func TestSandbox_DomainsCheck(t *testing.T) {
-	client := sandboxClient(t)
+	client := liveClient(t)
 	resp, err := client.Domains.CheckWithContext(ctx(t), "example-that-should-be-free-12345.com")
 	if err != nil {
 		t.Fatalf("domains.check: %v", err)
@@ -94,7 +100,7 @@ func TestSandbox_DomainsCheck(t *testing.T) {
 }
 
 func TestSandbox_DomainsGetList(t *testing.T) {
-	client := sandboxClient(t)
+	client := liveClient(t)
 	_, err := client.Domains.GetListWithContext(ctx(t), &namecheap.DomainsGetListArgs{
 		PageSize: namecheap.Int(10),
 	})
@@ -109,7 +115,7 @@ func TestSandbox_DomainsGetList(t *testing.T) {
 
 func TestSandbox_DomainsGetInfo(t *testing.T) {
 	domain := os.Getenv(envDomain)
-	client := sandboxClient(t)
+	client := liveClient(t)
 	if domain == "" {
 		t.Skipf("%s not set; skipping domains.getInfo", envDomain)
 	}
@@ -124,7 +130,7 @@ func TestSandbox_DomainsGetInfo(t *testing.T) {
 }
 
 func TestSandbox_UsersGetBalances(t *testing.T) {
-	client := sandboxClient(t)
+	client := liveClient(t)
 	if _, err := client.Users.GetBalancesWithContext(ctx(t)); err != nil {
 		t.Fatalf("users.getBalances: %v", err)
 	}
@@ -134,7 +140,7 @@ func TestSandbox_UsersGetBalances(t *testing.T) {
 }
 
 func TestSandbox_UsersGetPricing(t *testing.T) {
-	client := sandboxClient(t)
+	client := liveClient(t)
 	_, err := client.Users.GetPricingWithContext(ctx(t), &namecheap.UsersGetPricingArgs{
 		ProductType: namecheap.String("DOMAIN"),
 		ActionName:  namecheap.String("REGISTER"),
@@ -156,7 +162,7 @@ func TestSandbox_UsersGetPricing(t *testing.T) {
 // unchanged, and restores them via defer, leaving the zone exactly as found.
 func TestSandbox_DNSRoundTrip(t *testing.T) {
 	domain := os.Getenv(envDomain)
-	client := sandboxClient(t)
+	client := liveClient(t)
 	if domain == "" {
 		t.Skipf("%s not set; skipping DNS round-trip", envDomain)
 	}

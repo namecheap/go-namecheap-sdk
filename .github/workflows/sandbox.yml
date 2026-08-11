@@ -3,14 +3,13 @@
 # slow/flaky and its credentials must never fan out to fork PRs. Triggers are
 # limited to a weekly schedule and manual dispatch.
 #
-# Required repository secrets (configure under Settings -> Secrets and variables
-# -> Actions). Until they are set the suite skips cleanly and this workflow is a
-# no-op:
-#   NAMECHEAP_SANDBOX_APIUSER   - sandbox API user
-#   NAMECHEAP_SANDBOX_APIKEY    - sandbox API key
-#   NAMECHEAP_SANDBOX_CLIENTIP  - whitelisted client IP (the runner's egress IP)
-#   NAMECHEAP_SANDBOX_USERNAME  - optional; defaults to APIUSER
-#   NAMECHEAP_SANDBOX_DOMAIN    - optional disposable test domain for getInfo/DNS
+# The API key comes from the org-level NAMECHEAP_API_KEY secret. The suite
+# additionally needs a whitelisted client IP; GitHub-hosted runner egress IPs
+# cannot be whitelisted, so until NAMECHEAP_SANDBOX_CLIENTIP is provided (or
+# this job moves onto the whitelisted EC2 runner used by acceptance.yml) the
+# suite skips cleanly and this workflow is a no-op.
+# Live acceptance against the production API runs separately in acceptance.yml
+# on an EC2 runner holding this repo's whitelisted Elastic IP.
 name: Sandbox integration
 
 on:
@@ -41,22 +40,24 @@ jobs:
       - name: Run sandbox suite
         id: suite
         env:
-          NAMECHEAP_SANDBOX_APIUSER: ${{ secrets.NAMECHEAP_SANDBOX_APIUSER }}
-          NAMECHEAP_SANDBOX_APIKEY: ${{ secrets.NAMECHEAP_SANDBOX_APIKEY }}
-          NAMECHEAP_SANDBOX_CLIENTIP: ${{ secrets.NAMECHEAP_SANDBOX_CLIENTIP }}
-          NAMECHEAP_SANDBOX_USERNAME: ${{ secrets.NAMECHEAP_SANDBOX_USERNAME }}
-          NAMECHEAP_SANDBOX_DOMAIN: ${{ secrets.NAMECHEAP_SANDBOX_DOMAIN }}
-        run: make test-sandbox
+          NAMECHEAP_USER_NAME: saTerraformProvider
+          NAMECHEAP_API_USER: saTerraformProvider
+          NAMECHEAP_API_KEY: ${{ secrets.NAMECHEAP_API_KEY }}
+          NAMECHEAP_CLIENT_IP: ${{ secrets.NAMECHEAP_SANDBOX_CLIENTIP }}
+          NAMECHEAP_TEST_DOMAIN: terraform-provider-test.net
+          NAMECHEAP_USE_SANDBOX: "true"
+        run: make testacc
 
       - name: Re-capture fixtures and diff against committed corpus
         id: drift
         if: ${{ !cancelled() }}
         env:
-          NAMECHEAP_SANDBOX_APIUSER: ${{ secrets.NAMECHEAP_SANDBOX_APIUSER }}
-          NAMECHEAP_SANDBOX_APIKEY: ${{ secrets.NAMECHEAP_SANDBOX_APIKEY }}
-          NAMECHEAP_SANDBOX_CLIENTIP: ${{ secrets.NAMECHEAP_SANDBOX_CLIENTIP }}
-          NAMECHEAP_SANDBOX_USERNAME: ${{ secrets.NAMECHEAP_SANDBOX_USERNAME }}
-          NAMECHEAP_SANDBOX_DOMAIN: ${{ secrets.NAMECHEAP_SANDBOX_DOMAIN }}
+          NAMECHEAP_USER_NAME: saTerraformProvider
+          NAMECHEAP_API_USER: saTerraformProvider
+          NAMECHEAP_API_KEY: ${{ secrets.NAMECHEAP_API_KEY }}
+          NAMECHEAP_CLIENT_IP: ${{ secrets.NAMECHEAP_SANDBOX_CLIENTIP }}
+          NAMECHEAP_TEST_DOMAIN: terraform-provider-test.net
+          NAMECHEAP_USE_SANDBOX: "true"
         run: |
           make update-fixtures
           if git diff --quiet -- namecheaptest/fixtures; then
