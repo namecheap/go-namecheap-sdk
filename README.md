@@ -1096,6 +1096,14 @@ Breaking changes to it follow the same semantic-versioning rules as the core
 `namecheap` package — they only happen in a major release — so you can depend on
 its API and on the fixture naming scheme with the same stability guarantees.
 
+### Acceptance tests
+
+On every pull request and push to `master`, the
+[Acceptance (EC2)](.github/workflows/acceptance.yml) workflow runs a read-only
+and reversible suite (`make testacc`) against the live Namecheap API from a
+runner with a whitelisted IP. See [CONTRIBUTING.md](CONTRIBUTING.md) for running
+it locally.
+
 ### Contributing
 
 To contribute, please read our [contributing](CONTRIBUTING.md) docs.
