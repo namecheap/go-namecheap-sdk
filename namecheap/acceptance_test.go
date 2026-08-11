@@ -73,40 +73,111 @@ func liveClient(t *testing.T) *namecheap.Client {
 		ApiKey:     apiKey,
 		ClientIp:   clientIP,
 		UseSandbox: useSandbox,
+		// Conservative pacing: the live API throttles aggressively, and the
+		// acceptance account is shared with other CI runs.
+		RateLimit: &namecheap.RateLimitOptions{
+			PerMinute:     10,
+			MaxConcurrent: 1,
+		},
+		Retry: &namecheap.RetryOptions{
+			MaxAttempts: 5,
+			BaseDelay:   2 * time.Second,
+			MaxDelay:    30 * time.Second,
+		},
 	})
 }
 
 // ctx returns a per-test context with a generous timeout for the live API.
+// It must accommodate the full retry budget (RetryOptions.MaxElapsed defaults
+// to 2 minutes), not just a single round trip.
 func ctx(t *testing.T) context.Context {
 	t.Helper()
-	c, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	c, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
 	return c
 }
 
 func TestAcc_DomainsCheck(t *testing.T) {
+	const freeCandidate = "example-that-should-be-free-12345.com"
 	client := liveClient(t)
-	resp, err := client.Domains.CheckWithContext(ctx(t), "example-that-should-be-free-12345.com")
+
+	// Check the free candidate plus, when configured, the account's own test
+	// domain — the one name guaranteed to be registered in this registry.
+	domains := []string{freeCandidate}
+	testDomain := os.Getenv(envDomain)
+	if testDomain != "" {
+		domains = append(domains, testDomain)
+	}
+
+	resp, err := client.Domains.CheckWithContext(ctx(t), domains...)
 	if err != nil {
 		t.Fatalf("domains.check: %v", err)
 	}
 	if resp == nil || resp.DomainCheckResults == nil {
 		t.Fatal("domains.check: empty result")
 	}
+
+	availability := map[string]bool{}
+	for _, r := range *resp.DomainCheckResults {
+		if r.Domain == nil || r.IsAvailable == nil {
+			t.Fatalf("domains.check: result missing Domain or Available attr: %+v", r)
+		}
+		availability[strings.ToLower(*r.Domain)] = *r.IsAvailable
+	}
+	if got, ok := availability[freeCandidate]; !ok || !got {
+		t.Errorf("domains.check(%q) available = %v (present=%v), want true", freeCandidate, got, ok)
+	}
+	if testDomain != "" {
+		if got, ok := availability[strings.ToLower(testDomain)]; !ok || got {
+			t.Errorf("domains.check(%q) available = %v (present=%v), want false (registered test domain)", testDomain, got, ok)
+		}
+	}
+
 	captureFixture(t, client, "domains_check", map[string]string{
 		"Command":    "namecheap.domains.check",
-		"DomainList": "example-that-should-be-free-12345.com",
+		"DomainList": freeCandidate,
 	})
 }
 
 func TestAcc_DomainsGetList(t *testing.T) {
 	client := liveClient(t)
-	_, err := client.Domains.GetListWithContext(ctx(t), &namecheap.DomainsGetListArgs{
+	args := &namecheap.DomainsGetListArgs{
 		PageSize: namecheap.Int(10),
-	})
+	}
+	// When a test domain is configured, filter for it so the assertion is
+	// independent of account size and listing order.
+	testDomain := os.Getenv(envDomain)
+	if testDomain != "" {
+		args.SearchTerm = namecheap.String(testDomain)
+	}
+
+	resp, err := client.Domains.GetListWithContext(ctx(t), args)
 	if err != nil {
 		t.Fatalf("domains.getList: %v", err)
 	}
+	if resp == nil || resp.Domains == nil {
+		t.Fatal("domains.getList: empty result")
+	}
+
+	if testDomain != "" {
+		var found *namecheap.Domain
+		for i, d := range *resp.Domains {
+			if d.Name != nil && strings.EqualFold(*d.Name, testDomain) {
+				found = &(*resp.Domains)[i]
+				break
+			}
+		}
+		if found == nil {
+			t.Fatalf("domains.getList(SearchTerm=%q) did not return the test domain", testDomain)
+		}
+		if found.ID == nil || *found.ID == "" {
+			t.Errorf("domains.getList: test domain ID = %v, want non-empty", found.ID)
+		}
+		if found.Created == nil || found.Created.IsZero() {
+			t.Errorf("domains.getList: test domain Created = %v, want a parsed date", found.Created)
+		}
+	}
+
 	captureFixture(t, client, "domains_getList", map[string]string{
 		"Command":  "namecheap.domains.getList",
 		"PageSize": "10",
@@ -119,9 +190,60 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 	if domain == "" {
 		t.Skipf("%s not set; skipping domains.getInfo", envDomain)
 	}
-	if _, err := client.Domains.GetInfoWithContext(ctx(t), domain); err != nil {
+	resp, err := client.Domains.GetInfoWithContext(ctx(t), domain)
+	if err != nil {
 		t.Fatalf("domains.getInfo: %v", err)
 	}
+	if resp == nil {
+		t.Fatal("domains.getInfo: nil command response")
+	}
+	result := resp.Result()
+	if result == nil {
+		t.Fatal("domains.getInfo: nil result")
+	}
+
+	// A decode abort surfaces as err above; these assertions catch the other
+	// failure mode — a struct-tag mismatch leaving whole sections silently nil.
+	if result.DomainName == nil || !strings.EqualFold(*result.DomainName, domain) {
+		t.Errorf("getInfo DomainName = %v, want %q", result.DomainName, domain)
+	}
+	if result.ID == nil || *result.ID <= 0 {
+		t.Errorf("getInfo ID = %v, want a positive integer", result.ID)
+	}
+	// Status is not present in every response; when present it must be non-empty.
+	if result.Status != nil && *result.Status == "" {
+		t.Error("getInfo Status is present but empty")
+	}
+
+	if result.DomainDetails == nil {
+		t.Error("getInfo DomainDetails is nil, want populated")
+	} else if result.DomainDetails.CreatedDate == nil || result.DomainDetails.CreatedDate.IsZero() {
+		t.Errorf("getInfo DomainDetails.CreatedDate = %v, want a parsed date", result.DomainDetails.CreatedDate)
+	}
+
+	if result.WhoisGuard == nil {
+		t.Error("getInfo WhoisGuard is nil, want populated")
+	} else if result.WhoisGuard.Enabled == nil {
+		t.Error("getInfo WhoisGuard.Enabled is nil, want tri-state value")
+	} else if got := *result.WhoisGuard.Enabled; got != "True" && got != "False" && got != "NotAlloted" {
+		t.Errorf("getInfo WhoisGuard.Enabled = %q, want True/False/NotAlloted", got)
+	}
+
+	if result.DnsDetails == nil {
+		t.Error("getInfo DnsDetails is nil, want populated")
+	} else {
+		if result.DnsDetails.ProviderType == nil || *result.DnsDetails.ProviderType == "" {
+			t.Errorf("getInfo DnsDetails.ProviderType = %v, want non-empty", result.DnsDetails.ProviderType)
+		}
+		if result.DnsDetails.Nameservers == nil || len(*result.DnsDetails.Nameservers) == 0 {
+			t.Error("getInfo DnsDetails.Nameservers is empty, want at least one")
+		}
+	}
+
+	if result.ModificationRights == nil {
+		t.Error("getInfo ModificationRights is nil, want populated")
+	}
+
 	captureFixture(t, client, "domains_getInfo", map[string]string{
 		"Command":    "namecheap.domains.getInfo",
 		"DomainName": domain,
@@ -131,8 +253,15 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 
 func TestAcc_UsersGetBalances(t *testing.T) {
 	client := liveClient(t)
-	if _, err := client.Users.GetBalancesWithContext(ctx(t)); err != nil {
+	resp, err := client.Users.GetBalancesWithContext(ctx(t))
+	if err != nil {
 		t.Fatalf("users.getBalances: %v", err)
+	}
+	if resp == nil || resp.UserGetBalancesResult == nil {
+		t.Fatal("users.getBalances: empty result")
+	}
+	if resp.UserGetBalancesResult.Currency == "" {
+		t.Error("users.getBalances: Currency is empty, want e.g. USD")
 	}
 	captureFixture(t, client, "users_getBalances", map[string]string{
 		"Command": "namecheap.users.getBalances",
@@ -141,13 +270,33 @@ func TestAcc_UsersGetBalances(t *testing.T) {
 
 func TestAcc_UsersGetPricing(t *testing.T) {
 	client := liveClient(t)
-	_, err := client.Users.GetPricingWithContext(ctx(t), &namecheap.UsersGetPricingArgs{
+	resp, err := client.Users.GetPricingWithContext(ctx(t), &namecheap.UsersGetPricingArgs{
 		ProductType: namecheap.String("DOMAIN"),
 		ActionName:  namecheap.String("REGISTER"),
 		ProductName: namecheap.String("com"),
 	})
 	if err != nil {
 		t.Fatalf("users.getPricing: %v", err)
+	}
+	if resp == nil || resp.UserGetPricingResult == nil {
+		t.Fatal("users.getPricing: empty result")
+	}
+	// The narrowed query (DOMAIN/REGISTER/com) must yield at least one positive
+	// price tier somewhere in the type -> category -> product -> price tree.
+	positiveTier := false
+	for _, pt := range resp.UserGetPricingResult.ProductTypes {
+		for _, cat := range pt.ProductCategories {
+			for _, prod := range cat.Products {
+				for _, price := range prod.Prices {
+					if price.Price.IsPositive() {
+						positiveTier = true
+					}
+				}
+			}
+		}
+	}
+	if !positiveTier {
+		t.Error("users.getPricing(DOMAIN/REGISTER/com): no positive price tier in response")
 	}
 	captureFixture(t, client, "users_getPricing", map[string]string{
 		"Command":     "namecheap.users.getPricing",
@@ -195,6 +344,48 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("dns.setHosts round-trip: %v", err)
 	}
+
+	// Read back and verify the zone matches what was written — the round trip
+	// must be lossless, not merely error-free.
+	reread, err := client.DomainsDNS.GetHostsWithContext(ctx(t), domain)
+	if err != nil {
+		t.Fatalf("dns.getHosts read-back: %v", err)
+	}
+	after := toSetRecords(reread)
+	if len(after) != len(original) {
+		t.Fatalf("dns round-trip: read back %d records, wrote %d", len(after), len(original))
+	}
+	want := map[string]int{}
+	for _, r := range original {
+		want[recordKey(r)]++
+	}
+	for _, r := range after {
+		if want[recordKey(r)] == 0 {
+			t.Errorf("dns round-trip: unexpected record after write: %s", recordKey(r))
+			continue
+		}
+		want[recordKey(r)]--
+	}
+	for k, n := range want {
+		if n > 0 {
+			t.Errorf("dns round-trip: record lost by write: %s", k)
+		}
+	}
+}
+
+// recordKey canonicalizes a host record for set comparison, ignoring order.
+func recordKey(r namecheap.DomainsDNSHostRecord) string {
+	deref := func(s *string) string {
+		if s == nil {
+			return ""
+		}
+		return *s
+	}
+	ttl := ""
+	if r.TTL != nil {
+		ttl = strconv.Itoa(*r.TTL)
+	}
+	return strings.ToLower(deref(r.HostName)) + "|" + deref(r.RecordType) + "|" + deref(r.Address) + "|" + ttl
 }
 
 // toSetRecords converts the detailed host records returned by getHosts into the
