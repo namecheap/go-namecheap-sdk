@@ -61,8 +61,9 @@ make test             # verbose + race detector
 
 ### Acceptance tests (live API)
 
-A build-tagged suite (`namecheap/sandbox_test.go`) runs read-only and reversible
-commands against the live API. It is never part of `make test`:
+A build-tagged suite (`namecheap/acceptance_test.go`, tests named `TestAcc_*`)
+runs read-only and reversible commands against the live API. `make testacc` runs
+only these tests, and they are never part of `make test`:
 
 ```shell
 export NAMECHEAP_API_USER=...     # API user

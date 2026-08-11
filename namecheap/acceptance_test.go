@@ -1,11 +1,11 @@
-//go:build sandbox
+//go:build acceptance
 
-// Package namecheap_test's live suite exercises the real Namecheap API. It is
-// excluded from the normal build by the "sandbox" build tag and only
-// compiled/run via `make testacc` (go test -tags sandbox). It reads credentials
-// from the environment and skips cleanly when they are absent, so it never
-// fails a credential-less run. NAMECHEAP_USE_SANDBOX selects the endpoint:
-// "true" targets the sandbox API, anything else targets production.
+// Package namecheap_test's acceptance suite exercises the real Namecheap API.
+// It is excluded from the normal build by the "acceptance" build tag and only
+// run via `make testacc`. It reads credentials from the environment and skips
+// cleanly when they are absent, so it never fails a credential-less run.
+// NAMECHEAP_USE_SANDBOX selects the endpoint: "true" targets the sandbox API,
+// anything else targets production.
 //
 // Only read-only and reversible commands are exercised. Every mutation captures
 // the prior state and restores it (defer), so reruns are idempotent and no
@@ -84,7 +84,7 @@ func ctx(t *testing.T) context.Context {
 	return c
 }
 
-func TestSandbox_DomainsCheck(t *testing.T) {
+func TestAcc_DomainsCheck(t *testing.T) {
 	client := liveClient(t)
 	resp, err := client.Domains.CheckWithContext(ctx(t), "example-that-should-be-free-12345.com")
 	if err != nil {
@@ -99,7 +99,7 @@ func TestSandbox_DomainsCheck(t *testing.T) {
 	})
 }
 
-func TestSandbox_DomainsGetList(t *testing.T) {
+func TestAcc_DomainsGetList(t *testing.T) {
 	client := liveClient(t)
 	_, err := client.Domains.GetListWithContext(ctx(t), &namecheap.DomainsGetListArgs{
 		PageSize: namecheap.Int(10),
@@ -113,7 +113,7 @@ func TestSandbox_DomainsGetList(t *testing.T) {
 	})
 }
 
-func TestSandbox_DomainsGetInfo(t *testing.T) {
+func TestAcc_DomainsGetInfo(t *testing.T) {
 	domain := os.Getenv(envDomain)
 	client := liveClient(t)
 	if domain == "" {
@@ -129,7 +129,7 @@ func TestSandbox_DomainsGetInfo(t *testing.T) {
 	})
 }
 
-func TestSandbox_UsersGetBalances(t *testing.T) {
+func TestAcc_UsersGetBalances(t *testing.T) {
 	client := liveClient(t)
 	if _, err := client.Users.GetBalancesWithContext(ctx(t)); err != nil {
 		t.Fatalf("users.getBalances: %v", err)
@@ -139,7 +139,7 @@ func TestSandbox_UsersGetBalances(t *testing.T) {
 	})
 }
 
-func TestSandbox_UsersGetPricing(t *testing.T) {
+func TestAcc_UsersGetPricing(t *testing.T) {
 	client := liveClient(t)
 	_, err := client.Users.GetPricingWithContext(ctx(t), &namecheap.UsersGetPricingArgs{
 		ProductType: namecheap.String("DOMAIN"),
@@ -157,10 +157,10 @@ func TestSandbox_UsersGetPricing(t *testing.T) {
 	})
 }
 
-// TestSandbox_DNSRoundTrip exercises the get -> set -> restore reversible flow on
+// TestAcc_DNSRoundTrip exercises the get -> set -> restore reversible flow on
 // a dedicated test domain. It captures the current host records, writes them back
 // unchanged, and restores them via defer, leaving the zone exactly as found.
-func TestSandbox_DNSRoundTrip(t *testing.T) {
+func TestAcc_DNSRoundTrip(t *testing.T) {
 	domain := os.Getenv(envDomain)
 	client := liveClient(t)
 	if domain == "" {

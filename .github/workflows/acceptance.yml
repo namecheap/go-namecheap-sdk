@@ -1,9 +1,9 @@
 name: Acceptance (EC2)
 
-# Runs the live acceptance suite (make testacc) against the production
-# Namecheap API from an ephemeral EC2 runner holding this repo's dedicated
-# whitelisted Elastic IP. Runs are serialized: one EIP cannot be associated
-# to two runners at once.
+# Runs the acceptance suite (make testacc) against the live Namecheap API
+# from an ephemeral EC2 runner holding this repo's dedicated whitelisted
+# Elastic IP. Runs are serialized: one EIP cannot be associated to two
+# runners at once.
 
 on:
   pull_request:
@@ -142,7 +142,7 @@ jobs:
           NAMECHEAP_USER_NAME: saTerraformProvider
           NAMECHEAP_API_USER: saTerraformProvider
           NAMECHEAP_TEST_DOMAIN: terraform-provider.net
-          NAMECHEAP_USE_SANDBOX: "false"
+          NAMECHEAP_USE_SANDBOX: "true"
           NAMECHEAP_API_KEY: ${{ secrets.NAMECHEAP_API_KEY }}
 
   stop-runner:
