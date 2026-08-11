@@ -1,0 +1,176 @@
+name: Acceptance (EC2)
+
+# Runs the acceptance suite (make testacc) against the live Namecheap API
+# from an ephemeral EC2 runner holding this repo's dedicated whitelisted
+# Elastic IP. Runs are serialized: one EIP cannot be associated to two
+# runners at once.
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Dedicated whitelisted Elastic IP for acceptance CI (not a secret).
+  ACCEPTANCE_EIP_ALLOCATION_ID: eipalloc-01eed46299ea05767
+  ACCEPTANCE_EIP_PUBLIC_IP: 52.9.221.96
+
+jobs:
+  start-runner:
+    name: Start self-hosted EC2 runner
+    # Dependabot and fork PRs have no access to secrets — skip cleanly.
+    if: ${{ github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Wait for older acceptance runs to finish (single dedicated EIP)
+        uses: ahmadnassri/action-workflow-queue@542658b3a8270cac81ae15d401b0d974732808ac # v1.2.0
+        with:
+          timeout: 1800000 # 30 min
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: namecheap/ec2-github-runner@54ee3e45b519c062993c2b01eb77552fcc329b9d # v4.0.2
+        with:
+          mode: start
+          github-token: ${{ steps.app-token.outputs.token }}
+          ec2-image-owner: 699717368611
+          ec2-image-filters: >
+            [
+              { "Name": "name", "Values": ["nc-al2023-ami-hvm-x86_64-master-*"] }
+            ]
+          ec2-instance-type: t3.medium
+          subnet-id: subnet-01c4ff5a
+          security-group-id: sg-106ec76d
+          eip-allocation-id: ${{ env.ACCEPTANCE_EIP_ALLOCATION_ID }}
+          iam-role-name: AmazonSSMRoleForInstancesQuickSetup
+          encrypt-ebs: "true"
+          aws-resource-tags: >
+            [
+              { "Key": "Name", "Value": "github_runner" },
+              { "Key": "GitHubRepository", "Value": "${{ github.repository }}" }
+            ]
+
+  acceptance_test:
+    name: Acceptance test
+    runs-on: ${{ needs.start-runner.outputs.label }}
+    needs: start-runner
+    if: ${{ github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    steps:
+      - name: Verify acceptance EIP
+        # Fail fast if the runner is not on the whitelisted IP.
+        run: |
+          actual_ip="$(curl -fsS https://checkip.amazonaws.com | tr -d '[:space:]')"
+          if [ "${actual_ip}" != "${ACCEPTANCE_EIP_PUBLIC_IP}" ]; then
+            echo "::error::EIP mismatch: runner public IP is '${actual_ip}', expected '${ACCEPTANCE_EIP_PUBLIC_IP}'."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore Go cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ${{ github.workspace }}/.cache/go-build
+            ${{ github.workspace }}/go/pkg/mod
+          key: go-ec2-${{ hashFiles('go.sum') }}
+          restore-keys: go-ec2-
+
+      - name: Set up Go
+        # The runner AMI has no setup-go tooling: install the latest patch of
+        # go.mod's Go minor (fall back to go.mod's exact version).
+        run: |
+          go_required="$(awk '/^go / {print $2; exit}' go.mod)"
+          go_minor="$(printf '%s' "${go_required}" | cut -d. -f1,2)"
+          latest_go="$(curl -fsSL https://go.dev/VERSION?m=text | head -1 | sed 's/^go//')"
+          latest_minor="$(printf '%s' "${latest_go}" | cut -d. -f1,2)"
+          if [ -n "${latest_go}" ] && [ "${latest_minor}" = "${go_minor}" ]; then
+            go_version="${latest_go}"
+          else
+            go_version="${go_required}"
+          fi
+          echo "Using Go ${go_version}"
+          tarball="go${go_version}.linux-amd64.tar.gz"
+          curl -fsSLo "${tarball}" "https://dl.google.com/go/${tarball}"
+          expected_go_sha="$(curl -fsSL "https://dl.google.com/go/${tarball}.sha256")"
+          echo "${expected_go_sha}  ${tarball}" | sha256sum -c -
+          rm -rf .go-instance
+          mkdir .go-instance
+          tar -C .go-instance -xzf "${tarball}"
+          {
+            echo '#!/bin/bash'
+            echo
+            echo 'export PATH="$PATH:'"$(pwd)"'/.go-instance/go/bin"'
+            echo 'export HOME="'"$(pwd)"'"'
+          } > go-env.sh
+          chmod +x go-env.sh
+          source go-env.sh
+          go version
+
+      - name: Acceptance test
+        run: |
+          source go-env.sh
+          # The runner holds the whitelisted EIP; derive the client IP at runtime.
+          NAMECHEAP_CLIENT_IP="$(curl -fsS https://checkip.amazonaws.com | tr -d '[:space:]')"
+          export NAMECHEAP_CLIENT_IP
+          make testacc
+        env:
+          NAMECHEAP_USER_NAME: saTerraformProvider
+          NAMECHEAP_API_USER: saTerraformProvider
+          NAMECHEAP_TEST_DOMAIN: terraform-provider.net
+          NAMECHEAP_USE_SANDBOX: "true"
+          NAMECHEAP_API_KEY: ${{ secrets.NAMECHEAP_API_KEY }}
+
+  stop-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-runner
+      - acceptance_test
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.start-runner.outputs.ec2-instance-id != '' }}
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Stop EC2 runner
+        uses: namecheap/ec2-github-runner@54ee3e45b519c062993c2b01eb77552fcc329b9d # v4.0.2
+        with:
+          mode: stop
+          github-token: ${{ steps.app-token.outputs.token }}
+          label: ${{ needs.start-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}

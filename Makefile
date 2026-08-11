@@ -1,4 +1,4 @@
-.PHONY: default format check lint test test-unit test-unit-quiet test-race test-coverage test-sandbox update-fixtures vendor
+.PHONY: default format check lint test test-unit test-unit-quiet test-race test-coverage testacc update-fixtures vendor
 
 default: format check lint test
 
@@ -23,18 +23,20 @@ test-coverage:
 	go test -coverprofile=coverage.out -count=1 -parallel=8 ./...
 	go tool cover -func=coverage.out
 
-# test-sandbox runs the build-tagged integration suite against the real Namecheap
-# sandbox API. It needs NAMECHEAP_SANDBOX_APIUSER/APIKEY/CLIENTIP (and optionally
-# USERNAME and a disposable NAMECHEAP_SANDBOX_DOMAIN) in the environment; without
-# them the suite skips cleanly. It is never part of `make test`.
-test-sandbox:
-	go test -tags sandbox -count=1 -v ./...
+# testacc runs ONLY the build-tagged acceptance suite (TestAcc_*) against the
+# live Namecheap API — no unit tests. It needs NAMECHEAP_API_USER/
+# NAMECHEAP_API_KEY/NAMECHEAP_CLIENT_IP (and optionally NAMECHEAP_USER_NAME and
+# a disposable NAMECHEAP_TEST_DOMAIN) in the environment; without them the
+# suite skips cleanly. NAMECHEAP_USE_SANDBOX=true points it at the sandbox
+# endpoint instead of production. It is never part of `make test`.
+testacc:
+	go test -tags acceptance -count=1 -v -run TestAcc ./namecheap/
 
-# update-fixtures re-captures the read-only sandbox responses into
+# update-fixtures re-captures the read-only live responses into
 # namecheaptest/fixtures so drift against the committed corpus surfaces as a diff.
-# Requires the same sandbox credentials as test-sandbox.
+# Requires the same credentials as testacc.
 update-fixtures:
-	go test -tags sandbox -count=1 -run TestSandbox ./namecheap/ -update-fixtures
+	go test -tags acceptance -count=1 -run TestAcc ./namecheap/ -update-fixtures
 
 vendor:
 	go mod vendor
