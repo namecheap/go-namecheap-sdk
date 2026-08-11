@@ -52,6 +52,7 @@ make test-race       # race detector
 ## Commit conventions and releases
 
 - PR titles must follow Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, `ci:`, `perf:`, `build:`, `revert:`) — enforced by `pr-title.yml`. PRs are squash-merged, so the title becomes the commit subject on `master`.
+- Every commit needs a DCO sign-off (`git commit -s`): a `Signed-off-by: Name <email>` trailer whose name/email match the commit author — enforced by the DCO check on PRs. See CONTRIBUTING.md.
 - release-please (`versioning.yml`) parses those subjects to maintain a long-lived release PR; merging it tags `vX.Y.Z`. `fix:` → patch, `feat:` → minor, `feat!:`/`BREAKING CHANGE:` → major. Full flow: RELEASE.md.
 - Releasing vs non-releasing types matter: gomod Dependabot bumps use `fix(deps):` (ships to consumers), github-actions bumps use `ci(deps):` (CI-only, never cuts a release).
 - The nested `otelnamecheap` module is tagged manually as `otelnamecheap/vX.Y.Z` — not managed by release-please.
