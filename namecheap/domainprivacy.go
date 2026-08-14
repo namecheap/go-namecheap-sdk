@@ -75,7 +75,8 @@ const (
 // Because the doc enumerates no Status values, classification keys off the
 // free-text description rather than a fabricated code table:
 //   - a description containing "discard"               -> PrivacyStateDiscard;
-//   - a description containing "free" or "unallot"     -> PrivacyStateFree;
+//   - a description containing "free", "unallot" or
+//     "notallot" (getInfo's Whoisguard "NotAlloted")   -> PrivacyStateFree;
 //   - a description containing "allot", "enabled",
 //     "disabled" or "used"                             -> PrivacyStateAllotted;
 //   - anything else (including an empty description)    -> PrivacyStateUnknown.
@@ -90,7 +91,9 @@ func ClassifyPrivacyStatus(status string) PrivacyState {
 		return PrivacyStateUnknown
 	case strings.Contains(normalized, "discard"):
 		return PrivacyStateDiscard
-	case strings.Contains(normalized, "free"), strings.Contains(normalized, "unallot"):
+	case strings.Contains(normalized, "free"),
+		strings.Contains(normalized, "unallot"),
+		strings.Contains(normalized, "notallot"):
 		return PrivacyStateFree
 	case strings.Contains(normalized, "allot"),
 		strings.Contains(normalized, "enabled"),

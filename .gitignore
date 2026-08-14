@@ -2,4 +2,6 @@
 .idea/
 .vscode/
 .claude/settings.local.json
+.superpowers/
+docs/superpowers/
 .DS_Store
