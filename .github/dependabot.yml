@@ -13,9 +13,9 @@ updates:
     commit-message:
       prefix: fix
       include: scope
-    # Dependencies are vendored; without this a bump PR would leave vendor/
-    # out of sync with go.mod and fail CI.
-    vendor: true
+    # Dependencies are vendored; Dependabot auto-detects the vendor/ tree for
+    # gomod and updates it in bump PRs. (The explicit `vendor` key was removed
+    # from the config schema and now fails validation.)
 
   - package-ecosystem: github-actions
     directory: "/"
