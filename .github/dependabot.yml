@@ -13,9 +13,9 @@ updates:
     commit-message:
       prefix: fix
       include: scope
-    # Dependabot auto-detects the vendored tree for gomod and updates it in
-    # bump PRs regardless; this line only makes that behavior explicit.
-    vendor: true
+    # Dependencies are vendored; Dependabot auto-detects the vendor/ tree for
+    # gomod and updates it in bump PRs. (The explicit `vendor` key was removed
+    # from the config schema and now fails validation.)
 
   - package-ecosystem: github-actions
     directory: "/"
