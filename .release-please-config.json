@@ -5,10 +5,13 @@
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
     { "type": "fix", "section": "Bug Fixes" },
-    { "type": "docs", "section": "Documentation" },
-    { "type": "deps", "section": "Dependencies" }
+    { "type": "perf", "section": "Performance Improvements" },
+    { "type": "revert", "section": "Reverts" },
+    { "type": "docs", "section": "Documentation" }
   ],
   "packages": {
-    ".": {}
+    ".": {
+      "exclude-paths": ["otelnamecheap"]
+    }
   }
 }
