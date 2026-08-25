@@ -76,6 +76,14 @@ func TestDateTimeUnmarshalText(t *testing.T) {
 		assert.True(t, dt.Equal(DateTime{Time: time.Date(2021, 11, 26, 0, 0, 0, 0, time.UTC)}))
 	})
 
+	t.Run("non_padded_date_parses", func(t *testing.T) {
+		t.Parallel()
+		dt := &DateTime{}
+		err := dt.UnmarshalText([]byte("2/20/2019"))
+		assert.NoError(t, err)
+		assert.True(t, dt.Equal(DateTime{Time: time.Date(2019, 2, 20, 0, 0, 0, 0, time.UTC)}))
+	})
+
 	t.Run("iso_timestamp_returns_error", func(t *testing.T) {
 		t.Parallel()
 		dt := &DateTime{}

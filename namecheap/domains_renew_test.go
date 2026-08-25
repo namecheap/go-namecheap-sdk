@@ -71,6 +71,10 @@ func TestDomainsService_Renew(t *testing.T) {
 		assert.Equal(t, 987654, *result.OrderID)
 		assert.Equal(t, 112233, *result.TransactionID)
 		assert.Equal(t, Amount("9.56"), *result.ChargedAmount)
+		if assert.NotNil(t, result.DomainDetails) {
+			assert.True(t, result.DomainDetails.ExpiredDate.Equal(DateTime{Time: time.Date(2027, 10, 13, 0, 0, 0, 0, time.UTC)}))
+			assert.Equal(t, 0, *result.DomainDetails.NumYears)
+		}
 	})
 
 	t.Run("nil_args", func(t *testing.T) {
