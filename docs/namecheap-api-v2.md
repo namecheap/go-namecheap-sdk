@@ -318,7 +318,7 @@ Renews an expiring domain.
 | OrderID | Unique integer representing the order |
 | TransactionID | Unique integer representing the transaction |
 | DomainDetails/ExpiredDate | New expiration date after the renewal (child element; may be non-zero-padded, e.g. 2/20/2019) |
-| DomainDetails/NumYears | Number of years reflected in the renewal details (child element) |
+| DomainDetails/NumYears | Number of years reflected in the renewal details (child element; the live API frequently returns 0) |
 
 ---
 
