@@ -23,7 +23,7 @@ const domainsRenewOKResponse = `
 		<CommandResponse Type="namecheap.domains.renew">
 			<DomainRenewResult DomainName="example.com" DomainID="1234567" Renew="true" OrderID="987654" TransactionID="112233" ChargedAmount="9.56">
 				<DomainDetails>
-					<ExpiredDate>10/13/2027</ExpiredDate>
+					<ExpiredDate>2/1/2027</ExpiredDate>
 					<NumYears>0</NumYears>
 				</DomainDetails>
 			</DomainRenewResult>
@@ -71,6 +71,14 @@ func TestDomainsService_Renew(t *testing.T) {
 		assert.Equal(t, 987654, *result.OrderID)
 		assert.Equal(t, 112233, *result.TransactionID)
 		assert.Equal(t, Amount("9.56"), *result.ChargedAmount)
+		// The fixture's ExpiredDate is deliberately non-padded (2/1/2027), the
+		// form the official renew docs show: this pins the full chain — a
+		// charge-bearing, non-retried response must not fail decoding on a
+		// non-padded date — against reverting DateTime to a strict layout.
+		if assert.NotNil(t, result.DomainDetails) {
+			assert.True(t, result.DomainDetails.ExpiredDate.Equal(DateTime{Time: time.Date(2027, 2, 1, 0, 0, 0, 0, time.UTC)}))
+			assert.Equal(t, 0, *result.DomainDetails.NumYears)
+		}
 	})
 
 	t.Run("nil_args", func(t *testing.T) {

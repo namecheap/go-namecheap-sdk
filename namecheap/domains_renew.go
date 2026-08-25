@@ -22,7 +22,7 @@ type DomainsRenewCommandResponse struct {
 }
 
 // DomainsRenewResult is the outcome of a renewal. Fields follow the renew
-// response table in docs/namecheap-api-v2.md (lines 311-319).
+// response table in docs/namecheap-api-v2.md (lines 311-321).
 type DomainsRenewResult struct {
 	// DomainName is the domain that was renewed.
 	DomainName *string `xml:"DomainName,attr"`
@@ -37,6 +37,9 @@ type DomainsRenewResult struct {
 	OrderID *int `xml:"OrderID,attr"`
 	// TransactionID is the unique integer identifying the transaction.
 	TransactionID *int `xml:"TransactionID,attr"`
+	// DomainDetails carries the post-renewal registration dates (ExpiredDate,
+	// NumYears); the renew response does not include CreatedDate.
+	DomainDetails *DomainDetails `xml:"DomainDetails"`
 }
 
 // DomainsRenewArgs are the arguments for RenewWithContext. Field names and
