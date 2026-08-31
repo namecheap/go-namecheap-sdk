@@ -1,7 +1,14 @@
 version: 2
 updates:
   - package-ecosystem: gomod
-    directory: "/"
+    # Both modules. The gomod updater does not recurse into nested go.mod
+    # files, so with "/" alone the otelnamecheap module never received a bump
+    # and drifted behind the root module -- while Trivy's `scan-ref: .` did
+    # report its advisories, which is how a HIGH x/text CVE ended up being
+    # hand-patched in f4723d1 to unblock CI.
+    directories:
+      - "/"
+      - "/otelnamecheap"
     schedule:
       interval: weekly
     # Go module bumps ship in tagged SDK releases (consumers `go get` a tag),
@@ -15,7 +22,19 @@ updates:
       include: scope
     # Dependencies are vendored; Dependabot auto-detects the vendor/ tree for
     # gomod and updates it in bump PRs. (The explicit `vendor` key was removed
-    # from the config schema and now fails validation.)
+    # from the config schema and now fails validation.) The `Verify vendor/
+    # matches go.mod` step in CI is what proves the vendored bytes in such a PR
+    # are the ones `go mod vendor` produces.
+    #
+    # Caveat, deliberately not worked around here: `fix` is also applied to
+    # test-only bumps such as testify, which is imported exclusively from
+    # _test.go files. Those cut a patch release whose changelog reads
+    # "Bug Fixes: bump github.com/stretchr/testify ...", a change no consumer
+    # can observe, since consumers never build this module's tests. Dependabot
+    # allows one entry per package-ecosystem + directory, so the prefix cannot
+    # be varied per dependency. Retitle such a PR to `chore(deps): ...` before
+    # merging -- PRs are squash-merged and `chore` is both an accepted type in
+    # pr-title.yml and non-releasing in .release-please-config.json.
 
   - package-ecosystem: github-actions
     directory: "/"

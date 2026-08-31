@@ -2,6 +2,9 @@ module github.com/namecheap/go-namecheap-sdk/otelnamecheap
 
 go 1.26.3
 
+// Kept in step with the root go.mod; see the comment there.
+toolchain go1.26.7
+
 require (
 	github.com/namecheap/go-namecheap-sdk/v2 v2.7.0
 	go.opentelemetry.io/otel v1.44.0

@@ -31,6 +31,19 @@ jobs:
           go mod tidy
           git diff --exit-code -- go.mod go.sum
 
+      # `go mod verify` hashes upstream module zips in the module cache, but a
+      # vendored build never reads that cache -- vendor/ is what the compiler
+      # actually sees. Without this step, arbitrary edits to vendored sources
+      # pass verify, build, vet and the tidy check above and merge unnoticed,
+      # which matters because dependency PRs carry hundreds of vendored lines
+      # no human reads. `git add -N` marks files that `go mod vendor` restores
+      # as intent-to-add so they appear in the diff instead of as untracked.
+      - name: Verify vendor/ matches go.mod
+        run: |
+          go mod vendor
+          git add -N vendor
+          git diff --exit-code -- vendor
+
       - name: Check
         run: make check
 
@@ -66,6 +79,72 @@ jobs:
 
       - name: Test
         run: make test
+
+  vuln:
+    name: Vulnerability scan (govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Pinned like every action in this repo. Pinning does not stale the data:
+      # advisories are fetched from https://vuln.go.dev at run time.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+
+      # Trivy and Snyk read go.mod/vendor and never evaluate the Go toolchain,
+      # so standard-library advisories are invisible to them -- six of them
+      # were reachable from this code when this job was added. govulncheck
+      # reports only vulnerabilities with a call path into our packages and
+      # exits 3 for them, so a failure here is always reachable, never
+      # advisory: fix it by bumping `toolchain` in go.mod (standard library)
+      # or the dependency itself (module).
+      - name: govulncheck (root module)
+        run: govulncheck -mode=source ./...
+
+      - name: govulncheck (otelnamecheap module)
+        working-directory: otelnamecheap
+        run: govulncheck -mode=source ./...
+
+  otelnamecheap:
+    name: Check otelnamecheap
+    runs-on: ubuntu-latest
+    # The nested module is a separate go.mod, so the root module's `./...`
+    # never reaches it and nothing else in CI compiles it. Left uncovered it
+    # drifts: it was several dependency versions behind the root module when
+    # this job was added, and a HIGH x/text advisory in it had to be patched by
+    # hand (f4723d1) because Trivy sees it while Dependabot did not.
+    defaults:
+      run:
+        working-directory: otelnamecheap
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: otelnamecheap/go.mod
+          cache: true
+          cache-dependency-path: otelnamecheap/go.sum
+
+      - name: Verify module integrity
+        run: go mod verify
+
+      - name: Verify go.mod and go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Check
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -count=1 ./...
 
   security:
     name: Security scan (Trivy)
