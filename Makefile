@@ -2,8 +2,8 @@
 
 # testify links a YAML parser solely for YAMLEq/YAMLEqf, which this repo never
 # calls (`grep -rn YAMLEq` finds nothing outside vendor/). The build tag below
-# drops gopkg.in/yaml.v3 -- 11,362 vendored lines -- from the test binaries:
-#   go list -deps -test ./...                          -> gopkg.in/yaml.v3 present
+# drops go.yaml.in/yaml/v3 -- 11,423 vendored lines -- from the test binaries:
+#   go list -deps -test ./...                          -> go.yaml.in/yaml/v3 present
 #   go list -tags testify_yaml_fail -deps -test ./...  -> absent
 # Only testify's own thin assert/yaml shim remains, compiled to its stub, so a
 # YAMLEq assertion added later fails loudly at run time rather than silently
