@@ -102,8 +102,9 @@ jobs:
       # were reachable from this code when this job was added. govulncheck
       # reports only vulnerabilities with a call path into our packages and
       # exits 3 for them, so a failure here is always reachable, never
-      # advisory: fix it by bumping `toolchain` in go.mod (standard library)
-      # or the dependency itself (module).
+      # advisory: fix it by bumping `toolchain` in go.mod (standard library,
+      # and the `go` floor too if the advisory is reachable from this SDK's own
+      # call paths -- see SECURITY.md) or the dependency itself (module).
       - name: govulncheck (root module)
         run: govulncheck -mode=source ./...
 
