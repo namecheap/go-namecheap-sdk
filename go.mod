@@ -1,15 +1,25 @@
 module github.com/namecheap/go-namecheap-sdk/v2
 
-go 1.26.3
+// The floor every consumer must meet. 1.26.6 is the first Go 1.26 patch that
+// carries the standard-library fixes for advisories govulncheck finds
+// reachable from this SDK's own call paths -- encoding/xml from decodeBody,
+// encoding/asn1, net/http from doXMLWithCommand. A library cannot fix those
+// for its consumers: standard-library fixes ship in the toolchain that
+// compiles the final binary, so the only lever that reaches a consumer's build
+// is this line. See SECURITY.md.
+//
+// Raising it is consumer-visible. A consumer on an older patch gets
+// "requires go >= 1.26.6" from `go build` until they re-run `go get` /
+// `go mod tidy` (which switches toolchain and rewrites their own `go` line),
+// and one running GOTOOLCHAIN=local must install a newer Go by hand. Raise it
+// only for a reachable advisory, and only in its own release.
+go 1.26.6
 
-// Build and test this module with a patched toolchain. Every Go patch release
-// after 1.26.3 carries standard-library security fixes that govulncheck finds
-// reachable from this code (encoding/xml via decodeBody, encoding/asn1,
-// net/http via doXMLWithCommand). `toolchain` applies only when this module is
-// the main module, so it does not raise the minimum Go version for consumers
-// -- that is still the `go` directive above. actions/setup-go reads this line
-// in preference to `go`, so CI compiles against it too. Bump it when
-// govulncheck reports a new standard-library advisory.
+// What this repository's own builds and CI use: the newest patch, chosen
+// independently of the floor above. It applies only while this module is the
+// main module, so it imposes nothing on consumers. actions/setup-go reads it
+// in preference to `go`, and `go mod tidy` keeps it only while it is newer
+// than the `go` line -- if the floor ever catches up, this line disappears.
 toolchain go1.26.7
 
 require (
