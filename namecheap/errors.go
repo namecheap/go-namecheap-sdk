@@ -169,6 +169,26 @@ var (
 // read-modify-write-verify cycle automatically instead of returning this error.
 var ErrConcurrentModification = errors.New("concurrent modification detected: DNS zone changed between read and write")
 
+// ErrUnverifiedWrite is returned by the record-level DNS helpers when setHosts
+// succeeded but the getHosts that verifies it failed — typically on a rate
+// limit, since the verify read is the third call of the cycle. The write has
+// most likely landed: the helper returns a non-nil *RecordChangeResult holding
+// the record set it wrote alongside this error, and does not retry the write.
+// The verify read's own error is wrapped as well, so errors.Is and IsRetryable
+// still see it.
+//
+//	res, err := client.DomainsDNS.AddRecordsWithContext(ctx, domain, records)
+//	if errors.Is(err, namecheap.ErrUnverifiedWrite) {
+//	    // persist res.Records; reconcile on the next read
+//	}
+var ErrUnverifiedWrite = errors.New("setHosts succeeded but the verifying getHosts failed; the write has most likely landed")
+
+// ErrCommandUnsuccessful is returned when a command's response has Status="OK"
+// and no <Error> element but reports IsSuccess="false". Namecheap answers this
+// way, for example, to setHosts with an EmailType it does not recognise, and
+// leaves the zone unchanged. Match it with errors.Is.
+var ErrCommandUnsuccessful = errors.New("command returned IsSuccess=false")
+
 // InvalidArgumentsError is a client-side validation error returned before any
 // HTTP request is made, when method arguments are missing or inconsistent. It
 // reports every offending field at once (not just the first) so a caller can fix
