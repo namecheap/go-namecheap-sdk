@@ -224,8 +224,8 @@ func validateDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) error {
 }
 
 // mxeAllowedUnder reports whether an MXE record may be written under an
-// explicit emailType. MXE rows are verified to be kept under MXE and MX (probe
-// C3); under the other modes the behaviour is unverified, so they stay rejected.
+// explicit emailType. MXE rows are verified to be kept under MXE and MX; under
+// the other modes the behaviour is unverified, so they stay rejected.
 func mxeAllowedUnder(emailType string) bool {
 	return emailType == EmailTypeMXE || emailType == EmailTypeMX
 }

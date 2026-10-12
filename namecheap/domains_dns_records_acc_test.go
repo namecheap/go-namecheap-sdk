@@ -11,16 +11,17 @@ import (
 	namecheap "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
 )
 
-// TestAcc_EmailType pins, against the live sandbox API, the setHosts behaviour
-// the record helpers' EmailType derivation is built on (probes of 2026-10-08):
-// omission preserves the zone mode, MX rows need MX, no MX/MXE count rules, an
-// unknown EmailType answers IsSuccess="false", and preset zones (GMAIL, OX, FWD)
-// are writable without an EmailType.
+// TestAcc_EmailType pins, against the live API, the setHosts behaviour the
+// record helpers' EmailType derivation is built on: omission preserves the zone
+// mode, MX rows need MX, no MX/MXE count rules, an unknown EmailType answers
+// IsSuccess="false", and preset zones (GMAIL, OX, FWD) are writable without an
+// EmailType.
 //
-// It flips the zone's mail mode, so it runs only against the sandbox
-// (NAMECHEAP_USE_SANDBOX=true) on NAMECHEAP_TEST_DOMAIN. The zone's records and
-// mode are captured first and restored on exit. The subtests share the zone and
-// run in order.
+// It switches the mail mode of NAMECHEAP_TEST_DOMAIN, which must be a
+// disposable domain whose mail nobody relies on, on the sandbox or production
+// alike. The zone's records and mode are captured first and restored on exit;
+// rows a mail preset created (tagged with AssociatedAppTitle) come back as plain
+// rows. The subtests share the zone and run in order.
 //
 // ErrUnverifiedWrite (#193) is not covered here: a failing verify read cannot be
 // provoked on demand against the live API. It is covered by TestUnverifiedWrite.
@@ -29,9 +30,6 @@ func TestAcc_EmailType(t *testing.T) {
 	client := liveClient(t)
 	if domain == "" {
 		t.Skipf("%s not set; skipping EmailType acceptance", envDomain)
-	}
-	if sandbox, _ := strconv.ParseBool(os.Getenv(envUseSandbox)); !sandbox {
-		t.Skipf("EmailType acceptance switches mail modes; it runs only with %s=true", envUseSandbox)
 	}
 	dns := client.DomainsDNS
 
@@ -79,7 +77,7 @@ func TestAcc_EmailType(t *testing.T) {
 		}
 	}
 
-	t.Run("unknown EmailType answers IsSuccess=false and changes nothing (P10)", func(t *testing.T) {
+	t.Run("unknown EmailType answers IsSuccess=false and changes nothing", func(t *testing.T) {
 		reset(t, namecheap.EmailTypeNone)
 		// SetHosts rejects an unknown value client-side, so send it raw: this pins
 		// the response shape SetHostsWithContext's IsSuccess check relies on.
@@ -102,7 +100,7 @@ func TestAcc_EmailType(t *testing.T) {
 		wantZone(t, z, namecheap.EmailTypeNone, []namecheap.DomainsDNSHostRecord{apex})
 	})
 
-	t.Run("first MX on a NONE zone derives MX (#361 B3)", func(t *testing.T) {
+	t.Run("first MX on a NONE zone switches the zone to MX", func(t *testing.T) {
 		if _, err := dns.AddRecordsWithContext(ctx(t), domain, []namecheap.DomainsDNSHostRecord{mx}); err != nil {
 			t.Fatalf("AddRecords(MX) on a NONE zone: %v", err)
 		}
@@ -116,7 +114,7 @@ func TestAcc_EmailType(t *testing.T) {
 		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, []namecheap.DomainsDNSHostRecord{apex, mx, txt})
 	})
 
-	t.Run("MX row with EmailType omitted is kept on an MX zone (C2)", func(t *testing.T) {
+	t.Run("MX row with EmailType omitted is kept on an MX zone", func(t *testing.T) {
 		records := []namecheap.DomainsDNSHostRecord{apex, mx}
 		if _, err := dns.SetHostsWithContext(ctx(t), &namecheap.DomainsDNSSetHostsArgs{
 			Domain: namecheap.String(domain), Records: &records,
@@ -126,7 +124,7 @@ func TestAcc_EmailType(t *testing.T) {
 		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, records)
 	})
 
-	t.Run("MXE row under MX is kept (C3)", func(t *testing.T) {
+	t.Run("MXE row is kept when EmailType is MX", func(t *testing.T) {
 		records := []namecheap.DomainsDNSHostRecord{apex, mx, mxe}
 		if _, err := dns.SetHostsWithContext(ctx(t), &namecheap.DomainsDNSSetHostsArgs{
 			Domain: namecheap.String(domain), Records: &records, EmailType: namecheap.String(namecheap.EmailTypeMX),
@@ -136,7 +134,7 @@ func TestAcc_EmailType(t *testing.T) {
 		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, records)
 	})
 
-	t.Run("deleting the last MX keeps the zone on MX (P3, no downgrade)", func(t *testing.T) {
+	t.Run("deleting the last MX row leaves the zone on MX", func(t *testing.T) {
 		if _, err := dns.DeleteRecordsWithContext(ctx(t), domain, mxeSel); err != nil {
 			t.Fatalf("DeleteRecords(MXE): %v", err)
 		}
@@ -153,7 +151,7 @@ func TestAcc_EmailType(t *testing.T) {
 		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeNone, []namecheap.DomainsDNSHostRecord{apex})
 	})
 
-	t.Run("first MXE on a NONE zone derives MXE", func(t *testing.T) {
+	t.Run("first MXE on a NONE zone switches the zone to MXE", func(t *testing.T) {
 		if _, err := dns.AddRecordsWithContext(ctx(t), domain, []namecheap.DomainsDNSHostRecord{mxe}); err != nil {
 			t.Fatalf("AddRecords(MXE) on a NONE zone: %v", err)
 		}
@@ -168,7 +166,7 @@ func TestAcc_EmailType(t *testing.T) {
 	// #162 and the #355 reporter: a per-record write on a preset zone used to be
 	// rejected client-side. It must now go through without touching the mode.
 	for _, preset := range []string{namecheap.EmailTypeGmail, namecheap.EmailTypePrivate, namecheap.EmailTypeForward} {
-		t.Run("record write on a "+preset+" zone keeps the preset (#162)", func(t *testing.T) {
+		t.Run("record write on a "+preset+" zone keeps the preset", func(t *testing.T) {
 			reset(t, preset)
 			if _, err := dns.AddRecordsWithContext(ctx(t), domain, []namecheap.DomainsDNSHostRecord{txt}); err != nil {
 				t.Fatalf("AddRecords(TXT) on a %s zone: %v", preset, err)
@@ -183,10 +181,10 @@ func TestAcc_EmailType(t *testing.T) {
 		})
 	}
 
-	t.Run("preset tag is read and survives a helper write (FWD)", func(t *testing.T) {
+	t.Run("preset tag on the FWD SPF row is read and survives a write", func(t *testing.T) {
 		reset(t, namecheap.EmailTypeNone)
 		// The tagged SPF row is created only by the undocumented setEmailType
-		// command (probe Z1); setHosts never creates preset rows.
+		// command; setHosts never creates preset rows.
 		var void struct{}
 		if _, err := client.DoXMLWithContext(ctx(t), map[string]string{
 			"Command": "namecheap.domains.dns.setEmailType", "DomainName": domain, "EmailType": namecheap.EmailTypeForward,

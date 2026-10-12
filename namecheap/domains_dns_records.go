@@ -509,7 +509,8 @@ func deriveEmailType(records []DomainsDNSHostRecord) string {
 	for _, r := range records {
 		switch normRecordType(derefStr(r.RecordType)) {
 		case RecordTypeMX:
-			// MX wins over MXE: MX rows survive only under MX, MXE rows too (C3).
+			// MX wins over MXE: MX rows survive only under MX, and MXE rows are
+			// kept under MX as well.
 			return EmailTypeMX
 		case RecordTypeMXE:
 			hasMXE = true

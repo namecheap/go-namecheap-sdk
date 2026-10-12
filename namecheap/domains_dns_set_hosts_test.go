@@ -527,13 +527,13 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 	}
 
 	// Combinations the SDK used to reject client-side and the live API accepts
-	// (sandbox and production probes, 2026-10-08; probe ids in parentheses).
+	// (sandbox and production, 2026-10-08; pinned by TestAcc_EmailType).
 	acceptedCases := []struct {
 		Name string
 		Args *DomainsDNSSetHostsArgs
 	}{
 		{
-			Name: "mx_zone_with_zero_mx_records (P3)",
+			Name: "mx_zone_with_zero_mx_records",
 			Args: &DomainsDNSSetHostsArgs{
 				Domain:    String("domain.net"),
 				EmailType: String(EmailTypeMX),
@@ -541,7 +541,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			},
 		},
 		{
-			Name: "mxe_zone_with_zero_mxe_records (P4)",
+			Name: "mxe_zone_with_zero_mxe_records",
 			Args: &DomainsDNSSetHostsArgs{
 				Domain:    String("domain.net"),
 				EmailType: String(EmailTypeMXE),
@@ -549,7 +549,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			},
 		},
 		{
-			Name: "mx_record_with_email_type_omitted (C2, Z9)",
+			Name: "mx_record_with_email_type_omitted",
 			Args: &DomainsDNSSetHostsArgs{
 				Domain:  String("domain.net"),
 				Records: &[]DomainsDNSHostRecord{{RecordType: String(RecordTypeMX), HostName: String("@"), Address: String("mail.domain.com"), MXPref: UInt8(10)}},
@@ -563,7 +563,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			},
 		},
 		{
-			Name: "mxe_record_under_mx (C3)",
+			Name: "mxe_record_under_mx",
 			Args: &DomainsDNSSetHostsArgs{
 				Domain:    String("domain.net"),
 				EmailType: String(EmailTypeMX),
@@ -598,10 +598,10 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 		})
 	}
 
-	// P10: an EmailType the server does not know comes back as Status="OK" with
+	// An EmailType the server does not know comes back as Status="OK" with
 	// no <Error>, and the zone is left unchanged. IsSuccess="false" is the only
 	// signal, so it must surface as an error.
-	t.Run("is_success_false_is_an_error (P10)", func(t *testing.T) {
+	t.Run("is_success_false_is_an_error", func(t *testing.T) {
 		t.Parallel()
 		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			_, _ = writer.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>

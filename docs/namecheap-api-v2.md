@@ -571,10 +571,8 @@ Sets DNS host records settings for the requested domain.
 | HostName[1..n] | String | Yes | Sub-domain/hostname for the record |
 | RecordType[1..n] | String | Yes | Possible values: A, AAAA, ALIAS, CAA, CNAME, MX, MXE, NS, TXT, URL, URL301, FRAME |
 | Address[1..n] | String | Yes | URL or IP address based on RecordType |
-| MXPref[1..n] | String | Yes | MX preference (for MX records only) |
-| EmailType | String | Yes | Values: MXE, MX, FWD, OX |
-
-> **Verified behaviour (sandbox and production, 2026-10-08), differs from the table above:** `EmailType` is not required. Omitting it keeps the zone's current mode. `NONE` and `GMAIL` are also accepted. MX hosts are silently discarded unless the resulting mode is `MX`; MXE hosts are kept under `MXE` and `MX`. No MX/MXE record counts are enforced. An unknown value returns `Status="OK"` with no error and `IsSuccess="false"`, leaving the zone unchanged. Non-MX hosts are echoed by getHosts with `MXPref="10"`.
+| MXPref[1..n] | String | Yes | MX preference (for MX records only). getHosts echoes MXPref="10" on every host, MX or not. |
+| EmailType | String | No | Values: NONE, MXE, MX, FWD, OX, GMAIL. Omitted keeps the zone's current mode. MX hosts are silently discarded unless the resulting mode is MX; MXE hosts are kept under MXE and MX. No MX/MXE record counts are enforced. An unknown value returns Status="OK" with IsSuccess="false" and leaves the zone unchanged. |
 | TTL[1..n] | String | No | Time to live for record (300-60000) |
 
 #### Response Parameters

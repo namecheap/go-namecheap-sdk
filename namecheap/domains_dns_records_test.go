@@ -134,7 +134,8 @@ func (m *dnsMock) parseSetHosts(q url.Values, emailType string) []DomainsDNSHost
 }
 
 // tagOf returns the AssociatedAppTitle of the current row with the given
-// identity, so a tagged row that is echoed back keeps its tag (T6b, Z2).
+// identity, so a tagged row that is echoed back keeps its tag, as the live API
+// does.
 func (m *dnsMock) tagOf(host, recordType, address string) string {
 	for _, h := range m.zone {
 		if derefStr(h.Name) == host && derefStr(h.Type) == recordType && derefStr(h.Address) == address {
@@ -767,7 +768,7 @@ func TestDeriveEmailType(t *testing.T) {
 		{"MX rows", []DomainsDNSHostRecord{a, mx, mx}, EmailTypeMX},
 		{"one MXE row", []DomainsDNSHostRecord{a, mxe}, EmailTypeMXE},
 		{"two MXE rows", []DomainsDNSHostRecord{mxe, mxe}, EmailTypeMXE},
-		// MX rows survive only under MX, and MXE rows are kept under MX (C3).
+		// MX rows survive only under MX, and MXE rows are kept under MX too.
 		{"MX and MXE together", []DomainsDNSHostRecord{mxe, mx}, EmailTypeMX},
 		{"lower-case type", []DomainsDNSHostRecord{{RecordType: String("mx")}}, EmailTypeMX},
 	}
@@ -781,8 +782,8 @@ func TestDeriveEmailType(t *testing.T) {
 	}
 }
 
-// TestFirstMXOnNoneZone is #361 B3: the first MX record on a NONE zone used to
-// fail client-side. It now switches the zone to MX in the same write.
+// TestFirstMXOnNoneZone: the first MX record on a NONE zone used to fail
+// client-side (terraform-provider-namecheap#361). It now switches the zone to MX in the same write.
 func TestFirstMXOnNoneZone(t *testing.T) {
 	t.Parallel()
 	m := newDNSMock(EmailTypeNone, []DomainsDNSHostRecordDetailed{
@@ -818,7 +819,8 @@ func TestFirstMXEOnNoneZone(t *testing.T) {
 }
 
 // TestLastMXDeletedKeepsMode pins "never a downgrade": deleting the last MX row
-// omits EmailType, so the zone stays MX (P3: zero MX rows are accepted) instead
+// omits EmailType, so the zone stays MX (an MX zone with zero MX rows is
+// accepted) instead
 // of being switched off behind the caller's back.
 func TestLastMXDeletedKeepsMode(t *testing.T) {
 	t.Parallel()
@@ -879,7 +881,7 @@ func TestMXZonePlainChangeKeepsMXRows(t *testing.T) {
 }
 
 // TestTaggedRowSurvivesRoundTrip covers the FWD preset's SPF row: it is read
-// with its tag, echoed back unchanged, and keeps the tag (T6b, Z2). The tag is
+// with its tag, echoed back unchanged, and keeps the tag. The tag is
 // read-only and never sent.
 func TestTaggedRowSurvivesRoundTrip(t *testing.T) {
 	t.Parallel()
@@ -955,12 +957,12 @@ func TestValidateExplicitEmailType(t *testing.T) {
 		wantErr   string
 	}{
 		{"plain records under any type", []DomainsDNSHostRecord{a}, EmailTypeGmail, ""},
-		{"MX zone with no MX row (P3)", []DomainsDNSHostRecord{a}, EmailTypeMX, ""},
-		{"MXE zone with no MXE row (P4)", []DomainsDNSHostRecord{a}, EmailTypeMXE, ""},
+		{"MX zone with no MX row", []DomainsDNSHostRecord{a}, EmailTypeMX, ""},
+		{"MXE zone with no MXE row", []DomainsDNSHostRecord{a}, EmailTypeMXE, ""},
 		{"two MXE rows", []DomainsDNSHostRecord{mxe, mxe}, EmailTypeMXE, ""},
-		{"MXE under MX (C3)", []DomainsDNSHostRecord{mx, mxe}, EmailTypeMX, ""},
-		{"MX under NONE (P2)", []DomainsDNSHostRecord{mx}, EmailTypeNone, "discard"},
-		{"MX under GMAIL (P9)", []DomainsDNSHostRecord{mx}, EmailTypeGmail, "discard"},
+		{"MXE under MX", []DomainsDNSHostRecord{mx, mxe}, EmailTypeMX, ""},
+		{"MX under NONE", []DomainsDNSHostRecord{mx}, EmailTypeNone, "discard"},
+		{"MX under GMAIL", []DomainsDNSHostRecord{mx}, EmailTypeGmail, "discard"},
 		{"MXE under FWD", []DomainsDNSHostRecord{mxe}, EmailTypeForward, "MXE"},
 		{"unknown value", []DomainsDNSHostRecord{a}, "BOGUS", "not a valid EmailType"},
 	}
