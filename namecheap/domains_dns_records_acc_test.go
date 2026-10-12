@@ -81,17 +81,9 @@ func TestAcc_EmailType(t *testing.T) {
 		reset(t, namecheap.EmailTypeNone)
 		// SetHosts rejects an unknown value client-side, so send it raw: this pins
 		// the response shape SetHostsWithContext's IsSuccess check relies on.
-		var resp namecheap.DomainsDNSSetHostsResponse
-		parsed, err := namecheap.ParseDomain(domain)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := client.DoXMLWithContext(ctx(t), map[string]string{
-			"Command": "namecheap.domains.dns.setHosts", "SLD": parsed.SLD, "TLD": parsed.TLD,
+		resp := rawSetHosts(t, client, domain, map[string]string{
 			"EmailType": "BOGUS", "HostName1": "@", "RecordType1": "A", "Address1": "199.34.228.99",
-		}, &resp); err != nil {
-			t.Fatalf("raw setHosts EmailType=BOGUS returned an API error, want Status=OK: %v", err)
-		}
+		})
 		result := resp.CommandResponse.DomainDNSSetHostsResult
 		if result == nil || result.IsSuccess == nil || *result.IsSuccess {
 			t.Fatalf("setHosts EmailType=BOGUS result = %v, want IsSuccess=false", result)
@@ -115,13 +107,13 @@ func TestAcc_EmailType(t *testing.T) {
 	})
 
 	t.Run("MX row with EmailType omitted is kept on an MX zone", func(t *testing.T) {
-		records := []namecheap.DomainsDNSHostRecord{apex, mx}
-		if _, err := dns.SetHostsWithContext(ctx(t), &namecheap.DomainsDNSSetHostsArgs{
-			Domain: namecheap.String(domain), Records: &records,
-		}); err != nil {
-			t.Fatalf("SetHosts(MX, EmailType omitted): %v", err)
-		}
-		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, records)
+		// SetHosts requires EmailType=MX with MX records because it cannot see the
+		// zone's mode, so send it raw: this pins that omission preserves MX.
+		rawSetHosts(t, client, domain, map[string]string{
+			"HostName1": "@", "RecordType1": "A", "Address1": *apex.Address, "TTL1": "1799",
+			"HostName2": "@", "RecordType2": "MX", "Address2": *mx.Address, "MXPref2": "10", "TTL2": "1799",
+		})
+		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, []namecheap.DomainsDNSHostRecord{apex, mx})
 	})
 
 	t.Run("MXE row is kept when EmailType is MX", func(t *testing.T) {
@@ -134,12 +126,14 @@ func TestAcc_EmailType(t *testing.T) {
 		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, records)
 	})
 
-	t.Run("deleting the last MX row leaves the zone on MX", func(t *testing.T) {
+	t.Run("deleting the MX rows leaves the zone on MX, MXE rows or not", func(t *testing.T) {
+		if _, err := dns.DeleteRecordsWithContext(ctx(t), domain, mxSel); err != nil {
+			t.Fatalf("DeleteRecords(MX) with an MXE row left: %v", err)
+		}
+		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, []namecheap.DomainsDNSHostRecord{apex, mxe})
+
 		if _, err := dns.DeleteRecordsWithContext(ctx(t), domain, mxeSel); err != nil {
 			t.Fatalf("DeleteRecords(MXE): %v", err)
-		}
-		if _, err := dns.DeleteRecordsWithContext(ctx(t), domain, mxSel); err != nil {
-			t.Fatalf("DeleteRecords(last MX): %v", err)
 		}
 		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, []namecheap.DomainsDNSHostRecord{apex})
 	})
@@ -211,6 +205,25 @@ func TestAcc_EmailType(t *testing.T) {
 			t.Errorf("tagged rows after the write = %d, want %d (an echoed row must keep its tag)", after.tagged(), before.tagged())
 		}
 	})
+}
+
+// rawSetHosts sends setHosts for domain with params, bypassing the SDK's
+// client-side validation, and fails the test on an API error.
+func rawSetHosts(t *testing.T, client *namecheap.Client, domain string, params map[string]string) namecheap.DomainsDNSSetHostsResponse {
+	t.Helper()
+	parsed, err := namecheap.ParseDomain(domain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := map[string]string{"Command": "namecheap.domains.dns.setHosts", "SLD": parsed.SLD, "TLD": parsed.TLD}
+	for k, v := range params {
+		body[k] = v
+	}
+	var resp namecheap.DomainsDNSSetHostsResponse
+	if _, err := client.DoXMLWithContext(ctx(t), body, &resp); err != nil {
+		t.Fatalf("raw setHosts %v: %v", params, err)
+	}
+	return resp
 }
 
 type zoneState struct {

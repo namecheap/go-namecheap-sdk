@@ -250,7 +250,8 @@ _, err := client.DomainsDNS.DeleteRecordsWithContext(ctx, "example.com",
         HostName:   namecheap.String("blog"),
         RecordType: namecheap.String("A"),
     })
-// every other record (and the zone EmailType) is preserved automatically.
+// every other record is preserved; the zone EmailType is kept unless the
+// resulting set needs MX or MXE (see "Mail records and the zone EmailType").
 ```
 
 ```go
@@ -275,7 +276,9 @@ fmt.Println(diff) // RecordDiff: +0 -1 =7
 
 A `RecordSelector` matches a record when **every** non-nil field equals the
 record's (HostName/RecordType compared case-insensitively, a trailing dot on the
-address ignored, MXPref exact). An empty selector is **rejected** with a typed
+address ignored, MXPref exact). A selector's `MXPref` matches **MX records
+only**: getHosts reports `MXPref="10"` on every record, so it carries no meaning
+on other types. An empty selector is **rejected** with a typed
 `*InvalidArgumentsError` to refuse an accidental mass-delete; set
 `RecordSelector{MatchAll: true}` for an intentional full wipe.
 
@@ -322,8 +325,10 @@ probed 2026-10-08, pinned by `TestAcc_EmailType`):
   `DomainsDNSHostRecord`; setHosts deletes it like any row that is not echoed.
 
 The record helpers derive the EmailType from the record set they are about to
-write: MX records send `EmailType=MX`, an MXE record sends `MXE`, and anything
-else omits the parameter, so the zone keeps its mode. They never send `NONE`
+write: MX records send `EmailType=MX`, MXE records send `MXE` (or `MX` on a zone
+already on MX), and anything else omits the parameter, so the zone keeps its
+mode. Rows a preset created (`AssociatedAppTitle` set) are echoed as they are
+and never move the mode. They never send `NONE`
 and never move a zone down: removing the last MX record leaves an `MX` zone on
 `MX`. Ordinary changes on `FWD`, `OX` and `GMAIL` zones therefore work and leave
 the preset alone.
@@ -353,12 +358,18 @@ if diff.RequiredEmailType != "" {
 }
 ```
 
+Raw `SetHosts` cannot see the zone's mode, so it requires `EmailType=MX` when
+the records contain an MX record (and `MXE` or `MX` for an MXE record), except
+for preset-tagged rows.
+
 `SetHosts` returns an error matching `namecheap.ErrCommandUnsuccessful` when the
 response says `IsSuccess="false"` (the API's only signal for, e.g., an unknown
 EmailType). The record helpers return `namecheap.ErrUnverifiedWrite`, together
 with a non-nil result, when the write succeeded but the verifying re-read
 failed: the write has most likely landed, so persist `result.Records` and
 reconcile on the next read instead of treating the write as lost.
+`namecheap.IsRetryable` reports false for it, because repeating the mutation
+would apply it twice.
 
 `NormalizeRecord` and `RecordsEqual` are exported so consumers can reuse the same
 comparison logic (TTL defaults to 1799, hostname lower-cased, `@` apex handling,

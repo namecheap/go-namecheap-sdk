@@ -446,6 +446,26 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			ExpectedError: "Records[0].RecordType MX would be discarded by Namecheap under EmailType=FWD; MX records are kept only under EmailType=MX",
 		},
 		{
+			Name: "request_data_error_email_type_omitted_with_mx",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain: String("domain.net"),
+				Records: &[]DomainsDNSHostRecord{
+					{RecordType: String(RecordTypeMX), HostName: String("mail"), Address: String("mail.domain.com"), MXPref: UInt8(10)},
+				},
+			},
+			ExpectedError: "Records[0].RecordType MX needs EmailType=MX: with EmailType omitted, Namecheap discards MX records unless the zone is already MX",
+		},
+		{
+			Name: "request_data_error_email_type_omitted_with_mxe",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain: String("domain.net"),
+				Records: &[]DomainsDNSHostRecord{
+					{RecordType: String(RecordTypeMXE), HostName: String("mail"), Address: String("10.11.12.13")},
+				},
+			},
+			ExpectedError: "Records[0].RecordType MXE needs EmailType=MXE or MX",
+		},
+		{
 			Name: "request_data_error_email_type_fwd_with_mxe",
 			Args: &DomainsDNSSetHostsArgs{
 				Domain:    String("domain.net"),
@@ -549,17 +569,14 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			},
 		},
 		{
-			Name: "mx_record_with_email_type_omitted",
+			// A row a mail preset created is echoed as-is; it does not ask for MX.
+			Name: "preset_tagged_mx_record_with_email_type_omitted",
 			Args: &DomainsDNSSetHostsArgs{
-				Domain:  String("domain.net"),
-				Records: &[]DomainsDNSHostRecord{{RecordType: String(RecordTypeMX), HostName: String("@"), Address: String("mail.domain.com"), MXPref: UInt8(10)}},
-			},
-		},
-		{
-			Name: "mxe_record_with_email_type_omitted",
-			Args: &DomainsDNSSetHostsArgs{
-				Domain:  String("domain.net"),
-				Records: &[]DomainsDNSHostRecord{{RecordType: String(RecordTypeMXE), HostName: String("@"), Address: String("10.11.12.13")}},
+				Domain: String("domain.net"),
+				Records: &[]DomainsDNSHostRecord{{
+					RecordType: String(RecordTypeMX), HostName: String("@"), Address: String("mx1.privateemail.com"),
+					MXPref: UInt8(10), AssociatedAppTitle: String(EmailTypePrivate),
+				}},
 			},
 		},
 		{

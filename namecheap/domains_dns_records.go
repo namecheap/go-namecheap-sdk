@@ -89,7 +89,7 @@ type RecordDiff struct {
 	// to MXE; anything else keeps the current mode. It never moves a zone down:
 	// removing the last MX row leaves an MX zone on MX.
 	RequiredEmailType string
-	// Satisfiable is always true.
+	// Satisfiable is always true on a RecordDiff returned by PlanWithContext.
 	//
 	// Deprecated: the live API accepts every record set the derivation can
 	// produce, so no set is unsatisfiable. The field is kept for compatibility
@@ -157,9 +157,10 @@ func WithRetryOnConflict(maxAttempts int) RecordOption {
 // the one the helper would derive.
 //
 // Without it the helpers derive the EmailType from the resulting record set: MX
-// rows send EmailType=MX, an MXE row sends MXE, and anything else omits the
-// parameter so the zone keeps its mode — including the FWD, OX and GMAIL
-// presets, which serve their MX from the mode and store no MX rows. That covers
+// rows send EmailType=MX, MXE rows send MXE (or MX on a zone already on MX), and
+// anything else omits the parameter so the zone keeps its mode — including the
+// FWD, OX and GMAIL presets. Rows a preset created (AssociatedAppTitle set) are
+// echoed as they are and never drive the mode. That covers
 // the whole MX/MXE lifecycle, so the option is needed only to set a mode no
 // record implies, such as switching mail routing off together with the last MX
 // row:
@@ -496,17 +497,23 @@ func recordSetsEqual(a, b []DomainsDNSHostRecord) bool {
 	return true
 }
 
-// deriveEmailType returns the EmailType a write of records needs, or "" when
-// the parameter should be omitted so the zone keeps its current mode.
+// deriveEmailType returns the EmailType a write of records needs on a zone
+// currently in mode current, or "" when the parameter should be omitted so the
+// zone keeps its mode.
 //
 // The live API (2026-10-08) silently discards MX rows unless the mode is MX,
 // keeps MXE rows under MXE and MX, preserves the mode when EmailType is omitted,
-// and enforces no record counts. So MX rows require MX, an MXE row requires MXE,
-// and every other set is written without an EmailType: never NONE, never a
-// downgrade, and a preset mode (FWD, OX, GMAIL) is left alone.
-func deriveEmailType(records []DomainsDNSHostRecord) string {
+// and enforces no record counts. So MX rows require MX, MXE rows require MXE
+// unless the zone is already MX, and every other set is written without an
+// EmailType: never NONE, never a downgrade, and a preset mode (FWD, OX, GMAIL)
+// is left alone. Rows a preset created (AssociatedAppTitle set) belong to the
+// preset and never drive the mode.
+func deriveEmailType(records []DomainsDNSHostRecord, current string) string {
 	hasMXE := false
 	for _, r := range records {
+		if derefStr(r.AssociatedAppTitle) != "" {
+			continue
+		}
 		switch normRecordType(derefStr(r.RecordType)) {
 		case RecordTypeMX:
 			// MX wins over MXE: MX rows survive only under MX, and MXE rows are
@@ -516,10 +523,14 @@ func deriveEmailType(records []DomainsDNSHostRecord) string {
 			hasMXE = true
 		}
 	}
-	if hasMXE {
+	switch {
+	case !hasMXE:
+		return ""
+	case current == EmailTypeMX:
+		return EmailTypeMX
+	default:
 		return EmailTypeMXE
 	}
-	return ""
 }
 
 // transitionTo returns want when it differs from current, and "" when the zone
@@ -549,6 +560,9 @@ func validateExplicitEmailType(records []DomainsDNSHostRecord, emailType string)
 
 	var mxCount, mxeCount int
 	for _, r := range records {
+		if derefStr(r.AssociatedAppTitle) != "" {
+			continue
+		}
 		switch normRecordType(derefStr(r.RecordType)) {
 		case RecordTypeMX:
 			mxCount++
@@ -654,7 +668,7 @@ func (dds *DomainsDNSService) PlanWithContext(ctx context.Context, domain string
 	diff, final := computeDiff(current, ops)
 	diff.EmailType = emailType
 	// An omitted (empty) derived EmailType keeps the mode, so it is no transition.
-	if derived := deriveEmailType(final); derived != "" {
+	if derived := deriveEmailType(final, emailType); derived != "" {
 		diff.RequiredEmailType = transitionTo(derived, emailType)
 	}
 	diff.Satisfiable = true
@@ -701,7 +715,7 @@ func (dds *DomainsDNSService) attemptRecordOps(ctx context.Context, domain strin
 
 	// WithEmailType replaces the derived value. An empty send omits the
 	// parameter, and the zone keeps the EmailType it already had.
-	send := deriveEmailType(final)
+	send := deriveEmailType(final, emailType)
 	if cfg.emailType != nil {
 		send = *cfg.emailType
 		if err := validateExplicitEmailType(final, send); err != nil {

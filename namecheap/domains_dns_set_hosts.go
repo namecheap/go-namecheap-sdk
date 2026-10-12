@@ -73,7 +73,9 @@ type DomainsDNSSetHostsArgs struct {
 	// parameter "Required: Yes", but the live API (sandbox and production,
 	// 2026-10-08) preserves the mode when it is omitted. Set it only to change the
 	// mode. Namecheap silently discards MX records unless the resulting mode is MX,
-	// so SetHosts rejects MX records under any other explicit value.
+	// so SetHosts requires EmailType=MX whenever the records contain an MX record
+	// (and MXE or MX for an MXE record), except for rows a mail preset created
+	// (AssociatedAppTitle set), which are echoed as they are.
 	//
 	// See https://www.namecheap.com/support/knowledgebase/article.aspx/322/2237/how-can-i-set-up-mx-records-required-for-mail-service/
 	EmailType *string
@@ -192,17 +194,29 @@ func validateDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) error {
 				return fmt.Errorf("invalid Records[%d].TTL value: %d", i, *record.TTL)
 			}
 
+			// A row a mail preset created is echoed as it is and belongs to the
+			// preset, so the MX/MXE rules below apply to user rows only.
+			presetRow := record.AssociatedAppTitle != nil && *record.AssociatedAppTitle != ""
+
 			switch *record.RecordType {
 			case "MX":
 				if record.MXPref == nil {
 					return fmt.Errorf("Records[%d].MXPref is nil but required for MX record type", i)
 				}
-				if args.EmailType != nil && *args.EmailType != EmailTypeMX {
+				switch {
+				case presetRow:
+				case args.EmailType == nil:
+					return fmt.Errorf("Records[%d].RecordType MX needs EmailType=MX: with EmailType omitted, Namecheap discards MX records unless the zone is already MX", i)
+				case *args.EmailType != EmailTypeMX:
 					return fmt.Errorf("Records[%d].RecordType MX would be discarded by Namecheap under EmailType=%s; MX records are kept only under EmailType=MX", i, *args.EmailType)
 				}
 
 			case "MXE":
-				if args.EmailType != nil && !mxeAllowedUnder(*args.EmailType) {
+				switch {
+				case presetRow:
+				case args.EmailType == nil:
+					return fmt.Errorf("Records[%d].RecordType MXE needs EmailType=MXE or MX", i)
+				case !mxeAllowedUnder(*args.EmailType):
 					return fmt.Errorf("Records[%d].RecordType MXE is not allowed for EmailType=%s", i, *args.EmailType)
 				}
 
