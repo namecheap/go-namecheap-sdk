@@ -20,7 +20,7 @@ go 1.26.6
 // main module, so it imposes nothing on consumers. actions/setup-go reads it
 // in preference to `go`, and `go mod tidy` keeps it only while it is newer
 // than the `go` line -- if the floor ever catches up, this line disappears.
-toolchain go1.26.7
+toolchain go1.26.9
 
 require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
@@ -31,6 +31,6 @@ require (
 
 require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )
