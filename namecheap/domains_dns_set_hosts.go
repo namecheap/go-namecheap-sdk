@@ -203,21 +203,23 @@ func validateDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) error {
 				if record.MXPref == nil {
 					return fmt.Errorf("Records[%d].MXPref is nil but required for MX record type", i)
 				}
-				switch {
-				case presetRow:
-				case args.EmailType == nil:
-					return fmt.Errorf("Records[%d].RecordType MX needs EmailType=MX: with EmailType omitted, Namecheap discards MX records unless the zone is already MX", i)
-				case *args.EmailType != EmailTypeMX:
-					return fmt.Errorf("Records[%d].RecordType MX would be discarded by Namecheap under EmailType=%s; MX records are kept only under EmailType=MX", i, *args.EmailType)
+				if !presetRow {
+					if args.EmailType == nil {
+						return fmt.Errorf("Records[%d].RecordType MX needs EmailType=MX: with EmailType omitted, Namecheap discards MX records unless the zone is already MX", i)
+					}
+					if *args.EmailType != EmailTypeMX {
+						return fmt.Errorf("Records[%d].RecordType MX would be discarded by Namecheap under EmailType=%s; MX records are kept only under EmailType=MX", i, *args.EmailType)
+					}
 				}
 
 			case "MXE":
-				switch {
-				case presetRow:
-				case args.EmailType == nil:
-					return fmt.Errorf("Records[%d].RecordType MXE needs EmailType=MXE or MX", i)
-				case !mxeAllowedUnder(*args.EmailType):
-					return fmt.Errorf("Records[%d].RecordType MXE is not allowed for EmailType=%s", i, *args.EmailType)
+				if !presetRow {
+					if args.EmailType == nil {
+						return fmt.Errorf("Records[%d].RecordType MXE needs EmailType=MXE or MX", i)
+					}
+					if !mxeAllowedUnder(*args.EmailType) {
+						return fmt.Errorf("Records[%d].RecordType MXE is not allowed for EmailType=%s", i, *args.EmailType)
+					}
 				}
 
 			case "URL", "URL301", "FRAME":

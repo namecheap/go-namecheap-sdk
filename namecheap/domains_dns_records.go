@@ -523,14 +523,13 @@ func deriveEmailType(records []DomainsDNSHostRecord, current string) string {
 			hasMXE = true
 		}
 	}
-	switch {
-	case !hasMXE:
+	if !hasMXE {
 		return ""
-	case current == EmailTypeMX:
-		return EmailTypeMX
-	default:
-		return EmailTypeMXE
 	}
+	if current == EmailTypeMX {
+		return EmailTypeMX
+	}
+	return EmailTypeMXE
 }
 
 // transitionTo returns want when it differs from current, and "" when the zone
@@ -571,11 +570,11 @@ func validateExplicitEmailType(records []DomainsDNSHostRecord, emailType string)
 		}
 	}
 
-	switch {
-	case mxCount > 0 && emailType != EmailTypeMX:
+	if mxCount > 0 && emailType != EmailTypeMX {
 		return invalid("the resulting record set has %d MX record(s), which Namecheap would discard under "+
 			"WithEmailType(%q): MX records are kept only under EmailType=%s", mxCount, emailType, EmailTypeMX)
-	case mxeCount > 0 && !mxeAllowedUnder(emailType):
+	}
+	if mxeCount > 0 && !mxeAllowedUnder(emailType) {
 		return invalid("the resulting record set has %d MXE record(s), which WithEmailType(%q) does not accept: "+
 			"use EmailType=%s or %s", mxeCount, emailType, EmailTypeMXE, EmailTypeMX)
 	}
