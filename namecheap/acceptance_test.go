@@ -9,9 +9,9 @@
 //
 // Only read-only and reversible commands are exercised. Every mutation captures
 // the prior state and restores it (defer), so reruns are idempotent and no
-// account state is left changed. TestMain resets the zone of
-// NAMECHEAP_TEST_DOMAIN to a fixed baseline once, before any test runs, so the
-// suite never depends on what the domain held before.
+// account state is left changed. TestMain clears the zone of
+// NAMECHEAP_TEST_DOMAIN once, before any test runs, so the suite never depends
+// on what the domain held before.
 //
 // With -update-fixtures, the read-only responses are re-captured into
 // ../namecheaptest/fixtures so CI can diff them against the committed corpus and
@@ -53,7 +53,7 @@ const (
 	envDomain = "NAMECHEAP_TEST_DOMAIN"
 )
 
-// TestMain resets the zone of NAMECHEAP_TEST_DOMAIN once, before any test runs,
+// TestMain clears the zone of NAMECHEAP_TEST_DOMAIN once, before any test runs,
 // so the suite does not depend on what another suite sharing the domain or an
 // earlier run left there.
 func TestMain(m *testing.M) {
@@ -64,9 +64,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// resetTestDomain puts the test domain's zone into the baseline state: an apex
-// A record, a TXT record and an MX record, under EmailType=MX. Without
-// credentials or a test domain it does nothing, and the DNS tests skip.
+// resetTestDomain clears the test domain's zone: no host records and
+// EmailType=NONE. Without credentials or a test domain it does nothing, and the
+// DNS tests skip.
 func resetTestDomain() error {
 	client := newLiveClient()
 	domain := os.Getenv(envDomain)
@@ -74,28 +74,14 @@ func resetTestDomain() error {
 		return nil
 	}
 
-	records := []namecheap.DomainsDNSHostRecord{
-		{
-			HostName: namecheap.String("@"), RecordType: namecheap.String(namecheap.RecordTypeA),
-			Address: namecheap.String("199.34.228.77"), TTL: namecheap.Int(1799),
-		},
-		{
-			HostName: namecheap.String("_acc-baseline"), RecordType: namecheap.String(namecheap.RecordTypeTXT),
-			Address: namecheap.String("acceptance"), TTL: namecheap.Int(300),
-		},
-		{
-			HostName: namecheap.String("@"), RecordType: namecheap.String(namecheap.RecordTypeMX),
-			Address: namecheap.String("mx-acc.example.com."), MXPref: namecheap.UInt8(10), TTL: namecheap.Int(1799),
-		},
-	}
 	c, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	if _, err := client.DomainsDNS.SetHostsWithContext(c, &namecheap.DomainsDNSSetHostsArgs{
 		Domain:    namecheap.String(domain),
-		Records:   &records,
-		EmailType: namecheap.String(namecheap.EmailTypeMX),
+		Records:   &[]namecheap.DomainsDNSHostRecord{},
+		EmailType: namecheap.String(namecheap.EmailTypeNone),
 	}); err != nil {
-		return fmt.Errorf("reset %s to the baseline zone: %w", domain, err)
+		return fmt.Errorf("clear the zone of %s: %w", domain, err)
 	}
 	return nil
 }
@@ -390,7 +376,7 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 	}
 	original := toSetRecords(got)
 	// The mode goes back with the records: SetHosts rejects MX records without
-	// EmailType=MX, and the baseline zone (resetTestDomain) has one.
+	// EmailType=MX.
 	emailType := got.DomainDNSGetHostsResult.EmailType
 
 	// Always restore the captured state, even if the round-trip write fails.
