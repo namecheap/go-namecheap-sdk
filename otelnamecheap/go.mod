@@ -3,7 +3,7 @@ module github.com/namecheap/go-namecheap-sdk/otelnamecheap
 // Both directives kept in step with the root go.mod; the reasoning is there.
 go 1.26.6
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/namecheap/go-namecheap-sdk/v2 v2.10.5

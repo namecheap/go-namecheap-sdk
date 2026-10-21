@@ -126,6 +126,10 @@ func TestIsRetryable(t *testing.T) {
 		{"url_error_wrapping_deadline", &url.Error{Op: "Post", URL: "x", Err: context.DeadlineExceeded}, false},
 		{"parse_error", &ParseError{Err: io.EOF}, false},
 		{"generic", errors.New("boom"), false},
+		// The write behind ErrUnverifiedWrite has most likely landed; repeating
+		// it (an AddRecords appends) would duplicate records.
+		{"unverified_write_over_server_error", fmt.Errorf("%w: %w", ErrUnverifiedWrite, &APIError{Number: 3050900}), false},
+		{"unverified_write_over_timeout", fmt.Errorf("%w: %w", ErrUnverifiedWrite, fakeNetError{timeout: true}), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
