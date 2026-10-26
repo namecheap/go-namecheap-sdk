@@ -72,7 +72,7 @@ func TestDomainsService_Renew(t *testing.T) {
 		assert.Equal(t, 112233, *result.TransactionID)
 		assert.Equal(t, Amount("9.56"), *result.ChargedAmount)
 		// The fixture's ExpiredDate is the value a real sandbox renew returned on
-		// 2026-10-26 (DEVOPS-23670): date, non-padded hour and a U+202F narrow
+		// 2026-10-26: date, non-padded hour and a U+202F narrow
 		// no-break space before PM. This pins the full chain — a charge-bearing,
 		// non-retried response must decode with the time-bearing form the API
 		// actually sends — against reverting DateTime to a date-only layout.

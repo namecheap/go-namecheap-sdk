@@ -8,23 +8,21 @@ import (
 
 // DateTime is a date or timestamp as the Namecheap XML API renders it. The API
 // has no single date format: each command formats its own fields, and the
-// renew command's format even depends on the culture of the server that
-// answered. The forms below are the ones observed on the live API, with the
-// evidence behind each one (DEVOPS-23670, 2026-10-23..26):
+// renew command's format even depends on the server that answered. The forms
+// below are the ones observed on the live API, with the evidence behind each
+// one (production and sandbox captures, October 2026):
 //
 //   - "11/19/2026" (zero-padded MM/DD/YYYY, date only): domains.getList
 //     Created/Expires, domains.getInfo CreatedDate/ExpiredDate and Whoisguard
 //     ExpiredDate, whoisguard.getList Created/Expires, ssl.getList
-//     PurchaseDate. Formatted by the stored procedures
-//     (UDF_FORMAT_DATETIME '... mm/dd/yyyy'); captured on production.
+//     PurchaseDate. Captured on production.
 //   - "1/20/2014" (non-padded M/D/YYYY): ssl.getInfo IssuedOn/Expires as shown
-//     on the official docs page (server uses ToShortDateString()).
+//     on the official docs page.
 //   - "12/14/2034 1:01:07 PM": domains.renew DomainDetails/ExpiredDate as
-//     captured from a real sandbox renew on 2026-10-26. The server formats it
-//     with a bare DateTime.ToString(); under .NET 8 + ICU the hour is not
-//     padded and the AM/PM separator is U+202F (narrow no-break space). The
-//     official docs page shows the same field with an ASCII space
-//     ("4/30/2021 11:31:13 AM").
+//     captured from a real sandbox renew on 2026-10-26: date and time, the
+//     hour not padded, and U+202F (narrow no-break space) before the AM/PM
+//     designator. The official docs page shows the same field with an ASCII
+//     space ("4/30/2021 11:31:13 AM").
 //   - "4/30/21" and "4/30/21 11:31:13 AM" (two-digit year): reported by a
 //     consumer on go-namecheap-sdk PR #177; not reproduced, accepted anyway.
 //   - "2027-06-02T13:01:07" (ISO, no zone): PremiumDnsSubscription
@@ -61,10 +59,10 @@ var dateTimeLayouts = []string{
 	"2006-01-02T15:04:05Z", // ISO with a Z designator, accepted for safety
 }
 
-// normaliseDateText maps the space characters .NET/ICU may emit between the
+// normaliseDateText maps the space characters the API may emit between the
 // time and the AM/PM designator (U+202F narrow no-break space, U+00A0 no-break
 // space) to a plain space and collapses runs of spaces, so one layout covers
-// every culture variant.
+// every variant.
 func normaliseDateText(s string) string {
 	s = strings.NewReplacer(" ", " ", " ", " ").Replace(s)
 	return strings.Join(strings.Fields(s), " ")

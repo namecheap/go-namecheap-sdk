@@ -111,10 +111,9 @@ func TestDateTimeUnmarshalText(t *testing.T) {
 		assert.True(t, dt.IsZero())
 	})
 
-	// Captured from a real sandbox domains.renew on 2026-10-26 (DEVOPS-23670):
-	// <ExpiredDate>12/14/2034 1:01:07\u202fPM</ExpiredDate>. The server formats
-	// this field with a bare DateTime.ToString(); under .NET 8 + ICU the hour is
-	// not padded and the AM/PM separator is U+202F, a narrow no-break space.
+	// Captured from a real sandbox domains.renew on 2026-10-26:
+	// <ExpiredDate>12/14/2034 1:01:07\u202fPM</ExpiredDate>. The hour is not
+	// padded and the AM/PM separator is U+202F, a narrow no-break space.
 	t.Run("renew_time_with_narrow_no_break_space_parses", func(t *testing.T) {
 		t.Parallel()
 		dt := &DateTime{}

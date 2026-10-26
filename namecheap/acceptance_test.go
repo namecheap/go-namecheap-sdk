@@ -53,13 +53,13 @@ const (
 	// neither read-only nor reversible: it renews the named domain for a year
 	// and spends account funds (sandbox test funds when NAMECHEAP_USE_SANDBOX
 	// is true). It exists to prove the DateTime parser against the real
-	// domains.renew response (DEVOPS-23670) and is never set in CI.
+	// domains.renew response and is never set in CI.
 	envRenewDomain = "NAMECHEAP_ACC_RENEW_DOMAIN"
 )
 
-// dateOnlyPadded is the form the stored procedures behind domains.getList and
-// domains.getInfo emit (UDF_FORMAT_DATETIME '... mm/dd/yyyy'), confirmed on
-// production on 2026-10-23. A change here is server-side drift worth a look.
+// dateOnlyPadded is the form domains.getList and domains.getInfo have always
+// used, confirmed on production on 2026-10-23. A change here is server-side
+// drift worth a look.
 var dateOnlyPadded = regexp.MustCompile(`^\d{2}/\d{2}/\d{4}$`)
 
 // assertLiveDate checks that a live date field parsed and that its raw text
@@ -281,10 +281,10 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 
 // TestAcc_DomainsRenew proves the DateTime parser against a real domains.renew
 // response, the one endpoint whose date carries a time component in a
-// culture-dependent format (captured 2026-10-26: "12/14/2034 1:01:07\u202fPM").
+// server-dependent format (captured 2026-10-26: "12/14/2034 1:01:07\u202fPM").
 // It is opt-in through NAMECHEAP_ACC_RENEW_DOMAIN because it spends funds and
 // adds a year to the domain; a decode failure here is exactly the
-// charge-then-error outcome DEVOPS-23670 exists to prevent.
+// charge-then-error outcome this parser exists to prevent.
 func TestAcc_DomainsRenew(t *testing.T) {
 	domain := os.Getenv(envRenewDomain)
 	client := liveClient(t)

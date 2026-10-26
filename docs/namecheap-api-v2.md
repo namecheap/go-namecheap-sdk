@@ -20,25 +20,20 @@
 ### Date formats
 
 The API has no single date format: each command formats its own fields, and
-`domains.renew` formats with the culture of the server that answered. Observed
-on the live API (DEVOPS-23670, captures of 2026-10-23 on production and
-2026-10-26 on the sandbox, which runs the same code):
+the `domains.renew` date also depends on the server that answered. Observed on
+the live API (production and sandbox captures, October 2026):
 
-| Command / field | Observed value | How the server builds it |
-|-----------------|----------------|--------------------------|
-| domains.getList `Created`, `Expires` | `11/19/2020` | stored procedure `UDF_FORMAT_DATETIME(..., 'mm/dd/yyyy')`: zero-padded, date only |
-| domains.getInfo `DomainDetails/CreatedDate`, `ExpiredDate`, `Whoisguard/ExpiredDate`, `EmailDetails@LastAutoEmailChangeDate` | `11/19/2026`, `11/06/2021` | same stored-procedure format |
+| Command / field | Observed value | Shape |
+|-----------------|----------------|-------|
+| domains.getList `Created`, `Expires` | `11/19/2020` | zero-padded `MM/DD/YYYY`, date only |
+| domains.getInfo `DomainDetails/CreatedDate`, `ExpiredDate`, `Whoisguard/ExpiredDate`, `EmailDetails@LastAutoEmailChangeDate` | `11/19/2026`, `11/06/2021` | zero-padded `MM/DD/YYYY`, date only |
 | domains.getInfo `PremiumDnsSubscription/CreatedDate`, `ExpirationDate` | `0001-01-01T00:00:00` | ISO without zone; the year-1 value means "never" |
-| whoisguard.getList `Created`, `Expires` | `11/19/2020` | zero-padded, date only |
-| ssl.getList `PurchaseDate`; `ExpireDate`, `ActivationExpireDate` | `02/26/2018`; empty | `ToShortDateString()`; empty when the certificate has none |
-| ssl.getInfo `IssuedOn`, `Expires` | `1/20/2014` (docs page) | `ToShortDateString()`, non-padded on the documenting host |
-| domains.renew `DomainDetails/ExpiredDate` | `12/14/2034 1:01:07 PM` (U+202F before PM) | bare `DateTime.ToString()`: date **and time**, non-padded hour, AM/PM separator and year width depend on the host culture and ICU version; consumers have also reported a two-digit year |
+| whoisguard.getList `Created`, `Expires` | `11/19/2020` | zero-padded `MM/DD/YYYY`, date only |
+| ssl.getList `PurchaseDate`; `ExpireDate`, `ActivationExpireDate` | `02/26/2018`; empty | date only; empty when the certificate has none |
+| ssl.getInfo `IssuedOn`, `Expires` | `1/20/2014` (docs page) | date only, not zero-padded |
+| domains.renew `DomainDetails/ExpiredDate` | `12/14/2034 1:01:07 PM` (U+202F before PM) | date **and time**, non-padded hour; the AM/PM separator and the year width vary by server (a two-digit year has been reported) |
 
-No value carries zone information; the SDK reads them as UTC wall clock. The
-SDK's `DateTime` type accepts every form above, normalises U+202F / U+00A0 to a
-space, and never fails decoding on an unrecognised value: the text stays in
-`DateTime.Raw` and `ParseError()` reports why, so a charge-bearing `renew`
-response is never lost to a cosmetic format change.
+No value carries zone information.
 
 ---
 
