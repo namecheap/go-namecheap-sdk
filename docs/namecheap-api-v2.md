@@ -17,6 +17,31 @@
 
 ---
 
+### Date formats
+
+The API has no single date format: each command formats its own fields, and
+`domains.renew` formats with the culture of the server that answered. Observed
+on the live API (DEVOPS-23670, captures of 2026-10-23 on production and
+2026-10-26 on the sandbox, which runs the same code):
+
+| Command / field | Observed value | How the server builds it |
+|-----------------|----------------|--------------------------|
+| domains.getList `Created`, `Expires` | `11/19/2020` | stored procedure `UDF_FORMAT_DATETIME(..., 'mm/dd/yyyy')`: zero-padded, date only |
+| domains.getInfo `DomainDetails/CreatedDate`, `ExpiredDate`, `Whoisguard/ExpiredDate`, `EmailDetails@LastAutoEmailChangeDate` | `11/19/2026`, `11/06/2021` | same stored-procedure format |
+| domains.getInfo `PremiumDnsSubscription/CreatedDate`, `ExpirationDate` | `0001-01-01T00:00:00` | ISO without zone; the year-1 value means "never" |
+| whoisguard.getList `Created`, `Expires` | `11/19/2020` | zero-padded, date only |
+| ssl.getList `PurchaseDate`; `ExpireDate`, `ActivationExpireDate` | `02/26/2018`; empty | `ToShortDateString()`; empty when the certificate has none |
+| ssl.getInfo `IssuedOn`, `Expires` | `1/20/2014` (docs page) | `ToShortDateString()`, non-padded on the documenting host |
+| domains.renew `DomainDetails/ExpiredDate` | `12/14/2034 1:01:07 PM` (U+202F before PM) | bare `DateTime.ToString()`: date **and time**, non-padded hour, AM/PM separator and year width depend on the host culture and ICU version; consumers have also reported a two-digit year |
+
+No value carries zone information; the SDK reads them as UTC wall clock. The
+SDK's `DateTime` type accepts every form above, normalises U+202F / U+00A0 to a
+space, and never fails decoding on an unrecognised value: the text stays in
+`DateTime.Raw` and `ParseError()` reports why, so a charge-bearing `renew`
+response is never lost to a cosmetic format change.
+
+---
+
 ## Introduction
 
 The Namecheap API allows you to build applications that integrate with your Namecheap account, enabling programmatic domain search, registration, SSL purchase, and more.
@@ -317,7 +342,7 @@ Renews an expiring domain.
 | ChargedAmount | Total amount charged for renewal |
 | OrderID | Unique integer representing the order |
 | TransactionID | Unique integer representing the transaction |
-| DomainDetails/ExpiredDate | New expiration date after the renewal (child element; may be non-zero-padded, e.g. 2/20/2019) |
+| DomainDetails/ExpiredDate | New expiration date after the renewal (child element). Date **and time**, formatted by the server's current culture: a real sandbox renew on 2026-10-26 returned `12/14/2034 1:01:07 PM` with U+202F (narrow no-break space) before `PM`; the official docs page shows `4/30/2021 11:31:13 AM`. See [Date formats](#date-formats). |
 | DomainDetails/NumYears | Number of years reflected in the renewal details (child element; the live API frequently returns 0) |
 
 ---
@@ -388,7 +413,7 @@ Returns information about the requested domain.
 | OwnerName | User account under which domain is registered |
 | IsOwner | Whether the API user is the domain owner |
 | IsPremium | Whether the domain name is premium |
-| DomainDetails | Child element: CreatedDate, ExpiredDate (MM/DD/YYYY), NumYears |
+| DomainDetails | Child element: CreatedDate, ExpiredDate (zero-padded MM/DD/YYYY, date only; production capture 2026-10-23), NumYears |
 | LockDetails | Child element: observed empty in all captures; use namecheap.domains.getRegistrarLock for lock state |
 | Whoisguard | Child element: Enabled attr ("True", "False", "NotAlloted"), ID (0 = not alloted), ExpiredDate, EmailDetails (WhoisGuardEmail, ForwardedTo, LastAutoEmailChangeDate — empty or MM/DD/YYYY, AutoEmailChangeFrequencyDays) |
 | PremiumDnsSubscription | Child element: UseAutoRenew (the subscription's flag, not the domain's), SubscriptionId (-1 = none), CreatedDate/ExpirationDate (ISO; 0001-01-01T00:00:00 = never), IsActive |

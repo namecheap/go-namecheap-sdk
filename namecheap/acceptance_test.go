@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -48,7 +49,34 @@ const (
 	// envDomain names a dedicated, disposable test domain in the target account
 	// used for the reversible DNS round-trip. The DNS test skips when it is unset.
 	envDomain = "NAMECHEAP_TEST_DOMAIN"
+	// envRenewDomain opts in to TestAcc_DomainsRenew, the one test that is
+	// neither read-only nor reversible: it renews the named domain for a year
+	// and spends account funds (sandbox test funds when NAMECHEAP_USE_SANDBOX
+	// is true). It exists to prove the DateTime parser against the real
+	// domains.renew response (DEVOPS-23670) and is never set in CI.
+	envRenewDomain = "NAMECHEAP_ACC_RENEW_DOMAIN"
 )
+
+// dateOnlyPadded is the form the stored procedures behind domains.getList and
+// domains.getInfo emit (UDF_FORMAT_DATETIME '... mm/dd/yyyy'), confirmed on
+// production on 2026-10-23. A change here is server-side drift worth a look.
+var dateOnlyPadded = regexp.MustCompile(`^\d{2}/\d{2}/\d{4}$`)
+
+// assertLiveDate checks that a live date field parsed and that its raw text
+// still has the shape this endpoint has always used.
+func assertLiveDate(t *testing.T, field string, dt *namecheap.DateTime, shape *regexp.Regexp) {
+	t.Helper()
+	if dt == nil || dt.IsZero() {
+		t.Errorf("%s = %v, want a parsed date", field, dt)
+		return
+	}
+	if err := dt.ParseError(); err != nil {
+		t.Errorf("%s: %v", field, err)
+	}
+	if !shape.MatchString(dt.Raw) {
+		t.Errorf("%s raw text = %q, want shape %s (server-side format drift?)", field, dt.Raw, shape)
+	}
+}
 
 // liveClient builds a client for the live API from environment credentials,
 // skipping the test when any required variable is missing. The endpoint is
@@ -173,9 +201,8 @@ func TestAcc_DomainsGetList(t *testing.T) {
 		if found.ID == nil || *found.ID == "" {
 			t.Errorf("domains.getList: test domain ID = %v, want non-empty", found.ID)
 		}
-		if found.Created == nil || found.Created.IsZero() {
-			t.Errorf("domains.getList: test domain Created = %v, want a parsed date", found.Created)
-		}
+		assertLiveDate(t, "domains.getList Created", found.Created, dateOnlyPadded)
+		assertLiveDate(t, "domains.getList Expires", found.Expires, dateOnlyPadded)
 	}
 
 	captureFixture(t, client, "domains_getList", map[string]string{
@@ -217,8 +244,9 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 
 	if result.DomainDetails == nil {
 		t.Error("getInfo DomainDetails is nil, want populated")
-	} else if result.DomainDetails.CreatedDate == nil || result.DomainDetails.CreatedDate.IsZero() {
-		t.Errorf("getInfo DomainDetails.CreatedDate = %v, want a parsed date", result.DomainDetails.CreatedDate)
+	} else {
+		assertLiveDate(t, "getInfo DomainDetails.CreatedDate", result.DomainDetails.CreatedDate, dateOnlyPadded)
+		assertLiveDate(t, "getInfo DomainDetails.ExpiredDate", result.DomainDetails.ExpiredDate, dateOnlyPadded)
 	}
 
 	if result.WhoisGuard == nil {
@@ -249,6 +277,49 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 		"DomainName": domain,
 		"HostName":   domain,
 	})
+}
+
+// TestAcc_DomainsRenew proves the DateTime parser against a real domains.renew
+// response, the one endpoint whose date carries a time component in a
+// culture-dependent format (captured 2026-10-26: "12/14/2034 1:01:07\u202fPM").
+// It is opt-in through NAMECHEAP_ACC_RENEW_DOMAIN because it spends funds and
+// adds a year to the domain; a decode failure here is exactly the
+// charge-then-error outcome DEVOPS-23670 exists to prevent.
+func TestAcc_DomainsRenew(t *testing.T) {
+	domain := os.Getenv(envRenewDomain)
+	client := liveClient(t)
+	if domain == "" {
+		t.Skipf("%s not set; skipping domains.renew (spends funds, not reversible)", envRenewDomain)
+	}
+
+	before, err := client.Domains.GetInfoWithContext(ctx(t), domain)
+	if err != nil {
+		t.Fatalf("domains.getInfo before renew: %v", err)
+	}
+	if before.Result() == nil || before.Result().DomainDetails == nil || before.Result().DomainDetails.ExpiredDate == nil {
+		t.Fatal("domains.getInfo before renew: no ExpiredDate to compare against")
+	}
+	expiryBefore := before.Result().DomainDetails.ExpiredDate.Time
+
+	resp, err := client.Domains.RenewWithContext(ctx(t), &namecheap.DomainsRenewArgs{DomainName: domain, Years: 1})
+	if err != nil {
+		t.Fatalf("domains.renew: %v (a successful charge may have been made)", err)
+	}
+	result := resp.DomainRenewResult
+	if result == nil || result.Renew == nil || !*result.Renew {
+		t.Fatalf("domains.renew: Renew = %v, want true", result)
+	}
+	if result.DomainDetails == nil || result.DomainDetails.ExpiredDate == nil {
+		t.Fatal("domains.renew: DomainDetails.ExpiredDate missing")
+	}
+	got := result.DomainDetails.ExpiredDate
+	t.Logf("domains.renew ExpiredDate raw text %q (bytes % x)", got.Raw, []byte(got.Raw))
+	if err := got.ParseError(); err != nil {
+		t.Errorf("domains.renew ExpiredDate: %v", err)
+	}
+	if got.Year() != expiryBefore.Year()+1 {
+		t.Errorf("domains.renew ExpiredDate = %v, want year %d (expiry before: %v)", got.Time, expiryBefore.Year()+1, expiryBefore)
+	}
 }
 
 func TestAcc_UsersGetBalances(t *testing.T) {
