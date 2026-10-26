@@ -33,10 +33,20 @@ import (
 // The API carries no zone information, so every value is taken as UTC wall
 // clock; the server's GMTTimeDifference is not applied.
 //
+// Parsing is best effort. The layouts above are the forms seen so far, and a
+// value formatted by a server culture that has not been observed yet may fail
+// to parse or, where the day and month are both 12 or less, parse with them
+// swapped. The date-only values of domains.getList and domains.getInfo have a
+// single stable form; the domains.renew value is the one that varies. A
+// consumer that needs an exact expiry after a renewal should read it from
+// domains.getInfo and treat the renew value as informational.
+//
 // An unrecognised value never fails decoding of the response that carries it
 // (domains.renew is charge-bearing and deliberately never retried, so a date
 // format drift must not turn a successful renewal into an SDK error): the text
 // is kept verbatim in Raw, Time stays zero and ParseError reports the reason.
+// Reading Time directly therefore yields the zero time (year 1) for such a
+// value; use Parsed to get the time together with whether it is usable.
 type DateTime struct {
 	time.Time
 	// Raw is the element text as received, trimmed. It is set for parsed and
@@ -80,6 +90,17 @@ func (dt DateTime) String() string {
 // non-nil instead of showing the zero time.
 func (dt DateTime) ParseError() error {
 	return dt.err
+}
+
+// Parsed returns the parsed time and true, or the zero time and false when the
+// receiver is nil, the API text was empty, or it could not be parsed (see
+// ParseError and Raw). It is the safe way to read Time: the zero time of an
+// unparsed value is otherwise indistinguishable from a real year-1 date.
+func (dt *DateTime) Parsed() (time.Time, bool) {
+	if dt == nil || dt.err != nil || dt.IsZero() {
+		return time.Time{}, false
+	}
+	return dt.Time, true
 }
 
 // UnmarshalText parses an API date in any of the forms listed on DateTime,

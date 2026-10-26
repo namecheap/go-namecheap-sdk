@@ -39,6 +39,12 @@ type DomainsRenewResult struct {
 	TransactionID *int `xml:"TransactionID,attr"`
 	// DomainDetails carries the post-renewal registration dates (ExpiredDate,
 	// NumYears); the renew response does not include CreatedDate.
+	//
+	// ExpiredDate here is formatted by the answering server's culture (date and
+	// time, see DateTime) and is parsed on a best-effort basis: check
+	// ExpiredDate.Parsed before using the time, and read the authoritative
+	// expiry from Domains.GetInfo when an exact value matters. The raw API text
+	// is always available in ExpiredDate.Raw.
 	DomainDetails *DomainDetails `xml:"DomainDetails"`
 }
 

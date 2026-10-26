@@ -176,3 +176,42 @@ func TestDateTimeUnmarshalText(t *testing.T) {
 		assert.NoError(t, dt.ParseError())
 	})
 }
+
+// Parsed is the one-call safe accessor: a consumer that reads Time directly
+// gets the zero time for an unparsed value, which looks like a valid year-1
+// date. Parsed returns ok=false for both an unparsed and an empty value.
+func TestDateTimeParsed(t *testing.T) {
+	t.Parallel()
+	t.Run("parsed_value_returns_time_and_true", func(t *testing.T) {
+		t.Parallel()
+		dt := &DateTime{}
+		assert.NoError(t, dt.UnmarshalText([]byte("12/14/2034 1:01:07 PM")))
+		got, ok := dt.Parsed()
+		assert.True(t, ok)
+		assert.Equal(t, time.Date(2034, 12, 14, 13, 1, 7, 0, time.UTC), got)
+	})
+
+	t.Run("unrecognised_value_returns_false", func(t *testing.T) {
+		t.Parallel()
+		dt := &DateTime{}
+		assert.NoError(t, dt.UnmarshalText([]byte("not-a-date")))
+		got, ok := dt.Parsed()
+		assert.False(t, ok)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("empty_value_returns_false", func(t *testing.T) {
+		t.Parallel()
+		dt := &DateTime{}
+		assert.NoError(t, dt.UnmarshalText([]byte("")))
+		_, ok := dt.Parsed()
+		assert.False(t, ok)
+	})
+
+	t.Run("nil_receiver_returns_false", func(t *testing.T) {
+		t.Parallel()
+		var dt *DateTime
+		_, ok := dt.Parsed()
+		assert.False(t, ok)
+	})
+}
