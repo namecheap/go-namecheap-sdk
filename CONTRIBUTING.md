@@ -74,6 +74,17 @@ export NAMECHEAP_USE_SANDBOX=true # optional; targets the sandbox endpoint
 make testacc
 ```
 
+One test is deliberately opt-in because it is neither read-only nor reversible:
+`TestAcc_DomainsRenew` renews a domain for a year and spends account funds. It
+proves the `DateTime` parser against the real `domains.renew` response, whose
+`ExpiredDate` carries a culture-formatted time (see "Date formats" in
+`docs/namecheap-api-v2.md`). Run it on purpose, against the sandbox:
+
+```shell
+export NAMECHEAP_ACC_RENEW_DOMAIN=...  # a sandbox test domain; +1 year, sandbox funds
+make testacc
+```
+
 Without credentials the suite skips cleanly. In CI it runs via
 [acceptance.yml](.github/workflows/acceptance.yml) on an EC2 runner holding the
 repo's whitelisted Elastic IP.

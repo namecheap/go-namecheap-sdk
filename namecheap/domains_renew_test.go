@@ -23,7 +23,7 @@ const domainsRenewOKResponse = `
 		<CommandResponse Type="namecheap.domains.renew">
 			<DomainRenewResult DomainName="example.com" DomainID="1234567" Renew="true" OrderID="987654" TransactionID="112233" ChargedAmount="9.56">
 				<DomainDetails>
-					<ExpiredDate>2/1/2027</ExpiredDate>
+					<ExpiredDate>12/14/2034 1:01:07 PM</ExpiredDate>
 					<NumYears>0</NumYears>
 				</DomainDetails>
 			</DomainRenewResult>
@@ -71,12 +71,13 @@ func TestDomainsService_Renew(t *testing.T) {
 		assert.Equal(t, 987654, *result.OrderID)
 		assert.Equal(t, 112233, *result.TransactionID)
 		assert.Equal(t, Amount("9.56"), *result.ChargedAmount)
-		// The fixture's ExpiredDate is deliberately non-padded (2/1/2027), the
-		// form the official renew docs show: this pins the full chain — a
-		// charge-bearing, non-retried response must not fail decoding on a
-		// non-padded date — against reverting DateTime to a strict layout.
+		// The fixture's ExpiredDate is the value a real sandbox renew returned on
+		// 2026-10-26: date, non-padded hour and a U+202F narrow
+		// no-break space before PM. This pins the full chain — a charge-bearing,
+		// non-retried response must decode with the time-bearing form the API
+		// actually sends — against reverting DateTime to a date-only layout.
 		if assert.NotNil(t, result.DomainDetails) {
-			assert.True(t, result.DomainDetails.ExpiredDate.Equal(DateTime{Time: time.Date(2027, 2, 1, 0, 0, 0, 0, time.UTC)}))
+			assert.True(t, result.DomainDetails.ExpiredDate.Equal(DateTime{Time: time.Date(2034, 12, 14, 13, 1, 7, 0, time.UTC)}))
 			assert.Equal(t, 0, *result.DomainDetails.NumYears)
 		}
 	})
