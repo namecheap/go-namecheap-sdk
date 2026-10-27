@@ -435,38 +435,6 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			ExpectedError: "Records[0].Address is required",
 		},
 		{
-			Name: "request_data_error_email_type_mx_without_records",
-			Args: &DomainsDNSSetHostsArgs{
-				EmailType: String(EmailTypeMX),
-				Domain:    String("domain.net"),
-				Records: &[]DomainsDNSHostRecord{
-					{RecordType: String(RecordTypeCNAME), HostName: String("@"), Address: String("domain.com"), TTL: Int(1800)},
-				},
-			},
-			ExpectedError: "minimum 1 MX record required for MX EmailType",
-		},
-		{
-			Name: "request_data_error_email_type_mxe_without_record",
-			Args: &DomainsDNSSetHostsArgs{
-				EmailType: String(EmailTypeMXE),
-				Domain:    String("domain.net"),
-				Records: &[]DomainsDNSHostRecord{
-					{RecordType: String(RecordTypeCNAME), HostName: String("@"), Address: String("domain.com"), TTL: Int(1800)},
-				},
-			},
-			ExpectedError: "one MXE record required for MXE EmailType",
-		},
-		{
-			Name: "request_data_error_email_type_nil_with_mx",
-			Args: &DomainsDNSSetHostsArgs{
-				Domain: String("domain.net"),
-				Records: &[]DomainsDNSHostRecord{
-					{RecordType: String(RecordTypeMX), HostName: String("mail"), Address: String("mail.domain.com"), MXPref: UInt8(10)},
-				},
-			},
-			ExpectedError: "Records[0].RecordType MX is not allowed for EmailType=nil",
-		},
-		{
 			Name: "request_data_error_email_type_fwd_with_mx",
 			Args: &DomainsDNSSetHostsArgs{
 				Domain:    String("domain.net"),
@@ -475,17 +443,27 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 					{RecordType: String(RecordTypeMX), HostName: String("mail"), Address: String("mail.domain.com"), MXPref: UInt8(10)},
 				},
 			},
-			ExpectedError: "Records[0].RecordType MX is not allowed for EmailType=FWD",
+			ExpectedError: "Records[0].RecordType MX needs EmailType=MX, not FWD",
 		},
 		{
-			Name: "request_data_error_email_type_nil_with_mxe",
+			Name: "request_data_error_email_type_omitted_with_mx",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain: String("domain.net"),
+				Records: &[]DomainsDNSHostRecord{
+					{RecordType: String(RecordTypeMX), HostName: String("mail"), Address: String("mail.domain.com"), MXPref: UInt8(10)},
+				},
+			},
+			ExpectedError: "Records[0].RecordType MX needs EmailType=MX; with EmailType omitted Namecheap keeps it only on a zone already in that mode",
+		},
+		{
+			Name: "request_data_error_email_type_omitted_with_mxe",
 			Args: &DomainsDNSSetHostsArgs{
 				Domain: String("domain.net"),
 				Records: &[]DomainsDNSHostRecord{
 					{RecordType: String(RecordTypeMXE), HostName: String("mail"), Address: String("10.11.12.13")},
 				},
 			},
-			ExpectedError: "Records[0].RecordType MXE is not allowed for EmailType=nil",
+			ExpectedError: "Records[0].RecordType MXE needs EmailType=MXE or MX; with EmailType omitted Namecheap keeps it only on a zone already in that mode",
 		},
 		{
 			Name: "request_data_error_email_type_fwd_with_mxe",
@@ -496,19 +474,7 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 					{RecordType: String(RecordTypeMXE), HostName: String("mail"), Address: String("10.11.12.13")},
 				},
 			},
-			ExpectedError: "Records[0].RecordType MXE is not allowed for EmailType=FWD",
-		},
-		{
-			Name: "request_data_error_two_mxe_records",
-			Args: &DomainsDNSSetHostsArgs{
-				Domain:    String("domain.net"),
-				EmailType: String(EmailTypeMXE),
-				Records: &[]DomainsDNSHostRecord{
-					{RecordType: String(RecordTypeMXE), HostName: String("mail"), Address: String("10.11.12.13")},
-					{RecordType: String(RecordTypeMXE), HostName: String("mail2"), Address: String("10.11.12.14")},
-				},
-			},
-			ExpectedError: "one MXE record required for MXE EmailType",
+			ExpectedError: "Records[0].RecordType MXE needs EmailType=MXE or MX, not FWD",
 		},
 		{
 			Name: "request_data_error_no_mxpref_for_mx_record",
@@ -579,6 +545,101 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			assert.EqualError(t, err, errorCase.ExpectedError)
 		})
 	}
+
+	// Combinations the SDK used to reject client-side and the live API accepts
+	// (sandbox and production, 2026-10-08; pinned by TestAcc_EmailType).
+	acceptedCases := []struct {
+		Name string
+		Args *DomainsDNSSetHostsArgs
+	}{
+		{
+			Name: "mx_zone_with_zero_mx_records",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain:    String("domain.net"),
+				EmailType: String(EmailTypeMX),
+				Records:   &[]DomainsDNSHostRecord{{RecordType: String(RecordTypeA), HostName: String("@"), Address: String("10.0.0.1")}},
+			},
+		},
+		{
+			Name: "mxe_zone_with_zero_mxe_records",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain:    String("domain.net"),
+				EmailType: String(EmailTypeMXE),
+				Records:   &[]DomainsDNSHostRecord{{RecordType: String(RecordTypeA), HostName: String("@"), Address: String("10.0.0.1")}},
+			},
+		},
+		{
+			// A row a mail preset created is echoed as-is; it does not ask for MX.
+			Name: "preset_tagged_mx_record_with_email_type_omitted",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain: String("domain.net"),
+				Records: &[]DomainsDNSHostRecord{{
+					RecordType: String(RecordTypeMX), HostName: String("@"), Address: String("mx1.privateemail.com"),
+					MXPref: UInt8(10), AssociatedAppTitle: String(EmailTypePrivate),
+				}},
+			},
+		},
+		{
+			Name: "mxe_record_under_mx",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain:    String("domain.net"),
+				EmailType: String(EmailTypeMX),
+				Records:   &[]DomainsDNSHostRecord{{RecordType: String(RecordTypeMXE), HostName: String("@"), Address: String("10.11.12.13")}},
+			},
+		},
+		{
+			Name: "two_mxe_records",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain:    String("domain.net"),
+				EmailType: String(EmailTypeMXE),
+				Records: &[]DomainsDNSHostRecord{
+					{RecordType: String(RecordTypeMXE), HostName: String("mail"), Address: String("10.11.12.13")},
+					{RecordType: String(RecordTypeMXE), HostName: String("mail2"), Address: String("10.11.12.14")},
+				},
+			},
+		},
+	}
+	for _, tc := range acceptedCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				_, _ = writer.Write([]byte(fakeResponse))
+			}))
+			defer mockServer.Close()
+
+			client := setupClient(nil)
+			client.BaseURL = mockServer.URL
+
+			_, err := client.DomainsDNS.SetHostsWithContext(context.Background(), tc.Args)
+			assert.NoError(t, err)
+		})
+	}
+
+	// An EmailType the server does not know comes back as Status="OK" with
+	// no <Error>, and the zone is left unchanged. IsSuccess="false" is the only
+	// signal, so it must surface as an error.
+	t.Run("is_success_false_is_an_error", func(t *testing.T) {
+		t.Parallel()
+		mockServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			_, _ = writer.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>
+				<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
+					<Errors />
+					<Warnings />
+					<CommandResponse Type="namecheap.domains.dns.setHosts">
+						<DomainDNSSetHostsResult Domain="domain.net" IsSuccess="false"><Warnings /></DomainDNSSetHostsResult>
+					</CommandResponse>
+				</ApiResponse>`))
+		}))
+		defer mockServer.Close()
+
+		client := setupClient(nil)
+		client.BaseURL = mockServer.URL
+
+		resp, err := client.DomainsDNS.SetHostsWithContext(context.Background(), &DomainsDNSSetHostsArgs{Domain: String("domain.net")})
+		assert.ErrorIs(t, err, ErrCommandUnsuccessful)
+		assert.Contains(t, err.Error(), "domain.net")
+		assert.NotNil(t, resp, "the raw response is still returned for diagnostics")
+	})
 
 	t.Run("server_respond_with_error", func(t *testing.T) {
 		t.Parallel()
