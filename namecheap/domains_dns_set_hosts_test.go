@@ -456,6 +456,19 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 			ExpectedError: "Records[0].RecordType MX needs EmailType=MX; with EmailType omitted Namecheap keeps it only on a zone already in that mode",
 		},
 		{
+			// A preset tag does not keep an MX row alive (sandbox and production,
+			// 2026-10-28), so it does not relax the check either.
+			Name: "request_data_error_email_type_omitted_with_tagged_mx",
+			Args: &DomainsDNSSetHostsArgs{
+				Domain: String("domain.net"),
+				Records: &[]DomainsDNSHostRecord{{
+					RecordType: String(RecordTypeMX), HostName: String("@"), Address: String("mx1.privateemail.com"),
+					MXPref: UInt8(10), AssociatedAppTitle: String(EmailTypePrivate),
+				}},
+			},
+			ExpectedError: "Records[0].RecordType MX needs EmailType=MX; with EmailType omitted Namecheap keeps it only on a zone already in that mode",
+		},
+		{
 			Name: "request_data_error_email_type_omitted_with_mxe",
 			Args: &DomainsDNSSetHostsArgs{
 				Domain: String("domain.net"),
@@ -566,17 +579,6 @@ func TestDomainsDNSSetHosts(t *testing.T) {
 				Domain:    String("domain.net"),
 				EmailType: String(EmailTypeMXE),
 				Records:   &[]DomainsDNSHostRecord{{RecordType: String(RecordTypeA), HostName: String("@"), Address: String("10.0.0.1")}},
-			},
-		},
-		{
-			// A row a mail preset created is echoed as-is; it does not ask for MX.
-			Name: "preset_tagged_mx_record_with_email_type_omitted",
-			Args: &DomainsDNSSetHostsArgs{
-				Domain: String("domain.net"),
-				Records: &[]DomainsDNSHostRecord{{
-					RecordType: String(RecordTypeMX), HostName: String("@"), Address: String("mx1.privateemail.com"),
-					MXPref: UInt8(10), AssociatedAppTitle: String(EmailTypePrivate),
-				}},
 			},
 		},
 		{

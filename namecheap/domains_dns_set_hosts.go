@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -45,11 +46,13 @@ type DomainsDNSHostRecord struct {
 	// Time to live for all record types.Possible values: any value between 60 to 60000
 	// Default Value: 1800 (if 0 value has been provided)
 	TTL *int
-	// AssociatedAppTitle is the read-only tag getHosts puts on a row created by a
-	// Namecheap mail preset (for example "FWD" on the forwarding SPF TXT), and is
-	// empty or nil on rows a user created. RecordFromDetailed copies it so callers
-	// can tell preset-owned rows apart. setHosts has no input for it: it is never
-	// sent, and an echoed row keeps its tag on the server.
+	// AssociatedAppTitle is the tag getHosts puts on a row created by a Namecheap
+	// mail preset (for example "FWD" on the forwarding SPF TXT), and is empty or
+	// nil on rows a user created. RecordFromDetailed copies it so callers can see
+	// which rows a preset wrote. The SDK never sends it, and an echoed row keeps
+	// its tag on the server. It is a hint, not a guarantee: the API stores a
+	// caller-supplied AssociatedAppTitleN verbatim, and the tag does not keep an
+	// MX row alive under a non-MX EmailType (sandbox and production, 2026-10-28).
 	AssociatedAppTitle *string
 }
 
@@ -135,6 +138,11 @@ func (dds *DomainsDNSService) SetHostsWithContext(ctx context.Context, args *Dom
 	if err != nil {
 		return nil, err
 	}
+	// IsSuccess="false" is the API's only signal for a rejected setHosts: Status
+	// stays "OK" and there is no <Error>. Only setHosts surfaces it so far; the
+	// other commands decode IsSuccess and ignore it, and turning it into an error
+	// there changes behaviour for every caller, so it is tracked in the v3 ledger
+	// (#173) rather than done here.
 	if r := response.CommandResponse; r != nil && r.DomainDNSSetHostsResult != nil &&
 		r.DomainDNSSetHostsResult.IsSuccess != nil && !*r.DomainDNSSetHostsResult.IsSuccess {
 		return r, fmt.Errorf("setHosts %s: %w", *args.Domain, ErrCommandUnsuccessful)
@@ -260,19 +268,9 @@ func parseDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) (map[string]strin
 }
 
 func isValidTagValue(tag string) bool {
-	for _, value := range allowedTagValues {
-		if tag == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowedTagValues, tag)
 }
 
 func isValidRecordType(recordType string) bool {
-	for _, value := range AllowedRecordTypeValues {
-		if recordType == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(AllowedRecordTypeValues, recordType)
 }

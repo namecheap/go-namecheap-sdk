@@ -319,18 +319,23 @@ probed 2026-10-08, pinned by `TestAcc_EmailType`):
 - **There are no record-count rules**: an `MX` zone with zero MX records and an
   `MXE` zone with zero or several MXE records are accepted.
 - The `FWD`, `OX` and `GMAIL` presets serve their MX from the mode and store no
-  MX rows. A row a preset did create (FWD's SPF TXT) carries a read-only
-  `AssociatedAppTitle` tag, which `RecordFromDetailed` keeps on
-  `DomainsDNSHostRecord`; setHosts deletes it like any row that is not echoed.
+  MX rows (Private Email with an active subscription included, 2026-10-28). A
+  row a preset did create (FWD's SPF TXT) carries an `AssociatedAppTitle` tag,
+  which `RecordFromDetailed` keeps on `DomainsDNSHostRecord`; setHosts deletes
+  it like any row that is not echoed.
+- **The tag protects nothing** (sandbox and production, 2026-10-28): a tagged MX
+  row is dropped under a non-MX mode like any other, and setHosts stores a
+  caller-supplied `AssociatedAppTitleN` verbatim, so the tag is a hint about who
+  wrote a row, not proof. The SDK never sends it.
 
-The record helpers derive the EmailType from the record set they are about to
-write: MX records send `EmailType=MX`, MXE records send `MXE` (or `MX` on a zone
-already on MX), and anything else omits the parameter, so the zone keeps its
-mode. Rows a preset created (`AssociatedAppTitle` set) are echoed as they are
-and never move the mode. They never send `NONE`
-and never move a zone down: removing the last MX record leaves an `MX` zone on
-`MX`. Ordinary changes on `FWD`, `OX` and `GMAIL` zones therefore work and leave
-the preset alone.
+The record helpers derive the EmailType from the records they add: MX records
+send `EmailType=MX`, MXE records send `MXE` (or `MX` on a zone already on MX),
+and anything else keeps the zone's mode: the parameter is omitted, or set to the
+zone's current mode when echoed MX or MXE rows need it spelled out for
+`SetHosts`. Rows echoed from the zone never move the mode. The helpers never
+send `NONE` and never move a zone down: removing the last MX record leaves an
+`MX` zone on `MX`. Ordinary changes on `FWD`, `OX` and `GMAIL` zones therefore
+work and leave the preset alone.
 
 ```go
 // Adds the first MX record and switches the zone to MX in the same write.
@@ -358,8 +363,8 @@ if diff.RequiredEmailType != "" {
 ```
 
 Raw `SetHosts` cannot see the zone's mode, so it requires `EmailType=MX` when
-the records contain an MX record (and `MXE` or `MX` for an MXE record), except
-for preset-tagged rows.
+the records contain an MX record (and `MXE` or `MX` for an MXE record), tagged
+or not.
 
 `SetHosts` returns an error matching `namecheap.ErrCommandUnsuccessful` when the
 response says `IsSuccess="false"` (the API's only signal for, e.g., an unknown

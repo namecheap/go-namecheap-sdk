@@ -24,8 +24,11 @@ import (
 //   - An unknown EmailType answers Status="OK" with IsSuccess="false" and
 //     leaves the zone unchanged.
 //
-// Rows a mail preset created carry a read-only AssociatedAppTitle tag. The SDK
-// echoes them as they are and exempts them from the MX and MXE rules.
+// The AssociatedAppTitle tag getHosts puts on a row a preset created changes
+// none of this (sandbox and production, 2026-10-28): a tagged MX row is dropped
+// under a non-MX mode like any other, and setHosts stores a caller-supplied tag
+// verbatim, so the tag is neither protection nor proof of ownership. The SDK
+// echoes tagged rows as they are and never sends the tag.
 const (
 	EmailTypeNone    = "NONE"
 	EmailTypeMXE     = "MXE"
@@ -40,11 +43,6 @@ var AllowedEmailTypeValues = []string{EmailTypeNone, EmailTypeMXE, EmailTypeMX, 
 
 func isValidEmailType(emailType string) bool {
 	return slices.Contains(AllowedEmailTypeValues, emailType)
-}
-
-// isPresetRow reports whether record was created by a mail preset.
-func isPresetRow(record DomainsDNSHostRecord) bool {
-	return derefStr(record.AssociatedAppTitle) != ""
 }
 
 // emailTypesKeeping returns the modes under which a record of recordType
@@ -62,17 +60,14 @@ func emailTypesKeeping(recordType string) []string {
 
 // checkMailRecordEmailType returns an error when Namecheap would drop record
 // from a setHosts write sent with emailType: an MX record needs EmailType=MX,
-// an MXE record MXE or MX. Every other record, and a row a mail preset
-// created, passes under any EmailType.
+// an MXE record MXE or MX. Every other record passes under any EmailType; a
+// preset tag on the record makes no difference.
 //
 // A nil emailType means the parameter is omitted. The zone then keeps its
 // current mode, which the caller cannot see from the request alone, so an MX
 // or MXE record is reported: the write would keep it only on a zone already in
 // the right mode.
 func checkMailRecordEmailType(record DomainsDNSHostRecord, emailType *string) error {
-	if isPresetRow(record) {
-		return nil
-	}
 	keeping := emailTypesKeeping(derefStr(record.RecordType))
 	if keeping == nil || (emailType != nil && slices.Contains(keeping, *emailType)) {
 		return nil
@@ -85,17 +80,19 @@ func checkMailRecordEmailType(record DomainsDNSHostRecord, emailType *string) er
 	return fmt.Errorf("RecordType %s needs EmailType=%s, not %s", derefStr(record.RecordType), need, *emailType)
 }
 
-// deriveEmailType returns the EmailType a write of records needs on a zone
-// currently in mode current, or "" when the parameter should be omitted so the
-// zone keeps its mode. MX rows need MX; MXE rows need MXE, or MX on a zone
+// deriveEmailType returns the EmailType a write that adds records needs on a
+// zone currently in mode current, or "" when the parameter should be omitted so
+// the zone keeps its mode. MX rows need MX; MXE rows need MXE, or MX on a zone
 // already on MX. Anything else omits the parameter: never NONE, never a
 // downgrade, and a preset mode (FWD, OX, GMAIL) is left alone.
+//
+// records are the records the operations add, not the zone being echoed: rows
+// read from the zone never drive the mode, so an unrelated write cannot move a
+// zone that somehow holds an MX row off its preset. MX rows live only under
+// MX, so with the parameter omitted an MX zone keeps the ones it has.
 func deriveEmailType(records []DomainsDNSHostRecord, current string) string {
 	hasMXE := false
 	for _, record := range records {
-		if isPresetRow(record) {
-			continue
-		}
 		switch normRecordType(derefStr(record.RecordType)) {
 		case RecordTypeMX:
 			// MX wins over MXE: MX rows survive only under MX, and MXE rows are
@@ -112,4 +109,23 @@ func deriveEmailType(records []DomainsDNSHostRecord, current string) string {
 		return EmailTypeMX
 	}
 	return EmailTypeMXE
+}
+
+// emailTypeToSend returns the EmailType parameter for a write of final on a
+// zone in mode current, given the records the operations add: the derived
+// transition, or, when nothing is derived but final still carries MX or MXE
+// rows, the zone's current mode. Omitting the parameter would keep the mode
+// just the same, but SetHosts cannot see the zone and checks MX and MXE rows
+// against the parameter, so the mode is spelled out for it. "" omits the
+// parameter.
+func emailTypeToSend(added, final []DomainsDNSHostRecord, current string) string {
+	if derived := deriveEmailType(added, current); derived != "" {
+		return derived
+	}
+	for _, record := range final {
+		if emailTypesKeeping(derefStr(record.RecordType)) != nil {
+			return current
+		}
+	}
+	return ""
 }

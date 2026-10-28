@@ -9,9 +9,9 @@
 //
 // Only read-only and reversible commands are exercised. Every mutation captures
 // the prior state and restores it (defer), so reruns are idempotent and no
-// account state is left changed. TestMain clears the zone of
-// NAMECHEAP_TEST_DOMAIN once, before any test runs, so the suite never depends
-// on what the domain held before.
+// account state is left changed. The DNS tests that need an empty zone wipe
+// NAMECHEAP_TEST_DOMAIN themselves through wipeZone, so a -run of another test,
+// -list or -update-fixtures never touches the domain.
 //
 // With -update-fixtures, the read-only responses are re-captured into
 // ../namecheaptest/fixtures so CI can diff them against the committed corpus and
@@ -60,29 +60,14 @@ const (
 	envRenewDomain = "NAMECHEAP_ACC_RENEW_DOMAIN"
 )
 
-// TestMain clears the zone of NAMECHEAP_TEST_DOMAIN once, before any test runs,
-// so the suite does not depend on what another suite sharing the domain or an
-// earlier run left there.
-func TestMain(m *testing.M) {
-	if err := resetTestDomain(); err != nil {
-		fmt.Fprintf(os.Stderr, "acceptance: %v\n", err)
-		os.Exit(1)
+// wipeZone empties the zone of domain under EmailType NONE, for a DNS test that
+// must not depend on what an earlier run or another suite sharing the domain
+// left there. Only the tests that need an empty zone call it.
+func wipeZone(t *testing.T, client *namecheap.Client, domain string) {
+	t.Helper()
+	if err := clearZone(ctx(t), client, domain, namecheap.EmailTypeNone); err != nil {
+		t.Fatalf("wipe the zone of %s before the test: %v", domain, err)
 	}
-	os.Exit(m.Run())
-}
-
-// resetTestDomain clears the test domain's zone (see clearZone). Without
-// credentials or a test domain it does nothing, and the DNS tests skip.
-func resetTestDomain() error {
-	client := newLiveClient()
-	domain := os.Getenv(envDomain)
-	if client == nil || domain == "" {
-		return nil
-	}
-
-	c, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-	return clearZone(c, client, domain, namecheap.EmailTypeNone)
 }
 
 // clearZone leaves the zone of domain with no host records, under emailType.
@@ -451,8 +436,12 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 	}
 	original := toSetRecords(got)
 	// The mode goes back with the records: SetHosts rejects MX records without
-	// EmailType=MX.
+	// EmailType=MX. An empty attribute means the mode is unset, which setHosts
+	// expresses by omitting the parameter, so it is mapped to nil, not sent as "".
 	emailType := got.DomainDNSGetHostsResult.EmailType
+	if emailType != nil && *emailType == "" {
+		emailType = nil
+	}
 
 	// Always restore the captured state, even if the round-trip write fails.
 	defer func() {

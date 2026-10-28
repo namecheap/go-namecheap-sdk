@@ -31,6 +31,7 @@ func TestAcc_EmailType(t *testing.T) {
 		t.Skipf("%s not set; skipping EmailType acceptance", envDomain)
 	}
 	dns := client.DomainsDNS
+	wipeZone(t, client, domain)
 
 	t.Cleanup(func() {
 		if err := clearZone(context.Background(), client, domain, namecheap.EmailTypeNone); err != nil {
