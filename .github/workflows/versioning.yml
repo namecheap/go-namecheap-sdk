@@ -2,7 +2,9 @@ name: Versioning
 
 # release-please maintains a long-lived "release PR" off the default branch.
 # Merging that PR creates the vX.Y.Z tag and the GitHub release. Gated on a
-# successful CI run so a release is only ever proposed/cut from green commits.
+# successful CI run so a release is only ever proposed/cut from green commits,
+# and on the presence of a releasing commit (fix/feat/perf/revert/breaking)
+# since the last tag, so docs:/chore:/ci: alone never open a release PR.
 # See RELEASE.md for the full flow.
 on:
   workflow_run:
@@ -24,7 +26,8 @@ concurrency:
 permissions: {}
 
 jobs:
-  release-please:
+  releasing-commits:
+    name: Check for releasing commits
     # The workflow_run branch filter matches the run's HEAD branch name, which
     # a fork PR can spoof by naming its branch "master" — hence the
     # head_repository guard. The conclusion guard is needed because
@@ -33,6 +36,34 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      # Full history and tags: the check walks commits since the last release.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      # release-please would propose a patch release for any conventional
+      # commit, including docs:/chore:/ci:. Only run it when something since
+      # the last tag actually changes what consumers get (fix, feat, perf,
+      # revert, a breaking change) or when a release PR was just merged.
+      # A manual dispatch always runs it.
+      - name: Look for releasing commits since the last tag
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            release="$(.github/scripts/has-releasing-commits.sh)"
+            echo "release=$release" >> "$GITHUB_OUTPUT"
+          fi
+
+  release-please:
+    needs: releasing-commits
+    if: needs.releasing-commits.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       # A dedicated GitHub App authors the release PR. Events authored by the

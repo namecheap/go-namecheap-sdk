@@ -69,6 +69,15 @@ At this point nothing is released — the commit simply sits on `master`.
 
 - `versioning.yml` triggers on a successful `CI` run against `master`
   (`workflow_run` with `conclusion == 'success'`).
+- Its first job, `releasing-commits`, runs
+  [`.github/scripts/has-releasing-commits.sh`](.github/scripts/has-releasing-commits.sh)
+  and release-please is skipped unless a commit since the last tag is
+  releasing: type `fix`, `feat`, `perf` or `revert` (any scope, so
+  `fix(docs):` counts), a breaking change (`!` or `BREAKING CHANGE:`), a
+  `Release-As:` footer, or the merge of a release PR itself. release-please on
+  its own would propose a patch release for *any* conventional commit, so
+  without this gate a lone `docs:` or `chore:` commit opens a release PR that
+  ships nothing. A manual `workflow_dispatch` always runs release-please.
 - release-please walks commits since the last tag, classifies them, and:
   - computes the next SemVer bump (`fix:` → patch, `feat:` → minor,
     `feat!:`/`BREAKING CHANGE:` → major),
@@ -126,6 +135,17 @@ Dependabot opens weekly PRs (see
   change what consumers `go get`. Merging one makes the release PR propose a
   patch release. Dependencies are vendored, so bump PRs also update `vendor/`.
 - **github-actions** bumps use `ci(deps):` — non-releasing, CI-only.
+
+## Releasing and non-releasing commit types
+
+Only `fix:`, `feat:`, `perf:`, `revert:` and breaking changes open or update
+the release PR (see the `releasing-commits` gate above). `docs:`, `chore:`,
+`ci:`, `test:`, `refactor:` and `build:` never do; they appear in the changelog
+only when a releasing commit cuts the next version. Pick the type by what
+reaches consumers: a change to Go doc comments on exported symbols is read on
+pkg.go.dev only at a new tag, so it is `fix(docs):`; repo-internal markdown
+(`README.md`, `CONTRIBUTING.md`, `RELEASE.md`, `CLAUDE.md`,
+`docs/namecheap-api-v2.md`) is `docs:`.
 
 ## The `otelnamecheap` module
 
