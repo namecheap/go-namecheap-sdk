@@ -158,3 +158,7 @@ t.Errorf("ParseDomain(%q) = %v, want %v", input, got, want)
 - Tests use dummy values (`"user"`, `"token"`, `"10.10.10.10"`).
 - Use `UseSandbox: true` for development/testing against the sandbox API.
 - Do not commit `.env`, `.vault-token`, `*.pem`, `*.key`, or credential files.
+
+## Proof of API behaviour
+
+Before stating or encoding what the API returns (doc comments, `docs/namecheap-api-v2.md`, fixtures in `namecheaptest/fixtures/`, PR text), or changing a command that spends funds (`domains_create.go`, `domains_renew.go`, `domains_reactivate.go`, `domains_transfer_create.go`, `ssl_create.go`, `ssl_renew.go`, `ssl_purchase_more_sans.go`), read and follow CONTRIBUTING.md, "Proof of API behaviour". In short: the official docs are not evidence, only a captured response is; with no capture, say so and ask for one instead of guessing.
