@@ -6,8 +6,7 @@
     { "type": "feat", "section": "Features" },
     { "type": "fix", "section": "Bug Fixes" },
     { "type": "perf", "section": "Performance Improvements" },
-    { "type": "revert", "section": "Reverts" },
-    { "type": "docs", "section": "Documentation" }
+    { "type": "revert", "section": "Reverts" }
   ],
   "packages": {
     ".": {

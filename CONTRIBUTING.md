@@ -34,7 +34,11 @@ PR titles must follow [Conventional Commits](https://www.conventionalcommits.org
 PRs are squash-merged, so the title becomes the commit message on `master`,
 which [release-please](https://github.com/googleapis/release-please) parses to
 compute the next version and changelog entry (`fix:` → patch, `feat:` → minor,
-`feat!:`/`BREAKING CHANGE:` → major). See [RELEASE.md](RELEASE.md).
+`feat!:`/`BREAKING CHANGE:` → major). Only `fix:`, `feat:`, `perf:`, `revert:`
+and breaking changes open a release PR; `docs:`, `chore:`, `ci:`, `test:` and
+`refactor:` never do, so a change consumers must see in a release (for example
+Go doc comments on exported symbols, published on pkg.go.dev) goes as
+`fix(docs):`. See [RELEASE.md](RELEASE.md).
 
 ## DCO sign-off
 
@@ -91,6 +95,35 @@ make testacc
 Without credentials the suite skips cleanly. In CI it runs via
 [acceptance.yml](.github/workflows/acceptance.yml) on an EC2 runner holding the
 repo's whitelisted Elastic IP.
+
+## Proof of API behaviour
+
+The official API documentation is not evidence. It is incomplete and has been
+wrong: an `ExpiredDate` format taken from a "documented" example shipped in
+v2.10.2 and made every `domains.renew` call fail after the charge (see #177
+and #203). The only proof of what the API returns is a real response.
+
+- Every statement about API output, in a PR, a doc comment or
+  `docs/namecheap-api-v2.md`, points at a captured response: the command, the
+  environment (sandbox or production) and the capture date.
+- The capture lives in `namecheaptest/fixtures/` as the command's fixture, with
+  account details redacted. A fixture is never typed or edited by hand;
+  read-only commands are re-captured with `make update-fixtures`.
+- A docs link may be quoted as context, never as proof. When the docs and a
+  capture disagree, the capture is right and the PR says so.
+
+Commands that spend funds (`domains.create`, `domains.renew`,
+`domains.reactivate`, `domains.transfer.create`, `ssl.create`, `ssl.renew`,
+`ssl.purchasemoresans`) are proven the same way, against the sandbox. Each has
+an opt-in acceptance test that performs the real call and logs the raw
+response (`TestAcc_DomainsRenew`, enabled by `NAMECHEAP_ACC_RENEW_DOMAIN`, is
+the pattern; a command without one gets it in the same PR). Run that test
+against the sandbox for any change to the command and put the captured
+response in the fixture.
+
+A field the SDK cannot parse must not fail the whole response. Keep the raw
+text and expose the parse error, as `DateTime` does, so that a call the server
+already completed (and may have charged for) is never reported as an error.
 
 ## Adding an auto-paging iterator to a new list endpoint
 
