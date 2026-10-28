@@ -69,6 +69,14 @@ At this point nothing is released — the commit simply sits on `master`.
 
 - `versioning.yml` triggers on a successful `CI` run against `master`
   (`workflow_run` with `conclusion == 'success'`).
+- release-please opens or updates a release PR only when at least one commit
+  since the last tag falls into a visible changelog section
+  (`changelog-sections` in `.release-please-config.json`: `feat`, `fix`,
+  `perf`, `revert`). Otherwise it logs "No user facing commits found" and
+  does nothing, which is what makes `docs:`, `chore:`, `ci:`, `test:` and
+  `refactor:` non-releasing. Do not add `docs` (or any other non-releasing
+  type) to that list: while it was listed, the docs-only #207 opened a
+  release PR for a module with no code change (#208).
 - release-please walks commits since the last tag, classifies them, and:
   - computes the next SemVer bump (`fix:` → patch, `feat:` → minor,
     `feat!:`/`BREAKING CHANGE:` → major),
@@ -126,6 +134,16 @@ Dependabot opens weekly PRs (see
   change what consumers `go get`. Merging one makes the release PR propose a
   patch release. Dependencies are vendored, so bump PRs also update `vendor/`.
 - **github-actions** bumps use `ci(deps):` — non-releasing, CI-only.
+
+## Releasing and non-releasing commit types
+
+Only `fix:`, `feat:`, `perf:`, `revert:` and breaking changes open or update
+the release PR (see step 2 above). `docs:`, `chore:`, `ci:`, `test:`,
+`refactor:` and `build:` never do and never appear in the changelog. Pick the
+type by what reaches consumers: Go doc comments on exported symbols are read
+on pkg.go.dev only at a new tag, so a change to them is `fix(docs):`;
+repo-internal markdown (`README.md`, `CONTRIBUTING.md`, `RELEASE.md`,
+`CLAUDE.md`, `docs/namecheap-api-v2.md`) is `docs:`.
 
 ## The `otelnamecheap` module
 
