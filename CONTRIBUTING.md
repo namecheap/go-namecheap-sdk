@@ -34,7 +34,11 @@ PR titles must follow [Conventional Commits](https://www.conventionalcommits.org
 PRs are squash-merged, so the title becomes the commit message on `master`,
 which [release-please](https://github.com/googleapis/release-please) parses to
 compute the next version and changelog entry (`fix:` → patch, `feat:` → minor,
-`feat!:`/`BREAKING CHANGE:` → major). See [RELEASE.md](RELEASE.md).
+`feat!:`/`BREAKING CHANGE:` → major). Only `fix:`, `feat:`, `perf:`, `revert:`
+and breaking changes open a release PR; `docs:`, `chore:`, `ci:`, `test:` and
+`refactor:` never do, so a change consumers must see in a release (for example
+Go doc comments on exported symbols, published on pkg.go.dev) goes as
+`fix(docs):`. See [RELEASE.md](RELEASE.md).
 
 ## DCO sign-off
 
