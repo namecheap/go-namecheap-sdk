@@ -269,6 +269,14 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 	} else if got := *result.WhoisGuard.Enabled; got != "True" && got != "False" && got != "NotAlloted" {
 		t.Errorf("getInfo WhoisGuard.Enabled = %q, want True/False/NotAlloted", got)
 	}
+	// An allotted subscription (True or False) carries its own expiry, formatted
+	// independently of whoisguard.getList; NotAlloted has none.
+	if wg := result.WhoisGuard; wg != nil && wg.Enabled != nil && *wg.Enabled != "NotAlloted" {
+		if wg.ExpiredDate != nil {
+			t.Logf("getInfo Whoisguard.ExpiredDate raw text %q", wg.ExpiredDate.Raw)
+		}
+		assertLiveDate(t, "getInfo Whoisguard.ExpiredDate", wg.ExpiredDate, dateOnlyPadded)
+	}
 
 	if result.DnsDetails == nil {
 		t.Error("getInfo DnsDetails is nil, want populated")
