@@ -78,6 +78,19 @@ func assertLiveDate(t *testing.T, field string, dt *namecheap.DateTime, shape *r
 	}
 }
 
+// assertLiveDateText is assertLiveDate for fields the SDK exposes as raw
+// strings rather than DateTime.
+func assertLiveDateText(t *testing.T, field string, raw *string, shape *regexp.Regexp) {
+	t.Helper()
+	if raw == nil {
+		t.Errorf("%s is missing, want a date", field)
+		return
+	}
+	if !shape.MatchString(*raw) {
+		t.Errorf("%s raw text = %q, want shape %s (server-side format drift?)", field, *raw, shape)
+	}
+}
+
 // liveClient builds a client for the live API from environment credentials,
 // skipping the test when any required variable is missing. The endpoint is
 // production unless NAMECHEAP_USE_SANDBOX is true.
@@ -277,6 +290,47 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 		"DomainName": domain,
 		"HostName":   domain,
 	})
+}
+
+// TestAcc_DomainPrivacyGetList is the live-format check for whoisguard.getList
+// dates. Created and Expires are raw strings in the SDK, so a format change
+// would never fail decoding; only this check notices it. The raw values are
+// logged as evidence of what the API returns.
+func TestAcc_DomainPrivacyGetList(t *testing.T) {
+	client := liveClient(t)
+	resp, err := client.DomainPrivacy.GetListWithContext(ctx(t), &namecheap.DomainPrivacyGetListArgs{
+		PageSize: namecheap.Int(10),
+	})
+	if err != nil {
+		t.Fatalf("whoisguard.getList: %v", err)
+	}
+	if resp == nil || resp.DomainPrivacyList == nil || len(*resp.DomainPrivacyList) == 0 {
+		t.Fatal("whoisguard.getList: no subscriptions returned, want at least one to check dates on")
+	}
+
+	for _, e := range *resp.DomainPrivacyList {
+		field := "whoisguard.getList ID=<nil>"
+		if e.ID != nil {
+			field = "whoisguard.getList ID=" + strconv.Itoa(*e.ID)
+		}
+		t.Logf("%s Status=%v Created=%v Expires=%v", field, quoteAttr(e.Status), quoteAttr(e.Created), quoteAttr(e.Expires))
+		assertLiveDateText(t, field+" Created", e.Created, dateOnlyPadded)
+		assertLiveDateText(t, field+" Expires", e.Expires, dateOnlyPadded)
+	}
+
+	captureFixture(t, client, "whoisguard_getlist", map[string]string{
+		"Command":  "namecheap.whoisguard.getlist",
+		"PageSize": "10",
+	})
+}
+
+// quoteAttr renders an optional attribute for logs, quoting it so an empty value
+// stays visible.
+func quoteAttr(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return strconv.Quote(*s)
 }
 
 // TestAcc_DomainsRenew proves the DateTime parser against a real domains.renew
