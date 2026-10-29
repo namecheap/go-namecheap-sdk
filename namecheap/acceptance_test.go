@@ -78,6 +78,27 @@ func assertLiveDate(t *testing.T, field string, dt *namecheap.DateTime, shape *r
 	}
 }
 
+// assertLiveDateText is assertLiveDate for fields the SDK exposes as raw
+// strings rather than DateTime. The text goes through the SDK parser first, so
+// a value the shape accepts but the parser rejects (a day/month swap such as
+// "14/12/2026") still fails.
+func assertLiveDateText(t *testing.T, field string, raw *string, shape *regexp.Regexp) {
+	t.Helper()
+	if raw == nil {
+		t.Errorf("%s is missing, want a date", field)
+		return
+	}
+	assertLiveDate(t, field, parseLiveDateText(*raw), shape)
+}
+
+// parseLiveDateText runs raw API text through the SDK date parser. UnmarshalText
+// never fails; the outcome is in the returned value's ParseError.
+func parseLiveDateText(raw string) *namecheap.DateTime {
+	var dt namecheap.DateTime
+	_ = dt.UnmarshalText([]byte(raw))
+	return &dt
+}
+
 // liveClient builds a client for the live API from environment credentials,
 // skipping the test when any required variable is missing. The endpoint is
 // production unless NAMECHEAP_USE_SANDBOX is true.
@@ -256,6 +277,23 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 	} else if got := *result.WhoisGuard.Enabled; got != "True" && got != "False" && got != "NotAlloted" {
 		t.Errorf("getInfo WhoisGuard.Enabled = %q, want True/False/NotAlloted", got)
 	}
+	// An allotted subscription (True or False) carries its own expiry, formatted
+	// independently of whoisguard.getList; NotAlloted has none.
+	if wg := result.WhoisGuard; wg != nil && wg.Enabled != nil && *wg.Enabled != "NotAlloted" {
+		if wg.ExpiredDate != nil {
+			t.Logf("getInfo Whoisguard.ExpiredDate raw text %q", wg.ExpiredDate.Raw)
+		}
+		assertLiveDate(t, "getInfo Whoisguard.ExpiredDate", wg.ExpiredDate, dateOnlyPadded)
+		// LastAutoEmailChangeDate is a raw string, empty until the first
+		// automatic email rotation; once set it has the same date-only shape
+		// (docs/namecheap-api-v2.md, "Date formats").
+		if ed := wg.EmailDetails; ed != nil {
+			t.Logf("getInfo Whoisguard.EmailDetails.LastAutoEmailChangeDate raw text %s", quoteAttr(ed.LastAutoEmailChangeDate))
+			if ed.LastAutoEmailChangeDate != nil && *ed.LastAutoEmailChangeDate != "" {
+				assertLiveDateText(t, "getInfo Whoisguard.EmailDetails.LastAutoEmailChangeDate", ed.LastAutoEmailChangeDate, dateOnlyPadded)
+			}
+		}
+	}
 
 	if result.DnsDetails == nil {
 		t.Error("getInfo DnsDetails is nil, want populated")
@@ -277,6 +315,119 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 		"DomainName": domain,
 		"HostName":   domain,
 	})
+}
+
+// TestAcc_DomainPrivacyGetList is the live-format check for whoisguard.getList
+// dates. Created and Expires are raw strings in the SDK, so a format change
+// would never fail decoding; only this check notices it. The raw values are
+// logged as evidence of what the API returns. Status is checked against the
+// vocabulary ClassifyPrivacyStatus understands for the same reason, and the
+// test domain's subscription is cross-checked against domains.getInfo.
+func TestAcc_DomainPrivacyGetList(t *testing.T) {
+	client := liveClient(t)
+	resp, err := client.DomainPrivacy.GetListWithContext(ctx(t), &namecheap.DomainPrivacyGetListArgs{
+		PageSize: namecheap.Int(10),
+	})
+	if err != nil {
+		t.Fatalf("whoisguard.getList: %v", err)
+	}
+	if resp == nil || resp.DomainPrivacyList == nil || len(*resp.DomainPrivacyList) == 0 {
+		t.Fatal("whoisguard.getList: no subscriptions returned, want at least one to check dates on")
+	}
+
+	for i, e := range *resp.DomainPrivacyList {
+		field := "whoisguard.getList ID=<nil>"
+		if e.ID == nil {
+			// The mutating privacy commands take this ID; a row without one is
+			// a decode defect, not an account-state quirk.
+			t.Errorf("whoisguard.getList row %d: ID is missing, want the subscription ID", i)
+		} else {
+			field = "whoisguard.getList ID=" + strconv.Itoa(*e.ID)
+		}
+		t.Logf("%s DomainName=%v Status=%v Created=%v Expires=%v",
+			field, quoteAttr(e.DomainName), quoteAttr(e.Status), quoteAttr(e.Created), quoteAttr(e.Expires))
+		if e.State() == namecheap.PrivacyStateUnknown {
+			t.Errorf("%s Status = %s, want a value ClassifyPrivacyStatus recognises (server-side vocabulary drift?)",
+				field, quoteAttr(e.Status))
+		}
+		assertLiveDateText(t, field+" Created", e.Created, dateOnlyPadded)
+		assertLiveDateText(t, field+" Expires", e.Expires, dateOnlyPadded)
+	}
+
+	assertPrivacyListMatchesGetInfo(t, client)
+
+	captureFixture(t, client, "whoisguard_getlist", map[string]string{
+		"Command":  "namecheap.whoisguard.getlist",
+		"PageSize": "10",
+	})
+}
+
+// assertPrivacyListMatchesGetInfo cross-checks the two endpoints that report
+// the test domain's privacy subscription: the ID domains.getInfo returns must
+// appear in whoisguard.getList, attached to that domain and with the same
+// expiry, so one endpoint drifting alone is caught. It logs and returns when no
+// test domain is configured or the domain has no allotted subscription. The
+// list is paged lazily through ListAll because the subscription need not sit
+// on the first page of a large account.
+func assertPrivacyListMatchesGetInfo(t *testing.T, client *namecheap.Client) {
+	t.Helper()
+	domain := os.Getenv(envDomain)
+	if domain == "" {
+		t.Logf("%s not set; skipping the getInfo cross-check", envDomain)
+		return
+	}
+	info, err := client.Domains.GetInfoWithContext(ctx(t), domain)
+	if err != nil {
+		t.Fatalf("domains.getInfo(%q): %v", domain, err)
+	}
+	result := info.Result()
+	if result == nil || result.WhoisGuard == nil || result.WhoisGuard.ID == nil || *result.WhoisGuard.ID == 0 {
+		t.Logf("getInfo(%q) reports no allotted privacy subscription; skipping the getList cross-check", domain)
+		return
+	}
+	wg := result.WhoisGuard
+	want, ok := wg.ExpiredDate.Parsed()
+	if !ok {
+		t.Errorf("getInfo(%q) Whoisguard.ExpiredDate = %v, want a parsed date to compare with getList", domain, wg.ExpiredDate)
+		return
+	}
+
+	for e, err := range client.DomainPrivacy.ListAll(ctx(t), nil) {
+		if err != nil {
+			t.Fatalf("whoisguard.getList (all pages): %v", err)
+		}
+		if e.ID == nil || *e.ID != *wg.ID {
+			continue
+		}
+		if e.DomainName == nil || !strings.EqualFold(*e.DomainName, domain) {
+			t.Errorf("whoisguard.getList ID=%d DomainName = %s, want %q (the domain getInfo attaches it to)",
+				*wg.ID, quoteAttr(e.DomainName), domain)
+		}
+		got, ok := parseLiveDateText(deref(e.Expires)).Parsed()
+		if !ok || !got.Equal(want) {
+			t.Errorf("whoisguard.getList ID=%d Expires = %s, want %q (getInfo(%q) Whoisguard.ExpiredDate)",
+				*wg.ID, quoteAttr(e.Expires), wg.ExpiredDate.Raw, domain)
+		}
+		return
+	}
+	t.Errorf("whoisguard.getList has no row with ID=%d, the subscription getInfo(%q) reports", *wg.ID, domain)
+}
+
+// deref returns the pointed-to string, or "" for nil.
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// quoteAttr renders an optional attribute for logs, quoting it so an empty value
+// stays visible.
+func quoteAttr(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return strconv.Quote(*s)
 }
 
 // TestAcc_DomainsRenew proves the DateTime parser against a real domains.renew
