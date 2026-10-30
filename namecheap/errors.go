@@ -252,10 +252,10 @@ func (e *ParseError) Unwrap() error { return e.Err }
 // It returns true for a transient server-side *APIError (serverErrorNumbers)
 // and for a transport timeout (a net.Error with Timeout() == true). It returns
 // false for ErrUnverifiedWrite whatever it wraps (the write most likely
-// landed, so repeating it is unsafe), for context.Canceled and context.DeadlineExceeded (caller intent, even
-// when wrapped in a *url.Error that satisfies net.Error), for any other
-// *APIError (validation, not-found, auth and permission failures are
-// permanent), and for everything else.
+// landed, so repeating it is unsafe), for context.Canceled and
+// context.DeadlineExceeded (caller intent, even when wrapped in a *url.Error
+// that satisfies net.Error), for any other *APIError (validation, not-found,
+// auth and permission failures are permanent), and for everything else.
 func IsRetryable(err error) bool {
 	if err == nil {
 		return false

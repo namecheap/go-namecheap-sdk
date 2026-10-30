@@ -86,7 +86,8 @@ type RecordDiff struct {
 	// to when they apply this change without WithEmailType, or "" when the write
 	// leaves the zone's mode alone. It is derived from the records the operations
 	// add, as WithEmailType describes, and never moves a zone down: removing the
-	// last MX row leaves an MX zone on MX.
+	// last MX row leaves an MX zone on MX. A transition off a mail preset (FWD,
+	// OX, GMAIL) is reported here too, but applying it needs WithEmailType.
 	RequiredEmailType string
 	// Satisfiable is always true on a RecordDiff returned by PlanWithContext.
 	//
@@ -165,6 +166,14 @@ func WithRetryOnConflict(maxAttempts int) RecordOption {
 // row:
 //
 //	DeleteRecordsWithContext(ctx, domain, sel, WithEmailType(EmailTypeNone))
+//
+// The one derived transition the helpers do not make on their own is off a
+// mail preset (FWD, OX, GMAIL): adding MX or MXE records to such a zone would
+// replace the mail routing the preset provides, so it fails with an
+// *InvalidArgumentsError before anything is written unless this option names
+// the new mode:
+//
+//	AddRecordsWithContext(ctx, domain, mxRecords, WithEmailType(EmailTypeMX))
 //
 // An explicit EmailType under which the resulting set would lose MX or MXE rows
 // is rejected before anything is written, with an *InvalidArgumentsError.
@@ -686,6 +695,8 @@ func (dds *DomainsDNSService) attemptRecordOps(ctx context.Context, domain strin
 		if err := validateExplicitEmailType(final, send); err != nil {
 			return nil, false, err
 		}
+	} else if err := checkPresetSwitch(emailType, send); err != nil {
+		return nil, false, err
 	}
 	wantEmailType := emailType
 	if send != "" {

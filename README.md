@@ -251,7 +251,7 @@ _, err := client.DomainsDNS.DeleteRecordsWithContext(ctx, "example.com",
         RecordType: namecheap.String("A"),
     })
 // every other record is preserved; the zone EmailType is kept unless the
-// resulting set needs MX or MXE (see "Mail records and the zone EmailType").
+// records you add are MX or MXE (see "Mail records and the zone EmailType").
 ```
 
 ```go
@@ -335,7 +335,16 @@ zone's current mode when echoed MX or MXE rows need it spelled out for
 `SetHosts`. Rows echoed from the zone never move the mode. The helpers never
 send `NONE` and never move a zone down: removing the last MX record leaves an
 `MX` zone on `MX`. Ordinary changes on `FWD`, `OX` and `GMAIL` zones therefore
-work and leave the preset alone.
+work and leave the preset alone. Adding MX or MXE records to such a zone does
+not: the preset decides where the domain's mail goes, and Namecheap drops the
+records under it, so the helper fails with an `*InvalidArgumentsError` before
+anything is written. Pass `WithEmailType` to switch off the preset on purpose:
+
+```go
+// Replaces the GMAIL preset's mail routing with your own MX records.
+_, err = client.DomainsDNS.AddRecordsWithContext(ctx, "example.com", mxRecords,
+    namecheap.WithEmailType(namecheap.EmailTypeMX))
+```
 
 ```go
 // Adds the first MX record and switches the zone to MX in the same write.
@@ -368,7 +377,7 @@ or not.
 
 `SetHosts` returns an error matching `namecheap.ErrCommandUnsuccessful` when the
 response says `IsSuccess="false"` (the API's only signal for, e.g., an unknown
-EmailType). The record helpers return `namecheap.ErrUnverifiedWrite`, together
+EmailType), together with the non-nil response it decoded. The record helpers return `namecheap.ErrUnverifiedWrite`, together
 with a non-nil result, when the write succeeded but the verifying re-read
 failed: the write has most likely landed, so persist `result.Records` and
 reconcile on the next read instead of treating the write as lost.

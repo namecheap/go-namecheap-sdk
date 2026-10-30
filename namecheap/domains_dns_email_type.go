@@ -74,7 +74,8 @@ func checkMailRecordEmailType(record DomainsDNSHostRecord, emailType *string) er
 	}
 	need := strings.Join(keeping, " or ")
 	if emailType == nil {
-		return fmt.Errorf("RecordType %s needs EmailType=%s; with EmailType omitted Namecheap keeps it only on a zone already in that mode",
+		return fmt.Errorf("RecordType %s needs EmailType=%s; "+
+			"with EmailType omitted Namecheap keeps it only on a zone already in that mode",
 			derefStr(record.RecordType), need)
 	}
 	return fmt.Errorf("RecordType %s needs EmailType=%s, not %s", derefStr(record.RecordType), need, *emailType)
@@ -128,4 +129,25 @@ func emailTypeToSend(added, final []DomainsDNSHostRecord, current string) string
 		}
 	}
 	return ""
+}
+
+// isPresetEmailType reports whether emailType is a preset (FWD, OX, GMAIL):
+// a mode whose mail Namecheap serves itself, with no MX rows in the zone.
+func isPresetEmailType(emailType string) bool {
+	return emailType == EmailTypeForward || emailType == EmailTypePrivate || emailType == EmailTypeGmail
+}
+
+// checkPresetSwitch returns an *InvalidArgumentsError when a write sending
+// EmailType send would move a zone off the preset current. The preset decides
+// where the domain's mail goes, and the MX or MXE records that need the switch
+// would be dropped under it, so the helpers make that switch only when the
+// caller asks for it with WithEmailType.
+func checkPresetSwitch(current, send string) error {
+	if send == "" || send == current || !isPresetEmailType(current) {
+		return nil
+	}
+	return &InvalidArgumentsError{Fields: []string{"EmailType"}, Reason: fmt.Sprintf(
+		"the zone is on the %s mail preset and the records added need EmailType=%s, "+
+			"which replaces the preset's mail routing; pass WithEmailType(%q) to switch it",
+		current, send, send)}
 }

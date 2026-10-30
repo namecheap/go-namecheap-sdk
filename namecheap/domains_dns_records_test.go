@@ -1058,6 +1058,47 @@ func TestExplicitEmailTypeDiscardingMXRejected(t *testing.T) {
 	assert.Empty(t, m.setParams)
 }
 
+// TestMailRecordOnPresetZoneNeedsExplicitEmailType: adding MX or MXE records to
+// a preset zone would replace the preset's mail routing, so the helpers refuse
+// it before writing; Plan still reports the transition, and WithEmailType makes
+// it.
+func TestMailRecordOnPresetZoneNeedsExplicitEmailType(t *testing.T) {
+	t.Parallel()
+	mxe := DomainsDNSHostRecord{HostName: String("@"), RecordType: String(RecordTypeMXE), Address: String("10.0.0.5"), TTL: Int(1800)}
+	records := map[string]DomainsDNSHostRecord{RecordTypeMX: mxRecord("mail.example.com"), RecordTypeMXE: mxe}
+
+	for _, preset := range []string{EmailTypeForward, EmailTypePrivate, EmailTypeGmail} {
+		for recordType, record := range records {
+			t.Run(recordType+" on "+preset, func(t *testing.T) {
+				t.Parallel()
+				m := newDNSMock(preset, nil)
+				client, server := mockedClient(m)
+				defer server.Close()
+				ctx := context.Background()
+
+				diff, err := client.DomainsDNS.PlanWithContext(ctx, "domain.net", AddOp(record))
+				assert.NoError(t, err)
+				assert.Equal(t, recordType, diff.RequiredEmailType)
+
+				_, err = client.DomainsDNS.AddRecordsWithContext(ctx, "domain.net", []DomainsDNSHostRecord{record})
+				var invalid *InvalidArgumentsError
+				if assert.ErrorAs(t, err, &invalid) {
+					assert.Contains(t, invalid.Fields, "EmailType")
+				}
+				assert.Contains(t, err.Error(), preset)
+				assert.Contains(t, err.Error(), "WithEmailType")
+				assert.Empty(t, m.setParams, "nothing may be written")
+
+				_, err = client.DomainsDNS.AddRecordsWithContext(ctx, "domain.net", []DomainsDNSHostRecord{record},
+					WithEmailType(recordType))
+				assert.NoError(t, err)
+				assert.Equal(t, recordType, m.emailType)
+				assert.True(t, zoneHas(m, "@", recordType, *record.Address))
+			})
+		}
+	}
+}
+
 // TestValidateExplicitEmailType unit-tests what is left of the rule table: only
 // an explicit EmailType can contradict the records, and no count rules remain.
 func TestValidateExplicitEmailType(t *testing.T) {

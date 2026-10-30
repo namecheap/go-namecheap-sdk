@@ -4,6 +4,7 @@ package namecheap_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strconv"
 	"testing"
@@ -14,7 +15,8 @@ import (
 // TestAcc_EmailType pins, against the live API, the mail-mode rules documented
 // on the EmailType constants (namecheap.EmailTypeMX), which the record helpers'
 // EmailType derivation is built on, and checks that record writes on preset
-// zones (GMAIL, OX, FWD) go through without changing the mode.
+// zones (GMAIL, OX, FWD) go through without changing the mode, while an MX
+// record there needs WithEmailType to switch the zone off the preset.
 //
 // It switches the mail mode of NAMECHEAP_TEST_DOMAIN, which must be a
 // disposable domain whose mail nobody relies on, on the sandbox or production
@@ -163,6 +165,28 @@ func TestAcc_EmailType(t *testing.T) {
 			if z.emailType != preset {
 				t.Errorf("EmailType after add+delete = %s, want %s", z.emailType, preset)
 			}
+		})
+
+		// Continues from the empty preset zone the subtest above leaves.
+		t.Run("MX on a "+preset+" zone needs WithEmailType to switch off the preset", func(t *testing.T) {
+			var invalid *namecheap.InvalidArgumentsError
+			if _, err := dns.AddRecordsWithContext(ctx(t), domain, []namecheap.DomainsDNSHostRecord{mx}); !errors.As(err, &invalid) {
+				t.Fatalf("AddRecords(MX) on a %s zone = %v, want *InvalidArgumentsError", preset, err)
+			}
+			wantZone(t, readZone(t, client, domain), preset, nil)
+
+			// What the API does with an MX row on a preset zone when EmailType is
+			// omitted: the zone keeps its preset and the row is dropped.
+			rawSetHosts(t, client, domain, map[string]string{
+				"HostName1": "@", "RecordType1": "MX", "Address1": *mx.Address, "MXPref1": "10", "TTL1": "1799",
+			})
+			wantZone(t, readZone(t, client, domain), preset, nil)
+
+			if _, err := dns.AddRecordsWithContext(ctx(t), domain, []namecheap.DomainsDNSHostRecord{mx},
+				namecheap.WithEmailType(namecheap.EmailTypeMX)); err != nil {
+				t.Fatalf("AddRecords(MX, WithEmailType(MX)) on a %s zone: %v", preset, err)
+			}
+			wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, []namecheap.DomainsDNSHostRecord{mx})
 		})
 	}
 

@@ -68,9 +68,11 @@ make test             # verbose + race detector
 A build-tagged suite (`namecheap/*_acc_test.go` plus the shared helpers in
 `namecheap/acceptance_test.go`, tests named `TestAcc_*`) runs read-only and
 reversible commands against the live API. `TestAcc_EmailType` switches the mail
-mode of `NAMECHEAP_TEST_DOMAIN`, so that domain must be disposable. The suite
-clears that domain's zone (no records, EmailType=NONE) once before any test runs. `make testacc` runs
-only these tests, and they are never part of `make test`:
+mode of `NAMECHEAP_TEST_DOMAIN`, so that domain must be disposable. A DNS test
+that needs an empty zone clears it itself (no records, EmailType=NONE) through
+`wipeZone`, so the other tests run against whatever the zone holds, and a `-run`
+of another test never touches the domain. `make testacc` runs only these tests,
+and they are never part of `make test`:
 
 ```shell
 export NAMECHEAP_API_USER=...     # API user
