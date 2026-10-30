@@ -9,7 +9,9 @@
 //
 // Only read-only and reversible commands are exercised. Every mutation captures
 // the prior state and restores it (defer), so reruns are idempotent and no
-// account state is left changed.
+// account state is left changed. The DNS tests that need an empty zone wipe
+// NAMECHEAP_TEST_DOMAIN themselves through wipeZone, so a -run of another test,
+// -list or -update-fixtures never touches the domain.
 //
 // With -update-fixtures, the read-only responses are re-captured into
 // ../namecheaptest/fixtures so CI can diff them against the committed corpus and
@@ -21,6 +23,7 @@ package namecheap_test
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -56,6 +59,28 @@ const (
 	// domains.renew response and is never set in CI.
 	envRenewDomain = "NAMECHEAP_ACC_RENEW_DOMAIN"
 )
+
+// wipeZone empties the zone of domain under EmailType NONE, for a DNS test that
+// must not depend on what an earlier run or another suite sharing the domain
+// left there. Only the tests that need an empty zone call it.
+func wipeZone(t *testing.T, client *namecheap.Client, domain string) {
+	t.Helper()
+	if err := clearZone(ctx(t), client, domain, namecheap.EmailTypeNone); err != nil {
+		t.Fatalf("wipe the zone of %s before the test: %v", domain, err)
+	}
+}
+
+// clearZone leaves the zone of domain with no host records, under emailType.
+func clearZone(ctx context.Context, client *namecheap.Client, domain, emailType string) error {
+	if _, err := client.DomainsDNS.SetHostsWithContext(ctx, &namecheap.DomainsDNSSetHostsArgs{
+		Domain:    namecheap.String(domain),
+		Records:   &[]namecheap.DomainsDNSHostRecord{},
+		EmailType: namecheap.String(emailType),
+	}); err != nil {
+		return fmt.Errorf("clear the zone of %s under EmailType=%s: %w", domain, emailType, err)
+	}
+	return nil
+}
 
 // dateOnlyPadded is the form domains.getList and domains.getInfo have always
 // used, confirmed on production on 2026-10-23. A change here is server-side
@@ -100,16 +125,26 @@ func parseLiveDateText(raw string) *namecheap.DateTime {
 }
 
 // liveClient builds a client for the live API from environment credentials,
-// skipping the test when any required variable is missing. The endpoint is
-// production unless NAMECHEAP_USE_SANDBOX is true.
+// skipping the test when any required variable is missing.
 func liveClient(t *testing.T) *namecheap.Client {
 	t.Helper()
+	client := newLiveClient()
+	if client == nil {
+		t.Skipf("live API credentials not set; skipping (need %s, %s, %s[, %s, %s])",
+			envAPIUser, envAPIKey, envClientIP, envUserName, envDomain)
+	}
+	return client
+}
+
+// newLiveClient builds a client for the live API from environment credentials,
+// or returns nil when any required variable is missing. The endpoint is
+// production unless NAMECHEAP_USE_SANDBOX is true.
+func newLiveClient() *namecheap.Client {
 	apiUser := os.Getenv(envAPIUser)
 	apiKey := os.Getenv(envAPIKey)
 	clientIP := os.Getenv(envClientIP)
 	if apiUser == "" || apiKey == "" || clientIP == "" {
-		t.Skipf("live API credentials not set; skipping (need %s, %s, %s[, %s, %s])",
-			envAPIUser, envAPIKey, envClientIP, envUserName, envDomain)
+		return nil
 	}
 	userName := os.Getenv(envUserName)
 	if userName == "" {
@@ -529,8 +564,9 @@ func TestAcc_UsersGetPricing(t *testing.T) {
 }
 
 // TestAcc_DNSRoundTrip exercises the get -> set -> restore reversible flow on
-// a dedicated test domain. It captures the current host records, writes them back
-// unchanged, and restores them via defer, leaving the zone exactly as found.
+// a dedicated test domain. It captures the current host records and mail mode,
+// writes them back unchanged, and restores them via defer, leaving the zone
+// exactly as found.
 func TestAcc_DNSRoundTrip(t *testing.T) {
 	domain := os.Getenv(envDomain)
 	client := liveClient(t)
@@ -546,13 +582,24 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 		"Command": "namecheap.domains.dns.getHosts",
 	})
 
+	if got.DomainDNSGetHostsResult == nil {
+		t.Fatalf("dns.getHosts %s: response has no DomainDNSGetHostsResult", domain)
+	}
 	original := toSetRecords(got)
+	// The mode goes back with the records: SetHosts rejects MX records without
+	// EmailType=MX. An empty attribute means the mode is unset, which setHosts
+	// expresses by omitting the parameter, so it is mapped to nil, not sent as "".
+	emailType := got.DomainDNSGetHostsResult.EmailType
+	if emailType != nil && *emailType == "" {
+		emailType = nil
+	}
 
 	// Always restore the captured state, even if the round-trip write fails.
 	defer func() {
 		if _, rerr := client.DomainsDNS.SetHostsWithContext(context.Background(), &namecheap.DomainsDNSSetHostsArgs{
-			Domain:  namecheap.String(domain),
-			Records: &original,
+			Domain:    namecheap.String(domain),
+			Records:   &original,
+			EmailType: emailType,
 		}); rerr != nil {
 			t.Errorf("dns.setHosts restore failed (zone may be modified): %v", rerr)
 		}
@@ -561,8 +608,9 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 	// Round-trip write: set the exact records we read, a no-op net change that
 	// still exercises setHosts end-to-end.
 	if _, err := client.DomainsDNS.SetHostsWithContext(ctx(t), &namecheap.DomainsDNSSetHostsArgs{
-		Domain:  namecheap.String(domain),
-		Records: &original,
+		Domain:    namecheap.String(domain),
+		Records:   &original,
+		EmailType: emailType,
 	}); err != nil {
 		t.Fatalf("dns.setHosts round-trip: %v", err)
 	}
