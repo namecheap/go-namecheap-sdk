@@ -150,6 +150,16 @@ func TestAcc_EmailType(t *testing.T) {
 		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMXE, []namecheap.DomainsDNSHostRecord{txt})
 	})
 
+	// Continues from the MXE zone the subtest above leaves.
+	t.Run("two MXE rows are kept on an MXE zone", func(t *testing.T) {
+		mxe2 := mxe
+		mxe2.Address = namecheap.String("199.34.228.79")
+		if _, err := dns.AddRecordsWithContext(ctx(t), domain, []namecheap.DomainsDNSHostRecord{mxe, mxe2}); err != nil {
+			t.Fatalf("AddRecords(two MXE) on an MXE zone: %v", err)
+		}
+		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMXE, []namecheap.DomainsDNSHostRecord{txt, mxe, mxe2})
+	})
+
 	// #162 and the #355 reporter: a per-record write on a preset zone used to be
 	// rejected client-side. It must now go through without touching the mode.
 	for _, preset := range []string{namecheap.EmailTypeGmail, namecheap.EmailTypePrivate, namecheap.EmailTypeForward} {
