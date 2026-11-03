@@ -877,6 +877,64 @@ func TestDeleteMXKeepsMXZoneWithMXERows(t *testing.T) {
 	assert.True(t, zoneHas(m, "@", RecordTypeMXE, "10.0.0.5"))
 }
 
+// TestMXEAddFollowsTheFinalSet: an MXE row is served only while the zone is on
+// MXE, so a write that adds one moves an MX zone to MXE once no MX row is left
+// in the written set, instead of keeping MX because the zone was on MX. The
+// MX zone keeps MX while an MX row remains.
+func TestMXEAddFollowsTheFinalSet(t *testing.T) {
+	t.Parallel()
+	mxe := DomainsDNSHostRecord{HostName: String("@"), RecordType: String(RecordTypeMXE), Address: String("10.0.0.5"), TTL: Int(1800)}
+	mxSel := RecordSelector{RecordType: String(RecordTypeMX)}
+	mxRow := detailed("@", RecordTypeMX, "mail.example.com", Int(10), 1800)
+	aRow := detailed("@", RecordTypeA, "10.0.0.1", nil, 1800)
+
+	tests := []struct {
+		name  string
+		zone  []DomainsDNSHostRecordDetailed
+		apply func(ctx context.Context, dns *DomainsDNSService) (*RecordChangeResult, error)
+		want  string
+	}{
+		{
+			"upsert MX rows to an MXE row",
+			[]DomainsDNSHostRecordDetailed{aRow, mxRow},
+			func(ctx context.Context, dns *DomainsDNSService) (*RecordChangeResult, error) {
+				return dns.UpsertRecordsWithContext(ctx, "domain.net", mxSel, []DomainsDNSHostRecord{mxe})
+			},
+			EmailTypeMXE,
+		},
+		{
+			"add MXE on an MX zone with no MX rows",
+			[]DomainsDNSHostRecordDetailed{aRow},
+			func(ctx context.Context, dns *DomainsDNSService) (*RecordChangeResult, error) {
+				return dns.AddRecordsWithContext(ctx, "domain.net", []DomainsDNSHostRecord{mxe})
+			},
+			EmailTypeMXE,
+		},
+		{
+			"add MXE on an MX zone that keeps an MX row",
+			[]DomainsDNSHostRecordDetailed{aRow, mxRow},
+			func(ctx context.Context, dns *DomainsDNSService) (*RecordChangeResult, error) {
+				return dns.AddRecordsWithContext(ctx, "domain.net", []DomainsDNSHostRecord{mxe})
+			},
+			EmailTypeMX,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := newDNSMock(EmailTypeMX, tc.zone)
+			client, server := mockedClient(m)
+			defer server.Close()
+
+			_, err := tc.apply(context.Background(), client.DomainsDNS)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.want, m.setParams[0].Get("EmailType"))
+			assert.Equal(t, tc.want, m.emailType)
+			assert.True(t, zoneHas(m, "@", RecordTypeMXE, "10.0.0.5"), "the MXE row must survive the write")
+		})
+	}
+}
+
 // TestEchoedMXRowsDoNotDriveMode: the EmailType is derived from the records an
 // operation adds, never from rows echoed from the zone. Plan on a zone that
 // holds an MX row reports no transition for an unrelated add, tagged or not.
@@ -1067,7 +1125,9 @@ func TestMailRecordOnPresetZoneNeedsExplicitEmailType(t *testing.T) {
 	mxe := DomainsDNSHostRecord{HostName: String("@"), RecordType: String(RecordTypeMXE), Address: String("10.0.0.5"), TTL: Int(1800)}
 	records := map[string]DomainsDNSHostRecord{RecordTypeMX: mxRecord("mail.example.com"), RecordTypeMXE: mxe}
 
-	for _, preset := range []string{EmailTypeForward, EmailTypePrivate, EmailTypeGmail} {
+	// A mode the SDK does not know yet is treated as a preset: only NONE, MX and
+	// MXE are left on their own.
+	for _, preset := range []string{EmailTypeForward, EmailTypePrivate, EmailTypeGmail, "FUTURE_PRESET"} {
 		for recordType, record := range records {
 			t.Run(recordType+" on "+preset, func(t *testing.T) {
 				t.Parallel()
@@ -1196,6 +1256,21 @@ func TestPlanReportsDerivedEmailType(t *testing.T) {
 		assert.Empty(t, diff.RequiredEmailType)
 		assert.True(t, diff.Satisfiable)
 		assert.NotContains(t, diff.String(), "EmailType:")
+	})
+
+	t.Run("upsert MX to MXE moves MX to MXE", func(t *testing.T) {
+		t.Parallel()
+		m := newDNSMock(EmailTypeMX, []DomainsDNSHostRecordDetailed{detailed("@", RecordTypeMX, "mail.example.com", Int(10), 1800)})
+		client, server := mockedClient(m)
+		defer server.Close()
+
+		diff, err := client.DomainsDNS.PlanWithContext(context.Background(), "domain.net",
+			UpsertOp(RecordSelector{RecordType: String(RecordTypeMX)}, []DomainsDNSHostRecord{
+				{HostName: String("@"), RecordType: String(RecordTypeMXE), Address: String("10.0.0.5"), TTL: Int(1800)},
+			}))
+		assert.NoError(t, err)
+		assert.Equal(t, EmailTypeMXE, diff.RequiredEmailType)
+		assert.Contains(t, diff.String(), "EmailType: MX -> MXE")
 	})
 
 	t.Run("MX and MXE together is writable", func(t *testing.T) {

@@ -104,6 +104,16 @@ func TestAcc_EmailType(t *testing.T) {
 		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMX, []namecheap.DomainsDNSHostRecord{mx})
 	})
 
+	// Continues from the MX zone with one MX row the subtest above leaves. An MXE
+	// row is served only on an MXE zone, so replacing the last MX row with one
+	// has to move the zone to MXE, not keep it on MX.
+	t.Run("replacing the last MX row with an MXE row switches the zone to MXE", func(t *testing.T) {
+		if _, err := dns.UpsertRecordsWithContext(ctx(t), domain, mxSel, []namecheap.DomainsDNSHostRecord{mxe}); err != nil {
+			t.Fatalf("UpsertRecords(MX -> MXE) on an MX zone: %v", err)
+		}
+		wantZone(t, readZone(t, client, domain), namecheap.EmailTypeMXE, []namecheap.DomainsDNSHostRecord{mxe})
+	})
+
 	t.Run("MXE row is kept when EmailType is MX", func(t *testing.T) {
 		records := []namecheap.DomainsDNSHostRecord{mx, mxe}
 		if _, err := dns.SetHostsWithContext(ctx(t), &namecheap.DomainsDNSSetHostsArgs{
