@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -12,13 +13,6 @@ import (
 const (
 	MinTTL int = 60
 	MaxTTL int = 60000
-
-	EmailTypeNone    = "NONE"
-	EmailTypeMXE     = "MXE"
-	EmailTypeMX      = "MX"
-	EmailTypeForward = "FWD"
-	EmailTypePrivate = "OX"
-	EmailTypeGmail   = "GMAIL"
 
 	RecordTypeA      = "A"
 	RecordTypeAAAA   = "AAAA"
@@ -35,7 +29,6 @@ const (
 )
 
 var AllowedRecordTypeValues = []string{RecordTypeA, RecordTypeAAAA, RecordTypeAlias, RecordTypeCAA, RecordTypeCNAME, RecordTypeMX, RecordTypeMXE, RecordTypeNS, RecordTypeTXT, RecordTypeURL, RecordTypeURL301, RecordTypeFrame}
-var AllowedEmailTypeValues = []string{EmailTypeNone, EmailTypeMXE, EmailTypeMX, EmailTypeForward, EmailTypePrivate, EmailTypeGmail}
 
 var allowedTagValues = []string{"issue", "issuewild", "iodef"}
 var validMailProtocolPrefix = regexp.MustCompile("mailto:.*@.*")
@@ -53,6 +46,14 @@ type DomainsDNSHostRecord struct {
 	// Time to live for all record types.Possible values: any value between 60 to 60000
 	// Default Value: 1800 (if 0 value has been provided)
 	TTL *int
+	// AssociatedAppTitle is the tag getHosts puts on a row created by a Namecheap
+	// mail preset (for example "FWD" on the forwarding SPF TXT), and is empty or
+	// nil on rows a user created. RecordFromDetailed copies it so callers can see
+	// which rows a preset wrote. The SDK never sends it, and an echoed row keeps
+	// its tag on the server. It is a hint, not a guarantee: the API stores a
+	// caller-supplied AssociatedAppTitleN verbatim, and the tag does not keep an
+	// MX row alive under a non-MX EmailType (sandbox and production, 2026-10-28).
+	AssociatedAppTitle *string
 }
 
 type DomainsDNSSetHostsArgs struct {
@@ -60,9 +61,13 @@ type DomainsDNSSetHostsArgs struct {
 	Domain *string
 	// DomainsDNSHostRecord list
 	Records *[]DomainsDNSHostRecord
-	// Possible values are MXE, MX, FWD, OX, GMAIL or NONE
-	// If empty, then this field won't be forwarded
-	// Follow https://www.namecheap.com/support/knowledgebase/article.aspx/322/2237/how-can-i-set-up-mx-records-required-for-mail-service/ to read more about email types
+	// EmailType is the zone's mail mode, one of AllowedEmailTypeValues. Leave it
+	// nil to keep the zone's current mode, and set it only to change the mode.
+	// SetHosts checks the records against it by the mail-mode rules on the
+	// EmailType constants ([EmailTypeMX]): an MX record needs EmailType=MX, an
+	// MXE record MXE or MX.
+	//
+	// See https://www.namecheap.com/support/knowledgebase/article.aspx/322/2237/how-can-i-set-up-mx-records-required-for-mail-service/
 	EmailType *string
 	// Is an unsigned integer between 0 and 255.
 	// The flag value is an 8-bit number, the most significant bit of which indicates the criticality of understanding of a record by a CA.
@@ -98,7 +103,11 @@ func (d DomainDNSSetHostsResult) String() string {
 	return fmt.Sprintf("{Domain: %v, IsSuccess: %v}", deref(d.Domain), deref(d.IsSuccess))
 }
 
-// SetHostsWithContext sets DNS host records settings for the requested domain
+// SetHostsWithContext sets DNS host records settings for the requested domain.
+// It replaces the whole zone: any existing row not in args.Records is deleted.
+//
+// A response with IsSuccess="false" is returned together with an error
+// matching ErrCommandUnsuccessful; the zone is unchanged in that case.
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/domains-dns/set-hosts/
 func (dds *DomainsDNSService) SetHostsWithContext(ctx context.Context, args *DomainsDNSSetHostsArgs) (*DomainsDNSSetHostsCommandResponse, error) {
@@ -129,6 +138,15 @@ func (dds *DomainsDNSService) SetHostsWithContext(ctx context.Context, args *Dom
 	if err != nil {
 		return nil, err
 	}
+	// IsSuccess="false" is the API's only signal for a rejected setHosts: Status
+	// stays "OK" and there is no <Error>. Only setHosts surfaces it so far; the
+	// other commands decode IsSuccess and ignore it, and turning it into an error
+	// there changes behaviour for every caller, so it is tracked in the v3 ledger
+	// (#173) rather than done here.
+	if r := response.CommandResponse; r != nil && r.DomainDNSSetHostsResult != nil &&
+		r.DomainDNSSetHostsResult.IsSuccess != nil && !*r.DomainDNSSetHostsResult.IsSuccess {
+		return r, fmt.Errorf("setHosts %s: %w", *args.Domain, ErrCommandUnsuccessful)
+	}
 	return response.CommandResponse, nil
 }
 
@@ -149,9 +167,6 @@ func validateDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) error {
 	if args.Tag != nil && !isValidTagValue(*args.Tag) {
 		return fmt.Errorf("invalid Tag value: %s", *args.Tag)
 	}
-
-	mxRecordsCount := 0
-	mxeRecordsCount := 0
 
 	if args.Records != nil {
 		for i, record := range *args.Records {
@@ -174,25 +189,15 @@ func validateDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) error {
 				return fmt.Errorf("invalid Records[%d].TTL value: %d", i, *record.TTL)
 			}
 
+			if err := checkMailRecordEmailType(record, args.EmailType); err != nil {
+				return fmt.Errorf("Records[%d].%w", i, err)
+			}
+
 			switch *record.RecordType {
 			case "MX":
 				if record.MXPref == nil {
 					return fmt.Errorf("Records[%d].MXPref is nil but required for MX record type", i)
 				}
-				if args.EmailType == nil {
-					return fmt.Errorf("Records[%d].RecordType MX is not allowed for EmailType=nil", i)
-				} else if *args.EmailType != "MX" {
-					return fmt.Errorf("Records[%d].RecordType MX is not allowed for EmailType=%s", i, *args.EmailType)
-				}
-				mxRecordsCount++
-
-			case "MXE":
-				if args.EmailType == nil {
-					return fmt.Errorf("Records[%d].RecordType MXE is not allowed for EmailType=nil", i)
-				} else if *args.EmailType != "MXE" {
-					return fmt.Errorf("Records[%d].RecordType MXE is not allowed for EmailType=%s", i, *args.EmailType)
-				}
-				mxeRecordsCount++
 
 			case "URL", "URL301", "FRAME":
 				if !validURLProtocolPrefix.MatchString(*record.Address) {
@@ -205,16 +210,6 @@ func validateDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) error {
 				}
 			}
 
-		}
-	}
-
-	if args.EmailType != nil {
-		if *args.EmailType == "MXE" && mxeRecordsCount != 1 {
-			return fmt.Errorf("one MXE record required for MXE EmailType")
-		}
-
-		if *args.EmailType == "MX" && mxRecordsCount == 0 {
-			return fmt.Errorf("minimum 1 MX record required for MX EmailType")
 		}
 	}
 
@@ -272,29 +267,10 @@ func parseDomainsDNSSetHostsArgs(args *DomainsDNSSetHostsArgs) (map[string]strin
 	return params, nil
 }
 
-func isValidEmailType(emailType string) bool {
-	for _, value := range AllowedEmailTypeValues {
-		if emailType == value {
-			return true
-		}
-	}
-	return false
-}
-
 func isValidTagValue(tag string) bool {
-	for _, value := range allowedTagValues {
-		if tag == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowedTagValues, tag)
 }
 
 func isValidRecordType(recordType string) bool {
-	for _, value := range AllowedRecordTypeValues {
-		if recordType == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(AllowedRecordTypeValues, recordType)
 }

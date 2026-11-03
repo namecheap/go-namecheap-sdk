@@ -45,7 +45,8 @@ testacc:
 
 # update-fixtures re-captures the read-only live responses into
 # namecheaptest/fixtures so drift against the committed corpus surfaces as a diff.
-# Requires the same credentials as testacc.
+# Requires the same credentials as testacc. It runs every TestAcc test, so
+# TestAcc_EmailType wipes NAMECHEAP_TEST_DOMAIN here too.
 update-fixtures:
 	go test -tags 'acceptance,$(GO_TEST_TAGS)' -count=1 -run TestAcc ./namecheap/ -update-fixtures
 
