@@ -327,18 +327,25 @@ probed 2026-10-08, pinned by `TestAcc_EmailType`):
   row is dropped under a non-MX mode like any other, and setHosts stores a
   caller-supplied `AssociatedAppTitleN` verbatim, so the tag is a hint about who
   wrote a row, not proof. The SDK never sends it.
+- **Storing is not serving.** Namecheap publishes an MXE record (as an MX and an
+  A record for its IP) only while the zone is on `MXE`. Under `MX` the row is
+  kept but not published, so mail to the domain stops without an error. This
+  comes from Namecheap's DNS export (sandbox, 2026-10-30), not from setHosts.
 
-The record helpers derive the EmailType from the records they add: MX records
-send `EmailType=MX`, MXE records send `MXE` (or `MX` on a zone already on MX),
-and anything else keeps the zone's mode: the parameter is omitted, or set to the
-zone's current mode when echoed MX or MXE rows need it spelled out for
-`SetHosts`. Rows echoed from the zone never move the mode. The helpers never
-send `NONE` and never move a zone down: removing the last MX record leaves an
-`MX` zone on `MX`. Ordinary changes on `FWD`, `OX` and `GMAIL` zones therefore
+The record helpers' rule: **a write that adds MX or MXE records puts the zone
+on `MX` if any MX record remains in the written set, otherwise on `MXE`; a write
+that adds neither leaves the mode alone.** The zone's current mode is not an
+input, so replacing an `MX` zone's last MX record with an MXE record moves it
+to `MXE`, where the MXE record is served. When the mode is left alone the
+parameter is omitted, or set to the zone's current mode when echoed MX or MXE
+rows need it spelled out for `SetHosts`. Rows echoed from the zone never move
+the mode. The helpers never send `NONE` and never move a zone down: removing the
+last MX record leaves an `MX` zone on `MX`. Ordinary changes on `FWD`, `OX` and `GMAIL` zones therefore
 work and leave the preset alone. Adding MX or MXE records to such a zone does
 not: the preset decides where the domain's mail goes, and Namecheap drops the
 records under it, so the helper fails with an `*InvalidArgumentsError` before
-anything is written. Pass `WithEmailType` to switch off the preset on purpose:
+anything is written. Every mode other than `NONE`, `MX` and `MXE` counts as a
+preset here, including one Namecheap adds later. Pass `WithEmailType` to switch off the preset on purpose:
 
 ```go
 // Replaces the GMAIL preset's mail routing with your own MX records.
@@ -368,6 +375,18 @@ records fails before anything is written, with an `*InvalidArgumentsError`.
 diff, _ := client.DomainsDNS.PlanWithContext(ctx, "example.com", namecheap.AddOp(mx...))
 if diff.RequiredEmailType != "" {
     // applying this moves the zone from diff.EmailType to diff.RequiredEmailType
+}
+```
+
+The mutating helpers report the mode they left: `RecordChangeResult.EmailTypeBefore`
+is the mode read before the write and `EmailType` the mode after it (the value
+sent, or the kept mode when the parameter was omitted), so a caller can surface
+a transition it did not ask for:
+
+```go
+res, err := client.DomainsDNS.UpsertRecordsWithContext(ctx, "example.com", mxSelector, mxeRecords)
+if err == nil && res.EmailType != res.EmailTypeBefore {
+    log.Printf("mail mode moved from %s to %s", res.EmailTypeBefore, res.EmailType)
 }
 ```
 

@@ -760,7 +760,9 @@ func mxRecord(address string) DomainsDNSHostRecord {
 	return DomainsDNSHostRecord{HostName: String("@"), RecordType: String(RecordTypeMX), Address: String(address), MXPref: UInt8(10), TTL: Int(1800)}
 }
 
-// TestDeriveEmailType pins the whole derivation.
+// TestDeriveEmailType pins the whole derivation: a write that adds MX or MXE
+// records follows the mail rows of the set it writes, and a write that adds
+// neither omits the parameter. The zone's current mode is not an input.
 func TestDeriveEmailType(t *testing.T) {
 	t.Parallel()
 
@@ -771,29 +773,79 @@ func TestDeriveEmailType(t *testing.T) {
 	taggedMX := DomainsDNSHostRecord{RecordType: String(RecordTypeMX), AssociatedAppTitle: String(EmailTypePrivate)}
 
 	tests := []struct {
-		name    string
-		records []DomainsDNSHostRecord
-		current string
-		want    string
+		name  string
+		added []DomainsDNSHostRecord
+		final []DomainsDNSHostRecord
+		want  string
 	}{
-		{"no records", nil, EmailTypeNone, ""},
-		{"plain records", []DomainsDNSHostRecord{a}, EmailTypeGmail, ""},
-		{"MX rows", []DomainsDNSHostRecord{a, mx, mx}, EmailTypeNone, EmailTypeMX},
-		{"one MXE row", []DomainsDNSHostRecord{a, mxe}, EmailTypeNone, EmailTypeMXE},
-		{"two MXE rows", []DomainsDNSHostRecord{mxe, mxe}, EmailTypeNone, EmailTypeMXE},
+		{"no records", nil, nil, ""},
+		{"plain records", []DomainsDNSHostRecord{a}, []DomainsDNSHostRecord{a}, ""},
+		{"MX rows", []DomainsDNSHostRecord{a, mx, mx}, []DomainsDNSHostRecord{a, mx, mx}, EmailTypeMX},
+		{"one MXE row", []DomainsDNSHostRecord{a, mxe}, []DomainsDNSHostRecord{a, mxe}, EmailTypeMXE},
+		{"two MXE rows", []DomainsDNSHostRecord{mxe, mxe}, []DomainsDNSHostRecord{mxe, mxe}, EmailTypeMXE},
 		// MX rows survive only under MX, and MXE rows are kept under MX too.
-		{"MX and MXE together", []DomainsDNSHostRecord{mxe, mx}, EmailTypeMXE, EmailTypeMX},
-		// MXE rows left on an MX zone stay there: no switch to MXE.
-		{"MXE rows on an MX zone", []DomainsDNSHostRecord{a, mxe}, EmailTypeMX, EmailTypeMX},
+		{"MX and MXE added together", []DomainsDNSHostRecord{mxe, mx}, []DomainsDNSHostRecord{mxe, mx}, EmailTypeMX},
+		// An MXE add next to an MX row the zone keeps stays on MX.
+		{"MXE added, MX row remains", []DomainsDNSHostRecord{mxe}, []DomainsDNSHostRecord{a, mx, mxe}, EmailTypeMX},
+		// The MXE row is served only under MXE, so with no MX row left the zone
+		// moves there, whatever mode it was on.
+		{"MXE added, no MX row left", []DomainsDNSHostRecord{mxe}, []DomainsDNSHostRecord{a, mxe}, EmailTypeMXE},
+		{"upsert MX -> MXE", []DomainsDNSHostRecord{mxe}, []DomainsDNSHostRecord{mxe}, EmailTypeMXE},
+		// Nothing added: an echoed MX or MXE row never drives the mode, and a
+		// delete never moves the zone.
+		{"echoed MX row, nothing mail added", []DomainsDNSHostRecord{a}, []DomainsDNSHostRecord{a, mx}, ""},
+		{"echoed MXE row, nothing mail added", []DomainsDNSHostRecord{a}, []DomainsDNSHostRecord{a, mxe}, ""},
+		{"last MX row deleted", nil, []DomainsDNSHostRecord{a}, ""},
+		// A later op in the same write removed every mail row it added: nothing is
+		// left to follow, so the mode stays.
+		{"added mail row removed again", []DomainsDNSHostRecord{mx}, []DomainsDNSHostRecord{a}, ""},
 		// A preset tag changes nothing: an MX row survives only under MX.
-		{"tagged MX row", []DomainsDNSHostRecord{a, taggedMX}, EmailTypePrivate, EmailTypeMX},
-		{"lower-case type", []DomainsDNSHostRecord{{RecordType: String("mx")}}, EmailTypeNone, EmailTypeMX},
+		{"tagged MX row", []DomainsDNSHostRecord{a, taggedMX}, []DomainsDNSHostRecord{a, taggedMX}, EmailTypeMX},
+		{"lower-case type", []DomainsDNSHostRecord{{RecordType: String("mx")}}, []DomainsDNSHostRecord{{RecordType: String("mx")}}, EmailTypeMX},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := deriveEmailType(tc.records, tc.current); got != tc.want {
-				t.Errorf("deriveEmailType(%s, %s) = %q, want %q", tc.name, tc.current, got, tc.want)
+			if got := deriveEmailType(tc.added, tc.final); got != tc.want {
+				t.Errorf("deriveEmailType(%s) = %q, want %q", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCheckPresetSwitch: only NONE, MX and MXE may be left without
+// WithEmailType. FWD, OX, GMAIL and any mode the SDK does not know are presets.
+func TestCheckPresetSwitch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		current string
+		send    string
+		wantErr bool
+	}{
+		{"omitted parameter", EmailTypeGmail, "", false},
+		{"same mode", EmailTypePrivate, EmailTypePrivate, false},
+		{"NONE to MX", EmailTypeNone, EmailTypeMX, false},
+		{"MX to MXE", EmailTypeMX, EmailTypeMXE, false},
+		{"MXE to MX", EmailTypeMXE, EmailTypeMX, false},
+		{"FWD to MX", EmailTypeForward, EmailTypeMX, true},
+		{"OX to MXE", EmailTypePrivate, EmailTypeMXE, true},
+		{"GMAIL to MX", EmailTypeGmail, EmailTypeMX, true},
+		{"unknown mode is a preset", "FUTURE_PRESET", EmailTypeMX, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := checkPresetSwitch(tc.current, tc.send)
+			if !tc.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			var invalid *InvalidArgumentsError
+			if assert.ErrorAs(t, err, &invalid) {
+				assert.Contains(t, err.Error(), tc.current)
+				assert.Contains(t, err.Error(), "WithEmailType")
 			}
 		})
 	}
@@ -814,6 +866,8 @@ func TestFirstMXOnNoneZone(t *testing.T) {
 	assert.NoError(t, err)
 	if assert.NotNil(t, res) {
 		assert.Equal(t, 1, res.Added)
+		assert.Equal(t, EmailTypeNone, res.EmailTypeBefore)
+		assert.Equal(t, EmailTypeMX, res.EmailType)
 	}
 	assert.Equal(t, EmailTypeMX, m.setParams[0].Get("EmailType"))
 	assert.Equal(t, EmailTypeMX, m.emailType)
@@ -853,6 +907,9 @@ func TestLastMXDeletedKeepsMode(t *testing.T) {
 	assert.NoError(t, err)
 	if assert.NotNil(t, res) {
 		assert.Equal(t, 1, res.Removed)
+		// The parameter is omitted, so the result reports the kept mode.
+		assert.Equal(t, EmailTypeMX, res.EmailTypeBefore)
+		assert.Equal(t, EmailTypeMX, res.EmailType)
 	}
 	assert.False(t, m.setParams[0].Has("EmailType"), "EmailType must be omitted, never forced to NONE")
 	assert.Equal(t, EmailTypeMX, m.emailType)
@@ -926,8 +983,12 @@ func TestMXEAddFollowsTheFinalSet(t *testing.T) {
 			client, server := mockedClient(m)
 			defer server.Close()
 
-			_, err := tc.apply(context.Background(), client.DomainsDNS)
+			res, err := tc.apply(context.Background(), client.DomainsDNS)
 			assert.NoError(t, err)
+			if assert.NotNil(t, res) {
+				assert.Equal(t, EmailTypeMX, res.EmailTypeBefore)
+				assert.Equal(t, tc.want, res.EmailType)
+			}
 			assert.Equal(t, tc.want, m.setParams[0].Get("EmailType"))
 			assert.Equal(t, tc.want, m.emailType)
 			assert.True(t, zoneHas(m, "@", RecordTypeMXE, "10.0.0.5"), "the MXE row must survive the write")
@@ -1000,6 +1061,8 @@ func TestEmailTypeToSend(t *testing.T) {
 		{"echoed MXE row on an MXE zone", []DomainsDNSHostRecord{a}, []DomainsDNSHostRecord{mxe, a}, EmailTypeMXE, EmailTypeMXE},
 		{"echoed MXE row on an MX zone", []DomainsDNSHostRecord{a}, []DomainsDNSHostRecord{mxe, a}, EmailTypeMX, EmailTypeMX},
 		{"last MX row removed", nil, []DomainsDNSHostRecord{a}, EmailTypeMX, ""},
+		{"MXE replaces the last MX row on an MX zone", []DomainsDNSHostRecord{mxe}, []DomainsDNSHostRecord{a, mxe}, EmailTypeMX, EmailTypeMXE},
+		{"MXE added next to an MX row on an MX zone", []DomainsDNSHostRecord{mxe}, []DomainsDNSHostRecord{mx, mxe}, EmailTypeMX, EmailTypeMX},
 		// A non-MX zone cannot hold an MX row (the API drops them); if a read ever
 		// shows one, the current mode is sent and SetHosts refuses the row rather
 		// than the helper guessing a transition.
@@ -1344,6 +1407,9 @@ func TestUnverifiedWrite(t *testing.T) {
 		assert.Equal(t, 1, res.Added)
 		assert.Len(t, res.Records, 2)
 		assert.NotNil(t, res.Response)
+		// The mode is what the write sent, unverified like the records.
+		assert.Equal(t, EmailTypeNone, res.EmailTypeBefore)
+		assert.Equal(t, EmailTypeNone, res.EmailType)
 	}
 }
 

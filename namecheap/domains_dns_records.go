@@ -84,10 +84,13 @@ type RecordDiff struct {
 	EmailType string
 	// RequiredEmailType is the EmailType the mutating helpers will move the zone
 	// to when they apply this change without WithEmailType, or "" when the write
-	// leaves the zone's mode alone. It is derived from the records the operations
-	// add, as WithEmailType describes, and never moves a zone down: removing the
-	// last MX row leaves an MX zone on MX. A transition off a mail preset (FWD,
-	// OX, GMAIL) is reported here too, but applying it needs WithEmailType.
+	// leaves the zone's mode alone. It is derived as WithEmailType describes: a
+	// write that adds MX or MXE records follows the mail rows it leaves (MX if
+	// any MX row remains, otherwise MXE), and a write that adds none reports no
+	// transition, so removing the last MX row leaves an MX zone on MX. Replacing
+	// an MX zone's last MX row with an MXE row reports MX -> MXE. A transition
+	// off a mail preset (FWD, OX, GMAIL) is reported here too, but applying it
+	// needs WithEmailType.
 	RequiredEmailType string
 	// Satisfiable is always true on a RecordDiff returned by PlanWithContext.
 	//
@@ -125,6 +128,13 @@ type RecordChangeResult struct {
 	Kept    int
 	// Records is the full record set written to the zone (its new state).
 	Records []DomainsDNSHostRecord
+	// EmailTypeBefore is the zone's EmailType as read before the write.
+	EmailTypeBefore string
+	// EmailType is the zone's EmailType after the write: the value sent, or
+	// EmailTypeBefore when the parameter was omitted. The two differ when the
+	// write moved the mail mode, such as MX -> MXE when an MXE record replaced
+	// the last MX record, so a caller can report a transition it did not ask for.
+	EmailType string
 	// Response is the raw setHosts command response for the successful write.
 	Response *DomainsDNSSetHostsCommandResponse
 }
@@ -156,11 +166,14 @@ func WithRetryOnConflict(maxAttempts int) RecordOption {
 // WithEmailType sets the zone EmailType to write with this mutation, replacing
 // the one the helper would derive.
 //
-// Without it the helpers derive the EmailType from the records they add, by
-// the mail-mode rules on the EmailType constants ([EmailTypeMX]): MX rows send
-// MX, MXE rows send MXE (or MX on a zone already on MX), and anything else
-// keeps the zone's mode, presets included: the parameter is omitted, or set to
-// the current mode when echoed MX or MXE rows need it spelled out. That covers
+// Without it the helpers derive the EmailType by the mail-mode rules on the
+// EmailType constants ([EmailTypeMX]): a write that adds MX or MXE records puts
+// the zone on MX if any MX row remains in the written set, otherwise on MXE, so
+// replacing an MX zone's last MX row with an MXE row moves it to MXE, where the
+// MXE row is served. A write that adds neither keeps the zone's mode, presets
+// included: the parameter is omitted, or set to the current mode when echoed
+// MX or MXE rows need it spelled out. RecordChangeResult reports the mode
+// before and after, so a caller can surface a transition. That covers
 // the whole MX/MXE lifecycle, so the option is needed only to set a mode no
 // record implies, such as switching mail routing off together with the last MX
 // row:
@@ -168,10 +181,11 @@ func WithRetryOnConflict(maxAttempts int) RecordOption {
 //	DeleteRecordsWithContext(ctx, domain, sel, WithEmailType(EmailTypeNone))
 //
 // The one derived transition the helpers do not make on their own is off a
-// mail preset (FWD, OX, GMAIL): adding MX or MXE records to such a zone would
-// replace the mail routing the preset provides, so it fails with an
-// *InvalidArgumentsError before anything is written unless this option names
-// the new mode:
+// mail preset (FWD, OX, GMAIL, or any mode other than NONE, MX and MXE, so a
+// mode the SDK does not know yet is never left silently): adding MX or MXE
+// records to such a zone would replace the mail routing the preset provides,
+// so it fails with an *InvalidArgumentsError before anything is written unless
+// this option names the new mode:
 //
 //	AddRecordsWithContext(ctx, domain, mxRecords, WithEmailType(EmailTypeMX))
 //
@@ -639,10 +653,11 @@ func (dds *DomainsDNSService) PlanWithContext(ctx context.Context, domain string
 		return RecordDiff{}, err
 	}
 	current, emailType := recordsFromResult(getResp)
-	diff, _ := computeDiff(current, ops)
+	diff, final := computeDiff(current, ops)
 	diff.EmailType = emailType
 	// An omitted (empty) derived EmailType keeps the mode, so it is no transition.
-	if derived := deriveEmailType(opRecords(ops), emailType); derived != "" {
+	// Plan derives from the same final set the write would send.
+	if derived := deriveEmailType(opRecords(ops), final); derived != "" {
 		diff.RequiredEmailType = transitionTo(derived, emailType)
 	}
 	diff.Satisfiable = true
@@ -708,11 +723,13 @@ func (dds *DomainsDNSService) attemptRecordOps(ctx context.Context, domain strin
 		return nil, false, err
 	}
 	result := &RecordChangeResult{
-		Added:    len(diff.Add),
-		Removed:  len(diff.Remove),
-		Kept:     len(diff.Keep),
-		Records:  final,
-		Response: setResp,
+		Added:           len(diff.Add),
+		Removed:         len(diff.Remove),
+		Kept:            len(diff.Keep),
+		Records:         final,
+		EmailTypeBefore: emailType,
+		EmailType:       wantEmailType,
+		Response:        setResp,
 	}
 
 	verifyResp, err := dds.GetHostsWithContext(ctx, domain)
