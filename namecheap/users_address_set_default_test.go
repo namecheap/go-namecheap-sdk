@@ -12,7 +12,7 @@ const addressSetDefaultResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
 	<CommandResponse Type="namecheap.users.address.setDefault">
-		<AddressSetDefaultResult Success="true" AddressID="778" />
+		<AddressSetDefaultResult Success="true" AddressId="778" />
 	</CommandResponse>
 </ApiResponse>`
 
@@ -35,7 +35,19 @@ func TestUsersAddressService_SetDefault(t *testing.T) {
 		assert.Equal(t, 778, *resp.AddressSetDefaultResult.AddressID)
 	})
 
-	t.Run("invalid id", func(t *testing.T) {
+	// setDefault AddressId=0 makes the primary address the default again
+	// (captured on the sandbox, #212), so 0 must reach the API.
+	t.Run("primary address id 0 is sent", func(t *testing.T) {
+		t.Parallel()
+		var sent url.Values
+		client := usersMockClient(t, addressSetDefaultResponse, &sent)
+
+		_, err := client.UsersAddress.SetDefaultWithContext(context.Background(), 0)
+		mustNoError(t, err)
+		assert.Equal(t, "0", sent.Get("AddressId"))
+	})
+
+	t.Run("negative id no http", func(t *testing.T) {
 		t.Parallel()
 		client := setupClient(nil)
 		_, err := client.UsersAddress.SetDefaultWithContext(context.Background(), -1)

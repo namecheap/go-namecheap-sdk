@@ -483,13 +483,27 @@ contact blocks of `domains.create`.
 | `CreateWithContext(ctx, details)` | Add a new address-book entry |
 | `UpdateWithContext(ctx, addressID, details)` | Update an existing entry |
 | `DeleteWithContext(ctx, addressID)` | Delete an entry |
-| `GetInfoWithContext(ctx, addressID)` | Get the full stored address |
-| `GetListWithContext(ctx)` | List every entry (id + name) |
-| `SetDefaultWithContext(ctx, addressID)` | Mark an entry as the account default |
+| `GetInfoWithContext(ctx, addressID)` | Get the full stored address (0 = the primary address) |
+| `GetListWithContext(ctx)` | List every entry (id, name, `IsDefault`) |
+| `SetDefaultWithContext(ctx, addressID)` | Mark an entry as the account default (0 = the primary address) |
 
 ```go
-// Reuse a stored address as a domains.create contact block.
-info, err := client.UsersAddress.GetInfoWithContext(ctx, 777)
+// Reuse the account's default address as a domains.create contact block.
+// The primary address has id 0, so find the default by IsDefault, not by id.
+var defaultID *int
+for e, err := range client.UsersAddress.ListAll(ctx) {
+    if err != nil {
+        log.Fatal(err)
+    }
+    if e.IsDefault != nil && *e.IsDefault {
+        defaultID = e.AddressID
+        break
+    }
+}
+if defaultID == nil {
+    log.Fatal("the account has no default address")
+}
+info, err := client.UsersAddress.GetInfoWithContext(ctx, *defaultID)
 if err != nil {
     log.Fatal(err)
 }

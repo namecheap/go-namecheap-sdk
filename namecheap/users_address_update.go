@@ -22,12 +22,17 @@ type UsersAddressUpdateCommandResponse struct {
 	AddressUpdateResult *UsersAddressUpdateResult `xml:"AddressUpdateResult"`
 }
 
-// UsersAddressUpdateResult is the outcome of an address update.
+// UsersAddressUpdateResult is the outcome of an address update. Field names
+// follow the captured sandbox response in
+// namecheaptest/fixtures/users_address_update.xml.
 type UsersAddressUpdateResult struct {
 	// Success reports whether the address was updated.
 	Success *bool `xml:"Success,attr"`
 	// AddressID is the unique integer identifying the updated address profile.
-	AddressID *int `xml:"AddressID,attr"`
+	// The response attribute is AddressId.
+	AddressID *int `xml:"AddressId,attr"`
+	// AddressName is the name of the updated address profile.
+	AddressName *string `xml:"AddressName,attr"`
 }
 
 // UpdateWithContext updates an existing address-book entry identified by

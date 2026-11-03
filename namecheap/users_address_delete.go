@@ -23,13 +23,16 @@ type UsersAddressDeleteCommandResponse struct {
 }
 
 // UsersAddressDeleteResult is the outcome of an address delete. Field names
-// follow the response table in docs/namecheap-api-v2.md (lines 1385-1389).
+// follow the captured sandbox response in
+// namecheaptest/fixtures/users_address_delete.xml.
 type UsersAddressDeleteResult struct {
 	// Success reports whether the address was deleted.
 	Success *bool `xml:"Success,attr"`
-	// ProfileID is the unique integer representing the address profile.
-	ProfileID *int `xml:"ProfileID,attr"`
-	// Username is the account the address belonged to.
+	// ProfileID is the id of the deleted address profile. The response
+	// attribute is ProfileId.
+	ProfileID *int `xml:"ProfileId,attr"`
+	// Username is the account the address belonged to. The doc lists it, but
+	// the captured sandbox response does not carry it, so it is usually nil.
 	Username *string `xml:"Username,attr"`
 }
 

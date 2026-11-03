@@ -12,7 +12,7 @@ const addressUpdateResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
 	<CommandResponse Type="namecheap.users.address.update">
-		<AddressUpdateResult Success="true" AddressID="777" />
+		<AddressUpdateResult Success="true" AddressId="777" AddressName="Home" />
 	</CommandResponse>
 </ApiResponse>`
 

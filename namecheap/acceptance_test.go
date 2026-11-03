@@ -528,6 +528,86 @@ func TestAcc_UsersGetPricing(t *testing.T) {
 	})
 }
 
+// TestAcc_UsersAddressGetListAndInfo reads every address-book entry through
+// getList and then getInfo, so an id the SDK refuses to send (the primary
+// address is AddressId 0, #212) or a flag it fails to decode is caught on the
+// real response. Only ids and names are logged: the stored address is personal
+// data.
+func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
+	client := liveClient(t)
+	list, err := client.UsersAddress.GetListWithContext(ctx(t))
+	if err != nil {
+		t.Fatalf("users.address.getList: %v", err)
+	}
+	if list == nil || list.AddressGetListResult == nil || len(*list.AddressGetListResult) == 0 {
+		t.Fatal("users.address.getList: no entries, want at least the primary address")
+	}
+
+	defaults := 0
+	defaultID := -1
+	for _, e := range *list.AddressGetListResult {
+		if e.AddressID == nil {
+			t.Errorf("users.address.getList entry %s: AddressId is missing", quoteAttr(e.AddressName))
+			continue
+		}
+		id := *e.AddressID
+		t.Logf("users.address.getList AddressId=%d AddressName=%s IsDefault=%v", id, quoteAttr(e.AddressName), boolAttr(e.IsDefault))
+		if e.IsDefault == nil {
+			t.Errorf("users.address.getList AddressId=%d: IsDefault is missing", id)
+		} else if *e.IsDefault {
+			defaults++
+			defaultID = id
+		}
+
+		info, err := client.UsersAddress.GetInfoWithContext(ctx(t), id)
+		if err != nil {
+			t.Errorf("users.address.getInfo(%d): %v", id, err)
+			continue
+		}
+		got := info.GetAddressInfoResult
+		if got == nil {
+			t.Errorf("users.address.getInfo(%d): no GetAddressInfoResult", id)
+			continue
+		}
+		if got.AddressID == nil || *got.AddressID != id {
+			t.Errorf("users.address.getInfo(%d) AddressID = %v, want %d", id, got.AddressID, id)
+		}
+		switch {
+		case got.DefaultYN == nil:
+			t.Errorf("users.address.getInfo(%d) DefaultYN = nil, want the default flag", id)
+		case e.IsDefault != nil && *got.DefaultYN != *e.IsDefault:
+			t.Errorf("users.address.getInfo(%d) DefaultYN = %v, want %v (getList IsDefault)", id, *got.DefaultYN, *e.IsDefault)
+		}
+	}
+	if defaults != 1 {
+		t.Fatalf("users.address.getList: %d entries have IsDefault=true, want exactly one", defaults)
+	}
+
+	captureFixture(t, client, "users_address_getList", map[string]string{
+		"Command": "namecheap.users.address.getList",
+	})
+	captureFixture(t, client, "users_address_getInfo", map[string]string{
+		"Command":   "namecheap.users.address.getInfo",
+		"AddressId": strconv.Itoa(defaultID),
+	}, addressPersonalElements...)
+}
+
+// addressPersonalElements are the getInfo elements that hold the account
+// owner's personal data; captureFixture blanks them in the committed fixture.
+var addressPersonalElements = []string{
+	"UserName", "FirstName", "LastName", "JobTitle", "Organization",
+	"Address1", "Address2", "City", "StateProvince", "StateProvinceChoice",
+	"Zip", "Phone", "PhoneExt", "Fax", "EmailAddress",
+}
+
+// boolAttr renders an optional flag for logs.
+func boolAttr(b *bool) string {
+	if b == nil {
+		return "<nil>"
+	}
+	return strconv.FormatBool(*b)
+}
+
 // TestAcc_DNSRoundTrip exercises the get -> set -> restore reversible flow on
 // a dedicated test domain. It captures the current host records, writes them back
 // unchanged, and restores them via defer, leaving the zone exactly as found.
@@ -635,12 +715,16 @@ func toSetRecords(resp *namecheap.DomainsDNSGetHostsCommandResponse) []namecheap
 
 // captureFixture re-captures a raw sandbox response into the committed fixture
 // corpus when -update-fixtures is set. It performs a direct POST (bypassing the
-// SDK's response decoding) to obtain the verbatim XML body. It is a no-op
-// otherwise.
-func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string) {
+// SDK's response decoding) to obtain the verbatim XML body. The text of every
+// element named in redact is replaced with "REDACTED"; the rest of the body is
+// written unchanged. It is a no-op otherwise.
+func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string, redact ...string) {
 	t.Helper()
 	if !*updateFixtures {
 		return
+	}
+	if useSandbox, _ := strconv.ParseBool(os.Getenv(envUseSandbox)); !useSandbox {
+		t.Fatalf("capture %s: %s is not true; fixtures are captured from the sandbox only", short, envUseSandbox)
 	}
 	form := url.Values{}
 	for k, v := range params {
@@ -659,6 +743,10 @@ func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("capture %s: read: %v", short, err)
+	}
+	for _, name := range redact {
+		re := regexp.MustCompile(`(<` + name + `>)[^<]*(</` + name + `>)`)
+		body = re.ReplaceAll(body, []byte("${1}REDACTED${2}"))
 	}
 	path := filepath.Join("..", "namecheaptest", "fixtures", short+".xml")
 	if err := os.WriteFile(path, body, 0o600); err != nil {

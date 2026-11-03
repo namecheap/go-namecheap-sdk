@@ -23,22 +23,25 @@ type UsersAddressSetDefaultCommandResponse struct {
 }
 
 // UsersAddressSetDefaultResult is the outcome of a setDefault. Field names follow
-// the response table in docs/namecheap-api-v2.md (lines 1445-1448).
+// the captured sandbox response in
+// namecheaptest/fixtures/users_address_setDefault.xml.
 type UsersAddressSetDefaultResult struct {
 	// Success reports whether the default address was set.
 	Success *bool `xml:"Success,attr"`
-	// AddressID is the unique integer representing the address profile.
-	AddressID *int `xml:"AddressID,attr"`
+	// AddressID is the id of the new default address profile. The response
+	// attribute is AddressId.
+	AddressID *int `xml:"AddressId,attr"`
 }
 
 // SetDefaultWithContext marks an address-book entry as the account default.
 //
 // It is a non-idempotent write but not charge-bearing; it uses the standard
-// idempotent transport. addressID must be positive.
+// idempotent transport. addressID must not be negative: 0 makes the account's
+// primary address the default again.
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/users/address/set-default/
 func (uas *UsersAddressService) SetDefaultWithContext(ctx context.Context, addressID int) (*UsersAddressSetDefaultCommandResponse, error) {
-	if addressID <= 0 {
+	if addressID < 0 {
 		return nil, &InvalidArgumentsError{Fields: []string{"AddressId"}}
 	}
 

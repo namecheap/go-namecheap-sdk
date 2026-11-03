@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
-	<Errors />
-	<CommandResponse Type="namecheap.users.address.create">
-		<AddressCreateResult Success="true" AddressID="777" />
-	</CommandResponse>
+  <Errors />
+  <Warnings />
+  <RequestedCommand>namecheap.users.address.create</RequestedCommand>
+  <CommandResponse Type="namecheap.users.address.create">
+    <AddressCreateResult Success="true" AddressId="149237" AddressName="sdk-212-probe" />
+  </CommandResponse>
+  <Server>Server -151154064</Server>
+  <GMTTimeDifference>--5:00</GMTTimeDifference>
+  <ExecutionTime>0.152</ExecutionTime>
 </ApiResponse>
