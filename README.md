@@ -374,7 +374,10 @@ records fails before anything is written, with an `*InvalidArgumentsError`.
 ```go
 diff, _ := client.DomainsDNS.PlanWithContext(ctx, "example.com", namecheap.AddOp(mx...))
 if diff.RequiredEmailType != "" {
-    // applying this moves the zone from diff.EmailType to diff.RequiredEmailType
+    // diff.EmailType is NONE, MX or MXE: applying this moves the zone to
+    // diff.RequiredEmailType.
+    // diff.EmailType is FWD, OX or GMAIL: the helpers refuse the change unless
+    // you pass namecheap.WithEmailType(diff.RequiredEmailType).
 }
 ```
 

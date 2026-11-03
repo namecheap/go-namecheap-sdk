@@ -9,20 +9,27 @@ import (
 // EmailType values are a zone's mail mode, sent as the EmailType parameter of
 // setHosts and read back from getHosts.
 //
-// These are the mail-mode rules of setHosts, verified against the live API
-// (sandbox and production, 2026-10-08) and pinned by TestAcc_EmailType. The
-// rest of the package refers to them here instead of restating them:
+// These are the mail-mode rules of setHosts, pinned by TestAcc_EmailType. Each
+// is dated with where it was verified against the live API; the rest of the
+// package refers to them here instead of restating them:
 //
 //   - Omitting EmailType keeps the zone's current mode. The API reference marks
-//     the parameter "Required: Yes"; it is not.
+//     the parameter "Required: Yes"; it is not (sandbox and production,
+//     2026-10-08).
 //   - MX records are kept only under EmailType=MX. Under any other mode
-//     Namecheap silently discards them.
-//   - MXE records are kept under EmailType=MXE and MX. Under the other modes
-//     the behaviour is unverified, so the SDK does not send them there.
-//   - No MX or MXE record counts are enforced: an MX zone may hold no MX
-//     record, an MXE zone none or several MXE records.
+//     Namecheap silently discards them (sandbox and production, 2026-10-08).
+//   - MXE records are kept under EmailType=MXE and MX (sandbox and production,
+//     2026-10-08). Under the other modes the behaviour is unverified, so the
+//     SDK does not send them there.
+//   - No MX or MXE record counts are enforced: an MX zone may hold no MX record
+//     (sandbox and production, 2026-10-08), and an MXE zone none or several
+//     MXE records (sandbox, 2026-10-30).
 //   - An unknown EmailType answers Status="OK" with IsSuccess="false" and
-//     leaves the zone unchanged.
+//     leaves the zone unchanged (sandbox and production, 2026-10-08).
+//   - A record write on a GMAIL, OX or FWD zone keeps the preset, and an MX
+//     record written with EmailType=MX switches it off (sandbox only). Setting
+//     OX or GMAIL by API on production without the matching subscription is
+//     unverified.
 //
 // Storing is not serving: Namecheap publishes an MXE record, as an MX and an A
 // record for its IP, only while the zone is on MXE. Under MX the row is kept
@@ -157,6 +164,32 @@ func emailTypeToSend(added, final []DomainsDNSHostRecord, current string) string
 // not know yet, is treated as a preset whose mail Namecheap serves itself.
 func isRecordDrivenEmailType(emailType string) bool {
 	return emailType == EmailTypeNone || emailType == EmailTypeMX || emailType == EmailTypeMXE
+}
+
+// checkEchoedMailRecords returns an *InvalidArgumentsError when final, the set
+// a derived write would send, holds an MX or MXE record that send cannot carry.
+// Only a row echoed from the zone can do that, since the derivation fits the mode
+// to every mail row a write adds: a zone that reads as a preset, or as NONE when
+// getHosts omits the attribute, yet holds an MX row. SetHosts would refuse the
+// row with a plain error; this one names the zone's mode and the two ways out.
+func checkEchoedMailRecords(final []DomainsDNSHostRecord, current, send string) error {
+	var emailType *string
+	if send != "" {
+		emailType = &send
+	}
+	for _, record := range final {
+		err := checkMailRecordEmailType(record, emailType)
+		if err == nil {
+			continue
+		}
+		recordType := normRecordType(derefStr(record.RecordType))
+		return &InvalidArgumentsError{Fields: []string{"EmailType"}, Reason: fmt.Sprintf(
+			"the zone reads as EmailType=%s but holds the %s record %s, which that mode cannot keep (%v); "+
+				"delete the %s records with RecordSelector{RecordType: String(%q)}, or pass WithEmailType(%q) "+
+				"to put the zone on a mode that keeps them",
+			current, recordType, recordString(record), err, recordType, recordType, emailTypesKeeping(recordType)[0])}
+	}
+	return nil
 }
 
 // checkPresetSwitch returns an *InvalidArgumentsError when a write sending

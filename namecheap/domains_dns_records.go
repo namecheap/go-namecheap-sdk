@@ -88,9 +88,13 @@ type RecordDiff struct {
 	// write that adds MX or MXE records follows the mail rows it leaves (MX if
 	// any MX row remains, otherwise MXE), and a write that adds none reports no
 	// transition, so removing the last MX row leaves an MX zone on MX. Replacing
-	// an MX zone's last MX row with an MXE row reports MX -> MXE. A transition
-	// off a mail preset (FWD, OX, GMAIL) is reported here too, but applying it
-	// needs WithEmailType.
+	// an MX zone's last MX row with an MXE row reports MX -> MXE.
+	//
+	// When EmailType is NONE, MX or MXE the helpers make this transition on
+	// their own. When it is FWD, OX, GMAIL or any other mode the helpers treat as
+	// a preset, they refuse it unless the write passes
+	// WithEmailType(RequiredEmailType), and String marks the line with
+	// "(needs WithEmailType)".
 	RequiredEmailType string
 	// Satisfiable is always true on a RecordDiff returned by PlanWithContext.
 	//
@@ -106,6 +110,9 @@ func (d RecordDiff) String() string {
 	fmt.Fprintf(&b, "RecordDiff: +%d -%d =%d", len(d.Add), len(d.Remove), len(d.Keep))
 	if d.RequiredEmailType != "" {
 		fmt.Fprintf(&b, "\n  EmailType: %s -> %s", d.EmailType, d.RequiredEmailType)
+		if !isRecordDrivenEmailType(d.EmailType) {
+			b.WriteString(" (needs WithEmailType)")
+		}
 	}
 	for _, r := range d.Add {
 		fmt.Fprintf(&b, "\n  + %s", recordString(r))
@@ -571,8 +578,11 @@ func validateExplicitEmailType(records []DomainsDNSHostRecord, emailType string)
 }
 
 // recordsFromResult extracts the settable record set and the zone EmailType from
-// a getHosts response. A nil or empty EmailType defaults to EmailTypeNone so a
-// partial update never silently clears email routing.
+// a getHosts response. A nil or empty EmailType reads as EmailTypeNone, the mode
+// a zone has when getHosts omits the attribute. That default is never sent for a
+// plain update, which omits the parameter so the zone keeps its mode, and when
+// echoed MX or MXE rows would force it onto the wire, checkEchoedMailRecords
+// stops the write before anything is sent.
 func recordsFromResult(resp *DomainsDNSGetHostsCommandResponse) ([]DomainsDNSHostRecord, string) {
 	emailType := EmailTypeNone
 	if resp == nil || resp.DomainDNSGetHostsResult == nil {
@@ -710,8 +720,13 @@ func (dds *DomainsDNSService) attemptRecordOps(ctx context.Context, domain strin
 		if err := validateExplicitEmailType(final, send); err != nil {
 			return nil, false, err
 		}
-	} else if err := checkPresetSwitch(emailType, send); err != nil {
-		return nil, false, err
+	} else {
+		if err := checkPresetSwitch(emailType, send); err != nil {
+			return nil, false, err
+		}
+		if err := checkEchoedMailRecords(final, emailType, send); err != nil {
+			return nil, false, err
+		}
 	}
 	wantEmailType := emailType
 	if send != "" {

@@ -7,11 +7,13 @@
 // NAMECHEAP_USE_SANDBOX selects the endpoint: "true" targets the sandbox API,
 // anything else targets production.
 //
-// Only read-only and reversible commands are exercised. Every mutation captures
-// the prior state and restores it (defer), so reruns are idempotent and no
-// account state is left changed. The DNS tests that need an empty zone wipe
-// NAMECHEAP_TEST_DOMAIN themselves through wipeZone, so a -run of another test,
-// -list or -update-fixtures never touches the domain.
+// Most tests exercise read-only commands, and the ones that change account
+// state capture it first and restore it (defer). TestAcc_EmailType is the
+// exception, by design: it wipes NAMECHEAP_TEST_DOMAIN's zone, switches its mail
+// mode through every value (NONE, MX, MXE and the GMAIL, OX and FWD presets) and
+// leaves the zone empty under NONE. make testacc and make update-fixtures both
+// run it (-run TestAcc), so the domain must be disposable in every environment
+// the suite is pointed at, production included.
 //
 // With -update-fixtures, the read-only responses are re-captured into
 // ../namecheaptest/fixtures so CI can diff them against the committed corpus and
@@ -125,26 +127,16 @@ func parseLiveDateText(raw string) *namecheap.DateTime {
 }
 
 // liveClient builds a client for the live API from environment credentials,
-// skipping the test when any required variable is missing.
+// skipping the test when any required variable is missing. The endpoint is
+// production unless NAMECHEAP_USE_SANDBOX is true.
 func liveClient(t *testing.T) *namecheap.Client {
 	t.Helper()
-	client := newLiveClient()
-	if client == nil {
-		t.Skipf("live API credentials not set; skipping (need %s, %s, %s[, %s, %s])",
-			envAPIUser, envAPIKey, envClientIP, envUserName, envDomain)
-	}
-	return client
-}
-
-// newLiveClient builds a client for the live API from environment credentials,
-// or returns nil when any required variable is missing. The endpoint is
-// production unless NAMECHEAP_USE_SANDBOX is true.
-func newLiveClient() *namecheap.Client {
 	apiUser := os.Getenv(envAPIUser)
 	apiKey := os.Getenv(envAPIKey)
 	clientIP := os.Getenv(envClientIP)
 	if apiUser == "" || apiKey == "" || clientIP == "" {
-		return nil
+		t.Skipf("live API credentials not set; skipping (need %s, %s, %s[, %s, %s])",
+			envAPIUser, envAPIKey, envClientIP, envUserName, envDomain)
 	}
 	userName := os.Getenv(envUserName)
 	if userName == "" {
@@ -585,7 +577,7 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 	if got.DomainDNSGetHostsResult == nil {
 		t.Fatalf("dns.getHosts %s: response has no DomainDNSGetHostsResult", domain)
 	}
-	original := toSetRecords(got)
+	original := hostRecords(got)
 	// The mode goes back with the records: SetHosts rejects MX records without
 	// EmailType=MX. An empty attribute means the mode is unset, which setHosts
 	// expresses by omitting the parameter, so it is mapped to nil, not sent as "".
@@ -621,7 +613,7 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dns.getHosts read-back: %v", err)
 	}
-	after := toSetRecords(reread)
+	after := hostRecords(reread)
 	if len(after) != len(original) {
 		t.Fatalf("dns round-trip: read back %d records, wrote %d", len(after), len(original))
 	}
@@ -658,25 +650,17 @@ func recordKey(r namecheap.DomainsDNSHostRecord) string {
 	return strings.ToLower(deref(r.HostName)) + "|" + deref(r.RecordType) + "|" + deref(r.Address) + "|" + ttl
 }
 
-// toSetRecords converts the detailed host records returned by getHosts into the
-// setHosts input shape.
-func toSetRecords(resp *namecheap.DomainsDNSGetHostsCommandResponse) []namecheap.DomainsDNSHostRecord {
+// hostRecords maps the detailed host records of a getHosts response to the
+// setHosts input shape through the exported RecordFromDetailed, so the round
+// trip exercises the mapping callers use.
+func hostRecords(resp *namecheap.DomainsDNSGetHostsCommandResponse) []namecheap.DomainsDNSHostRecord {
 	if resp == nil || resp.DomainDNSGetHostsResult == nil || resp.DomainDNSGetHostsResult.Hosts == nil {
 		return nil
 	}
 	hosts := *resp.DomainDNSGetHostsResult.Hosts
 	records := make([]namecheap.DomainsDNSHostRecord, 0, len(hosts))
 	for _, h := range hosts {
-		rec := namecheap.DomainsDNSHostRecord{
-			HostName:   h.Name,
-			RecordType: h.Type,
-			Address:    h.Address,
-			TTL:        h.TTL,
-		}
-		if h.MXPref != nil {
-			rec.MXPref = namecheap.UInt8(uint8(*h.MXPref))
-		}
-		records = append(records, rec)
+		records = append(records, namecheap.RecordFromDetailed(h))
 	}
 	return records
 }

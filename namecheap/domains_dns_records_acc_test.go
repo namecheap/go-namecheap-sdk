@@ -258,6 +258,11 @@ func rawSetHosts(t *testing.T, client *namecheap.Client, domain string, params m
 	if _, err := client.DoXMLWithContext(ctx(t), body, &resp); err != nil {
 		t.Fatalf("raw setHosts %v: %v", params, err)
 	}
+	// Fail the subtest rather than panic the binary on an unexpected envelope: a
+	// panic would skip the zone cleanup.
+	if resp.CommandResponse == nil {
+		t.Fatalf("raw setHosts %v: response has no CommandResponse", params)
+	}
 	return resp
 }
 

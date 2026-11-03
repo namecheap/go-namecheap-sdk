@@ -1222,6 +1222,31 @@ func TestMailRecordOnPresetZoneNeedsExplicitEmailType(t *testing.T) {
 	}
 }
 
+// TestEchoedMailRowTheReadModeCannotCarry: a zone that reads as OX yet holds an
+// MX row would make any write send EmailType=OX with that row echoed, which
+// SetHosts refuses. The helper fails first with a typed error naming the mode
+// and both ways out, and writes nothing. TestEmailTypeToSend pins what would be
+// sent; this pins how the write fails.
+func TestEchoedMailRowTheReadModeCannotCarry(t *testing.T) {
+	t.Parallel()
+	m := newDNSMock(EmailTypePrivate, []DomainsDNSHostRecordDetailed{
+		detailed("@", RecordTypeMX, "mx1.privateemail.com", Int(10), 1800),
+	})
+	client, server := mockedClient(m)
+	defer server.Close()
+
+	_, err := client.DomainsDNS.AddRecordsWithContext(context.Background(), "domain.net",
+		[]DomainsDNSHostRecord{{HostName: String("_acc"), RecordType: String(RecordTypeTXT), Address: String("v=1"), TTL: Int(1800)}})
+	var invalid *InvalidArgumentsError
+	if assert.ErrorAs(t, err, &invalid) {
+		assert.Equal(t, []string{"EmailType"}, invalid.Fields)
+		assert.Contains(t, err.Error(), "EmailType=OX")
+		assert.Contains(t, err.Error(), `RecordSelector{RecordType: String("MX")}`)
+		assert.Contains(t, err.Error(), `WithEmailType("MX")`)
+	}
+	assert.Zero(t, m.setCount, "nothing may be written")
+}
+
 // TestValidateExplicitEmailType unit-tests what is left of the rule table: only
 // an explicit EmailType can contradict the records, and no count rules remain.
 func TestValidateExplicitEmailType(t *testing.T) {
@@ -1359,6 +1384,11 @@ func TestDiffStringShowsTransition(t *testing.T) {
 
 	moved := RecordDiff{EmailType: EmailTypeNone, RequiredEmailType: EmailTypeMX, Satisfiable: true}
 	assert.Contains(t, moved.String(), "EmailType: NONE -> MX")
+	assert.NotContains(t, moved.String(), "needs WithEmailType")
+
+	// Off a preset the helpers refuse the transition without WithEmailType.
+	offPreset := RecordDiff{EmailType: EmailTypeGmail, RequiredEmailType: EmailTypeMX, Satisfiable: true}
+	assert.Contains(t, offPreset.String(), "EmailType: GMAIL -> MX (needs WithEmailType)")
 }
 
 // TestEmailTypeConflictOnConcurrentRevert: if another writer reverts the
