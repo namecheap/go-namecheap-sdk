@@ -444,7 +444,16 @@ single-tier lookup. Money is never parsed to `float64`: every amount is an
 `Amount` (the exact server decimal string). `Price.EffectivePrice()` resolves the
 documented precedence — server-resolved `Price` (which already reflects any
 promo/special), then `YourPrice` (account price), then `RegularPrice` (list
-price). A tier also exposes the `Currency` it is denominated in and a
+price). Each of those carries a per-year fee on the wire (`AdditionalCost`,
+the ICANN fee, `0.20` on `.com`) that is not in the official docs;
+`Price.TotalPrice()` adds the fee that pairs with the attribute `EffectivePrice`
+chose, so use it rather than `EffectivePrice` for a balance check (that the
+fee is charged on top is read from the price sheet; no captured charge confirms
+it yet). Both are
+the price of **one year**, whatever the tier's `Duration`: the captured `.com`
+sheet quotes `13.98` for every term from 1 to 10 years. Scale it by the number
+of years before comparing it with the balance for a multi-year order.
+A tier also exposes the `Currency` it is denominated in and a
 `PromotionPrice`. Note the live API sends `PromotionPrice="0.0"` on tiers with no
 promotion, so ask `price.PromotionPrice.IsPositive()` for "is there a discount";
 `Price.Promo()` answers the narrower "did the server send the attribute at all".
@@ -486,8 +495,8 @@ for _, tld := range []string{"com", "net", "org"} {
         continue
     }
     // Compare as decimals, not strings: "8.88" < "10.50" numerically, but not
-    // lexicographically.
-    eff, ok := new(big.Rat).SetString(price.EffectivePrice().String())
+    // lexicographically. TotalPrice includes the per-unit additional cost.
+    eff, ok := new(big.Rat).SetString(price.TotalPrice().String())
     if !ok {
         continue
     }

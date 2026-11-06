@@ -16,7 +16,7 @@ const createAddFundsResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
 	<CommandResponse Type="namecheap.users.createaddfundsrequest">
-		<CreateAddFundsRequestResult TokenID="1234567890" RedirectURL="https://sandbox.namecheap.com/addfunds?token=1234567890" ReturnURL="https://example.com/done" />
+		<Createaddfundsrequestresult TokenID="1234567890" ReturnURL="https://www.sandbox.namecheap.com/myaccount/addfunds/Payment.aspx?tokenid=1234567890" RedirectURL="https://www.sandbox.namecheap.com/myaccount/addfunds/Payment.aspx?tokenid=1234567890" />
 	</CommandResponse>
 </ApiResponse>`
 
@@ -24,7 +24,7 @@ const getAddFundsStatusResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
 	<CommandResponse Type="namecheap.users.getAddFundsStatus">
-		<GetAddFundsStatusResult TransactionID="998877" Amount="50.00" Status="COMPLETED" />
+		<GetAddFundsStatusResult TransactionID="998877" Amount="50.00" Status="COMPLETED" RequestedTokenId="1234567890" ReturnedTokenId="1234567890" />
 	</CommandResponse>
 </ApiResponse>`
 
@@ -57,8 +57,9 @@ func TestUsersService_CreateAddFundsRequest(t *testing.T) {
 		result := resp.CreateAddFundsRequestResult
 		mustNotNil(t, result)
 		assert.Equal(t, "1234567890", *result.TokenID)
-		assert.Equal(t, "https://sandbox.namecheap.com/addfunds?token=1234567890", *result.RedirectURL)
-		assert.Equal(t, "https://example.com/done", *result.ReturnURL)
+		mustNotNil(t, result.RedirectURL)
+		assert.Equal(t, *result.RedirectURL, *result.ReturnURL, "the server sends the payment page URL in both")
+		assert.Equal(t, "https://www.sandbox.namecheap.com/myaccount/addfunds/Payment.aspx?tokenid=1234567890", *result.RedirectURL)
 	})
 
 	t.Run("nil args", func(t *testing.T) {
@@ -145,6 +146,8 @@ func TestUsersService_GetAddFundsStatus(t *testing.T) {
 		mustNotNil(t, result)
 		assert.Equal(t, 998877, *result.TransactionID)
 		assert.Equal(t, Amount("50.00"), *result.Amount)
+		assert.Equal(t, "1234567890", *result.RequestedTokenID)
+		assert.Equal(t, "1234567890", *result.ReturnedTokenID)
 		assert.Equal(t, AddFundsStatusCompleted, result.Status)
 	})
 
