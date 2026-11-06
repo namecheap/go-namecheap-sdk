@@ -1272,7 +1272,7 @@ Creates a request to add funds through a credit card.
 
 #### Response Parameters
 
-The result element is `Createaddfundsrequestresult` (lowercase after the first letter) inside `CommandResponse Type="namecheap.users.createAddfundsRequest"` on the sandbox. Production has no capture, so the SDK also accepts the documented `CreateAddFundsRequestResult`.
+The result element is `Createaddfundsrequestresult` (lowercase after the first letter) inside `CommandResponse Type="namecheap.users.createAddfundsRequest"`, not the documented `CreateAddFundsRequestResult`.
 
 | Name | Description |
 |------|-------------|

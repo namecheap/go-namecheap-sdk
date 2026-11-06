@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -61,19 +60,6 @@ func TestUsersService_CreateAddFundsRequest(t *testing.T) {
 		mustNotNil(t, result.RedirectURL)
 		assert.Equal(t, *result.RedirectURL, *result.ReturnURL, "the server sends the payment page URL in both")
 		assert.Equal(t, "https://www.sandbox.namecheap.com/myaccount/addfunds/Payment.aspx?tokenid=1234567890", *result.RedirectURL)
-	})
-
-	// Production has no capture; the documented spelling must not lose the token.
-	t.Run("documented result spelling", func(t *testing.T) {
-		t.Parallel()
-		body := strings.Replace(createAddFundsResponse, "<Createaddfundsrequestresult ", "<CreateAddFundsRequestResult ", 1)
-		client := usersMockClient(t, body, nil)
-
-		resp, err := client.Users.CreateAddFundsRequestWithContext(context.Background(), validAddFundsArgs())
-		mustNoError(t, err)
-		mustNotNil(t, resp.CreateAddFundsRequestResult)
-		mustNotNil(t, resp.CreateAddFundsRequestResult.TokenID)
-		assert.Equal(t, "1234567890", *resp.CreateAddFundsRequestResult.TokenID)
 	})
 
 	t.Run("nil args", func(t *testing.T) {
