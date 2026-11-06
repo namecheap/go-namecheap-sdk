@@ -212,7 +212,7 @@ func TestAcc_DomainsCheck(t *testing.T) {
 	captureFixture(t, client, "domains_check", map[string]string{
 		"Command":    "namecheap.domains.check",
 		"DomainList": freeCandidate,
-	})
+	}, nil)
 }
 
 func TestAcc_DomainsGetList(t *testing.T) {
@@ -256,7 +256,7 @@ func TestAcc_DomainsGetList(t *testing.T) {
 	captureFixture(t, client, "domains_getList", map[string]string{
 		"Command":  "namecheap.domains.getList",
 		"PageSize": "10",
-	})
+	}, nil)
 }
 
 func TestAcc_DomainsGetInfo(t *testing.T) {
@@ -315,7 +315,7 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 		// automatic email rotation; once set it has the same date-only shape
 		// (docs/namecheap-api-v2.md, "Date formats").
 		if ed := wg.EmailDetails; ed != nil {
-			t.Logf("getInfo Whoisguard.EmailDetails.LastAutoEmailChangeDate raw text %s", quoteAttr(ed.LastAutoEmailChangeDate))
+			t.Logf("getInfo Whoisguard.EmailDetails.LastAutoEmailChangeDate raw text %s", attr(ed.LastAutoEmailChangeDate))
 			if ed.LastAutoEmailChangeDate != nil && *ed.LastAutoEmailChangeDate != "" {
 				assertLiveDateText(t, "getInfo Whoisguard.EmailDetails.LastAutoEmailChangeDate", ed.LastAutoEmailChangeDate, dateOnlyPadded)
 			}
@@ -341,7 +341,7 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 		"Command":    "namecheap.domains.getInfo",
 		"DomainName": domain,
 		"HostName":   domain,
-	})
+	}, nil)
 }
 
 // TestAcc_DomainPrivacyGetList is the live-format check for whoisguard.getList
@@ -372,10 +372,10 @@ func TestAcc_DomainPrivacyGetList(t *testing.T) {
 			field = "whoisguard.getList ID=" + strconv.Itoa(*e.ID)
 		}
 		t.Logf("%s DomainName=%v Status=%v Created=%v Expires=%v",
-			field, quoteAttr(e.DomainName), quoteAttr(e.Status), quoteAttr(e.Created), quoteAttr(e.Expires))
+			field, attr(e.DomainName), attr(e.Status), attr(e.Created), attr(e.Expires))
 		if e.State() == namecheap.PrivacyStateUnknown {
 			t.Errorf("%s Status = %s, want a value ClassifyPrivacyStatus recognises (server-side vocabulary drift?)",
-				field, quoteAttr(e.Status))
+				field, attr(e.Status))
 		}
 		assertLiveDateText(t, field+" Created", e.Created, dateOnlyPadded)
 		assertLiveDateText(t, field+" Expires", e.Expires, dateOnlyPadded)
@@ -386,7 +386,7 @@ func TestAcc_DomainPrivacyGetList(t *testing.T) {
 	captureFixture(t, client, "whoisguard_getlist", map[string]string{
 		"Command":  "namecheap.whoisguard.getlist",
 		"PageSize": "10",
-	})
+	}, nil)
 }
 
 // assertPrivacyListMatchesGetInfo cross-checks the two endpoints that report
@@ -428,12 +428,12 @@ func assertPrivacyListMatchesGetInfo(t *testing.T, client *namecheap.Client) {
 		}
 		if e.DomainName == nil || !strings.EqualFold(*e.DomainName, domain) {
 			t.Errorf("whoisguard.getList ID=%d DomainName = %s, want %q (the domain getInfo attaches it to)",
-				*wg.ID, quoteAttr(e.DomainName), domain)
+				*wg.ID, attr(e.DomainName), domain)
 		}
 		got, ok := parseLiveDateText(deref(e.Expires)).Parsed()
 		if !ok || !got.Equal(want) {
 			t.Errorf("whoisguard.getList ID=%d Expires = %s, want %q (getInfo(%q) Whoisguard.ExpiredDate)",
-				*wg.ID, quoteAttr(e.Expires), wg.ExpiredDate.Raw, domain)
+				*wg.ID, attr(e.Expires), wg.ExpiredDate.Raw, domain)
 		}
 		return
 	}
@@ -448,13 +448,13 @@ func deref(s *string) string {
 	return *s
 }
 
-// quoteAttr renders an optional attribute for logs, quoting it so an empty value
-// stays visible.
-func quoteAttr(s *string) string {
-	if s == nil {
+// attr renders an optional field for logs in Go syntax, so a nil pointer, an
+// empty string and a zero stay distinguishable: <nil>, "" and 0.
+func attr[T any](p *T) string {
+	if p == nil {
 		return "<nil>"
 	}
-	return strconv.Quote(*s)
+	return fmt.Sprintf("%#v", *p)
 }
 
 // TestAcc_DomainsRenew proves the DateTime parser against a real domains.renew
@@ -514,7 +514,7 @@ func TestAcc_UsersGetBalances(t *testing.T) {
 	}
 	captureFixture(t, client, "users_getBalances", map[string]string{
 		"Command": "namecheap.users.getBalances",
-	})
+	}, nil)
 }
 
 func TestAcc_UsersGetPricing(t *testing.T) {
@@ -552,7 +552,103 @@ func TestAcc_UsersGetPricing(t *testing.T) {
 		"ProductType": "DOMAIN",
 		"ActionName":  "REGISTER",
 		"ProductName": "com",
+	}, nil)
+}
+
+// TestAcc_UsersAddressGetListAndInfo reads every address-book entry through
+// getList and then getInfo, so an id the SDK refuses to send (the primary
+// address is AddressId 0, #212) or a flag it fails to decode is caught on the
+// real response. Only ids and names are logged: the stored address is personal
+// data.
+func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
+	client := liveClient(t)
+	list, err := client.UsersAddress.GetListWithContext(ctx(t))
+	if err != nil {
+		t.Fatalf("users.address.getList: %v", err)
+	}
+	if list == nil || list.AddressGetListResult == nil || len(*list.AddressGetListResult) == 0 {
+		t.Fatal("users.address.getList: no entries, want at least the primary address")
+	}
+
+	defaults := 0
+	defaultID := -1
+	for _, e := range *list.AddressGetListResult {
+		if e.AddressID == nil {
+			t.Errorf("users.address.getList entry %s: AddressId is missing", attr(e.AddressName))
+			continue
+		}
+		id := *e.AddressID
+		t.Logf("users.address.getList AddressId=%d AddressName=%s IsDefault=%s", id, attr(e.AddressName), attr(e.IsDefault))
+		if e.IsDefault == nil {
+			t.Errorf("users.address.getList AddressId=%d: IsDefault is missing", id)
+		} else if *e.IsDefault {
+			defaults++
+			defaultID = id
+		}
+
+		info, err := client.UsersAddress.GetInfoWithContext(ctx(t), id)
+		if err != nil {
+			t.Errorf("users.address.getInfo(%d): %v", id, err)
+			continue
+		}
+		got := info.GetAddressInfoResult
+		if got == nil {
+			t.Errorf("users.address.getInfo(%d): no GetAddressInfoResult", id)
+			continue
+		}
+		if got.AddressID == nil || *got.AddressID != id {
+			t.Errorf("users.address.getInfo(%d) AddressID = %s, want %d", id, attr(got.AddressID), id)
+		}
+		switch {
+		case got.DefaultYN == nil:
+			t.Errorf("users.address.getInfo(%d) DefaultYN = nil, want the default flag", id)
+		case e.IsDefault != nil && *got.DefaultYN != *e.IsDefault:
+			t.Errorf("users.address.getInfo(%d) DefaultYN = %v, want %v (getList IsDefault)", id, *got.DefaultYN, *e.IsDefault)
+		}
+	}
+	if defaults != 1 {
+		t.Fatalf("users.address.getList: %d entries have IsDefault=true, want exactly one", defaults)
+	}
+
+	captureFixture(t, client, "users_address_getList", map[string]string{
+		"Command": "namecheap.users.address.getList",
+	}, &fixtureRedaction{
+		Container: "AddressGetListResult",
+		Keep:      []string{"List"},
+		Attrs:     []string{"AddressId", "AddressName", "IsDefault"},
 	})
+	captureFixture(t, client, "users_address_getInfo", map[string]string{
+		"Command":   "namecheap.users.address.getInfo",
+		"AddressId": strconv.Itoa(defaultID),
+	}, &fixtureRedaction{
+		Container:    "GetAddressInfoResult",
+		Keep:         []string{"AddressId", "AddressName", "Default_YN"},
+		Placeholders: addressPlaceholders,
+	})
+}
+
+// addressPlaceholders replace the account owner's personal data in the
+// committed getInfo fixture with made-up values, so code that stubs the fixture
+// gets usable data. Name, street, city, state, zip, country, phone and email
+// are the values the sandbox returned for a dummy address on 2026-11-03;
+// Country is replaced too, so the address stays consistent.
+var addressPlaceholders = map[string]string{
+	"UserName":            "sandboxuser",
+	"FirstName":           "Test",
+	"LastName":            "Probe",
+	"JobTitle":            "Engineer",
+	"Organization":        "Example Org",
+	"Address1":            "1 Test Street",
+	"Address2":            "Suite 100",
+	"City":                "Phoenix",
+	"StateProvince":       "AZ",
+	"StateProvinceChoice": "S",
+	"Zip":                 "85284",
+	"Country":             "US",
+	"Phone":               "+1.5555555555",
+	"PhoneExt":            "100",
+	"Fax":                 "+1.5555555556",
+	"EmailAddress":        "user@example.com",
 }
 
 // TestAcc_DNSRoundTrip exercises the get -> set -> restore reversible flow on
@@ -572,7 +668,7 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 	}
 	captureFixture(t, client, "domains_dns_getHosts", map[string]string{
 		"Command": "namecheap.domains.dns.getHosts",
-	})
+	}, nil)
 
 	if got.DomainDNSGetHostsResult == nil {
 		t.Fatalf("dns.getHosts %s: response has no DomainDNSGetHostsResult", domain)
@@ -667,12 +763,16 @@ func hostRecords(resp *namecheap.DomainsDNSGetHostsCommandResponse) []namecheap.
 
 // captureFixture re-captures a raw sandbox response into the committed fixture
 // corpus when -update-fixtures is set. It performs a direct POST (bypassing the
-// SDK's response decoding) to obtain the verbatim XML body. It is a no-op
-// otherwise.
-func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string) {
+// SDK's response decoding) to obtain the verbatim XML body. A response that
+// holds personal data passes a redaction (see fixtureRedaction); the rest of the
+// body is written unchanged. It is a no-op otherwise.
+func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string, redaction *fixtureRedaction) {
 	t.Helper()
 	if !*updateFixtures {
 		return
+	}
+	if !c.ClientOptions.UseSandbox {
+		t.Fatalf("capture %s: the client does not target the sandbox; fixtures are captured from the sandbox only", short)
 	}
 	form := url.Values{}
 	for k, v := range params {
@@ -691,6 +791,12 @@ func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("capture %s: read: %v", short, err)
+	}
+	if redaction != nil {
+		body, err = redaction.apply(body)
+		if err != nil {
+			t.Fatalf("capture %s: %v; refusing to write personal data", short, err)
+		}
 	}
 	path := filepath.Join("..", "namecheaptest", "fixtures", short+".xml")
 	if err := os.WriteFile(path, body, 0o600); err != nil {

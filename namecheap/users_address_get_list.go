@@ -27,16 +27,19 @@ type UsersAddressGetListCommandResponse struct {
 }
 
 // UsersAddressListEntry is one address-book entry in the list. Field names follow
-// the getList response table in docs/namecheap-api-v2.md (lines 1426-1427).
+// the captured sandbox response in namecheaptest/fixtures/users_address_getList.xml.
 type UsersAddressListEntry struct {
-	// AddressID is the unique integer representing the address profile.
+	// AddressID is the unique integer representing the address profile. The
+	// account's primary address has id 0.
 	AddressID *int `xml:"AddressId,attr"`
 	// AddressName is the name of the address profile.
 	AddressName *string `xml:"AddressName,attr"`
+	// IsDefault reports whether this is the account's default address.
+	IsDefault *bool `xml:"IsDefault,attr"`
 }
 
-// GetListWithContext returns every address-book entry (id and name) on the
-// account.
+// GetListWithContext returns every address-book entry (id, name and default
+// flag) on the account.
 //
 // It is a read-only, idempotent call and takes no parameters. Per the doc the
 // response is not paged.

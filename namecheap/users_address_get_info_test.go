@@ -25,14 +25,30 @@ func TestUsersAddressService_GetInfo(t *testing.T) {
 		got := resp.GetAddressInfoResult
 		mustNotNil(t, got)
 		assert.Equal(t, "Home", *got.AddressName)
+		mustNotNil(t, got.UserName)
+		assert.Equal(t, "owner", *got.UserName)
 		assert.Equal(t, "85284", *got.Zip)
 		assert.Equal(t, "NameCheap.com", *got.Organization)
+		mustNotNil(t, got.DefaultYN)
+		assert.False(t, *got.DefaultYN)
 	})
 
-	t.Run("invalid id no http", func(t *testing.T) {
+	// The account's primary address has AddressId 0 in getList, and getInfo
+	// accepts it (#212), so 0 must reach the API.
+	t.Run("primary address id 0 is sent", func(t *testing.T) {
+		t.Parallel()
+		var sent url.Values
+		client := usersMockClient(t, addressGetInfoResponse, &sent)
+
+		_, err := client.UsersAddress.GetInfoWithContext(context.Background(), 0)
+		mustNoError(t, err)
+		assert.Equal(t, "0", sent.Get("AddressId"))
+	})
+
+	t.Run("negative id no http", func(t *testing.T) {
 		t.Parallel()
 		client := setupClient(nil)
-		_, err := client.UsersAddress.GetInfoWithContext(context.Background(), 0)
+		_, err := client.UsersAddress.GetInfoWithContext(context.Background(), -1)
 		assertInvalidArguments(t, err, "AddressId")
 	})
 

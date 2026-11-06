@@ -13,9 +13,9 @@ const addressGetListResponse = `<?xml version="1.0" encoding="utf-8"?>
 	<Errors />
 	<CommandResponse Type="namecheap.users.address.getList">
 		<AddressGetListResult>
-			<List AddressId="777" AddressName="Home" />
-			<List AddressId="778" AddressName="Office" />
-			<List AddressId="779" AddressName="Billing" />
+			<List AddressId="0" AddressName="Primary Address" IsDefault="true" />
+			<List AddressId="778" AddressName="Office" IsDefault="false" />
+			<List AddressId="779" AddressName="Billing" IsDefault="false" />
 		</AddressGetListResult>
 	</CommandResponse>
 </ApiResponse>`
@@ -35,10 +35,14 @@ func TestUsersAddressService_GetList(t *testing.T) {
 		mustNotNil(t, resp.AddressGetListResult)
 		entries := *resp.AddressGetListResult
 		mustLen(t, entries, 3)
-		assert.Equal(t, 777, *entries[0].AddressID)
-		assert.Equal(t, "Home", *entries[0].AddressName)
+		assert.Equal(t, 0, *entries[0].AddressID)
+		assert.Equal(t, "Primary Address", *entries[0].AddressName)
+		mustNotNil(t, entries[0].IsDefault)
+		assert.True(t, *entries[0].IsDefault)
 		assert.Equal(t, 779, *entries[2].AddressID)
 		assert.Equal(t, "Billing", *entries[2].AddressName)
+		mustNotNil(t, entries[2].IsDefault)
+		assert.False(t, *entries[2].IsDefault)
 	})
 
 	t.Run("api error mapped to APIError", func(t *testing.T) {

@@ -12,7 +12,7 @@ const addressDeleteResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
 	<CommandResponse Type="namecheap.users.address.delete">
-		<AddressDeleteResult Success="true" ProfileID="777" Username="testuser" />
+		<AddressDeleteResult Success="true" ProfileId="777" />
 	</CommandResponse>
 </ApiResponse>`
 
@@ -33,7 +33,7 @@ func TestUsersAddressService_Delete(t *testing.T) {
 		mustNotNil(t, resp.AddressDeleteResult)
 		assert.True(t, *resp.AddressDeleteResult.Success)
 		assert.Equal(t, 777, *resp.AddressDeleteResult.ProfileID)
-		assert.Equal(t, "testuser", *resp.AddressDeleteResult.Username)
+		assert.Nil(t, resp.AddressDeleteResult.Username, "the server does not send Username")
 	})
 
 	t.Run("invalid id", func(t *testing.T) {

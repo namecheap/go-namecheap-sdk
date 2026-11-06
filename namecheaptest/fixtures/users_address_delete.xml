@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
-	<Errors />
-	<CommandResponse Type="namecheap.users.address.delete">
-		<AddressDeleteResult Success="true" ProfileID="777" Username="testuser" />
-	</CommandResponse>
+  <Errors />
+  <Warnings />
+  <RequestedCommand>namecheap.users.address.delete</RequestedCommand>
+  <CommandResponse Type="namecheap.users.address.delete">
+    <AddressDeleteResult Success="true" ProfileId="149237" />
+  </CommandResponse>
+  <Server>Server -151154064</Server>
+  <GMTTimeDifference>--5:00</GMTTimeDifference>
+  <ExecutionTime>0.152</ExecutionTime>
 </ApiResponse>

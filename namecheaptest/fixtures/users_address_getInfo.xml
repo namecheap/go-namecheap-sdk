@@ -1,26 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
-	<Errors />
-	<CommandResponse Type="namecheap.users.address.getInfo">
-		<GetAddressInfoResult>
-			<AddressId>777</AddressId>
-			<AddressName>Home</AddressName>
-			<DefaultYN>0</DefaultYN>
-			<EmailAddress>john@example.com</EmailAddress>
-			<FirstName>John</FirstName>
-			<LastName>Smith</LastName>
-			<JobTitle>Dev</JobTitle>
-			<Organization>NameCheap.com</Organization>
-			<Address1>8939 S.cross Blvd</Address1>
-			<Address2>Suite 600</Address2>
-			<City>Phoenix</City>
-			<StateProvince>AZ</StateProvince>
-			<StateProvinceChoice>S</StateProvinceChoice>
-			<Zip>85284</Zip>
-			<Country>US</Country>
-			<Phone>+1.6613102107</Phone>
-			<PhoneExt>123</PhoneExt>
-			<Fax>+1.6613102108</Fax>
-		</GetAddressInfoResult>
-	</CommandResponse>
+  <Errors />
+  <Warnings />
+  <RequestedCommand>namecheap.users.address.getinfo</RequestedCommand>
+  <CommandResponse Type="namecheap.users.address.getInfo">
+    <GetAddressInfoResult>
+      <AddressId>0</AddressId>
+      <UserName>sandboxuser</UserName>
+      <AddressName>Main Address</AddressName>
+      <Default_YN>true</Default_YN>
+      <FirstName>Test</FirstName>
+      <LastName>Probe</LastName>
+      <Organization>Example Org</Organization>
+      <Address1>1 Test Street</Address1>
+      <City>Phoenix</City>
+      <StateProvince>AZ</StateProvince>
+      <StateProvinceChoice>S</StateProvinceChoice>
+      <Zip>85284</Zip>
+      <Country>US</Country>
+      <Phone>+1.5555555555</Phone>
+      <EmailAddress>user@example.com</EmailAddress>
+    </GetAddressInfoResult>
+  </CommandResponse>
+  <Server>Server -151154064</Server>
+  <GMTTimeDifference>--5:00</GMTTimeDifference>
+  <ExecutionTime>0.015</ExecutionTime>
 </ApiResponse>

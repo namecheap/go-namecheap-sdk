@@ -15,20 +15,23 @@ const addressCreateResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
 	<CommandResponse Type="namecheap.users.address.create">
-		<AddressCreateResult Success="true" AddressID="777" />
+		<AddressCreateResult Success="true" AddressId="777" AddressName="Home" />
 	</CommandResponse>
 </ApiResponse>`
 
 // addressGetInfoResponse echoes back exactly the fields validAddressDetails
-// sends, so a Create -> GetInfo round-trip can assert field equality.
+// sends, so a Create -> GetInfo round-trip can assert field equality. The
+// default flag uses the response element name, Default_YN (see the captured
+// namecheaptest/fixtures/users_address_getInfo.xml).
 const addressGetInfoResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
 	<CommandResponse Type="namecheap.users.address.getInfo">
 		<GetAddressInfoResult>
 			<AddressId>777</AddressId>
+			<UserName>owner</UserName>
 			<AddressName>Home</AddressName>
-			<DefaultYN>0</DefaultYN>
+			<Default_YN>false</Default_YN>
 			<EmailAddress>john@example.com</EmailAddress>
 			<FirstName>John</FirstName>
 			<LastName>Smith</LastName>

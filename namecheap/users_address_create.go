@@ -17,8 +17,8 @@ type UsersAddressCreateResponse struct {
 }
 
 // UsersAddressCreateCommandResponse wraps the create result. The doc lists no
-// response table for address.create (docs/namecheap-api-v2.md lines 1341-1367);
-// the result element carries the new address id and a Success flag on the wire.
+// response table for address.create; the fields follow the captured sandbox
+// response in namecheaptest/fixtures/users_address_create.xml.
 type UsersAddressCreateCommandResponse struct {
 	AddressCreateResult *UsersAddressCreateResult `xml:"AddressCreateResult"`
 }
@@ -27,8 +27,11 @@ type UsersAddressCreateCommandResponse struct {
 type UsersAddressCreateResult struct {
 	// Success reports whether the address was created.
 	Success *bool `xml:"Success,attr"`
-	// AddressID is the unique integer identifying the new address profile.
-	AddressID *int `xml:"AddressID,attr"`
+	// AddressID is the unique integer identifying the new address profile. The
+	// response attribute is AddressId.
+	AddressID *int `xml:"AddressId,attr"`
+	// AddressName is the name of the new address profile.
+	AddressName *string `xml:"AddressName,attr"`
 }
 
 // CreateWithContext adds a new entry to the user's address book.

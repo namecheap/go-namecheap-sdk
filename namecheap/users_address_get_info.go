@@ -23,17 +23,20 @@ type UsersAddressGetInfoCommandResponse struct {
 }
 
 // UsersAddressGetInfoResult is the full stored address. The doc gives no response
-// table for address.getInfo (docs/namecheap-api-v2.md lines 1393-1410, only error
-// codes), so the fields mirror the create request fields (lines 1349-1367), which
-// getInfo echoes back; on the wire they are child elements. Every field is a
-// pointer so a field the server omits stays nil rather than an empty value.
+// table for address.getInfo; the fields follow the captured sandbox response in
+// namecheaptest/fixtures/users_address_getInfo.xml, where they are child
+// elements. Every field is a pointer so a field the server omits stays nil
+// rather than an empty value.
 type UsersAddressGetInfoResult struct {
 	// AddressID is the unique integer identifying the address profile.
 	AddressID *int `xml:"AddressId"`
+	// UserName is the account the address belongs to.
+	UserName *string `xml:"UserName"`
 	// AddressName is the address label.
 	AddressName *string `xml:"AddressName"`
-	// DefaultYN reports whether this is the default address.
-	DefaultYN *bool `xml:"DefaultYN"`
+	// DefaultYN reports whether this is the default address. The response
+	// element is Default_YN, unlike the DefaultYN request parameter.
+	DefaultYN *bool `xml:"Default_YN"`
 	// EmailAddress is the contact e-mail address.
 	EmailAddress *string `xml:"EmailAddress"`
 	// FirstName is the contact's first name.
@@ -68,11 +71,13 @@ type UsersAddressGetInfoResult struct {
 
 // GetInfoWithContext returns the full stored address for the given id.
 //
-// It is a read-only, idempotent call. addressID must be positive.
+// It is a read-only, idempotent call. addressID must not be negative: the
+// account's primary address has id PrimaryAddressID (0), and getList returns it
+// as AddressId="0".
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/users/address/get-info/
 func (uas *UsersAddressService) GetInfoWithContext(ctx context.Context, addressID int) (*UsersAddressGetInfoCommandResponse, error) {
-	if addressID <= 0 {
+	if addressID < 0 {
 		return nil, &InvalidArgumentsError{Fields: []string{"AddressId"}}
 	}
 
@@ -98,25 +103,17 @@ func (r *UsersAddressGetInfoResult) ToContactInfo() ContactInfo {
 		return ContactInfo{}
 	}
 	return ContactInfo{
-		FirstName:        derefString(r.FirstName),
-		LastName:         derefString(r.LastName),
-		Address1:         derefString(r.Address1),
-		City:             derefString(r.City),
-		StateProvince:    derefString(r.StateProvince),
-		PostalCode:       derefString(r.Zip),
-		Country:          derefString(r.Country),
-		Phone:            derefString(r.Phone),
-		EmailAddress:     derefString(r.EmailAddress),
-		OrganizationName: derefString(r.Organization),
-		JobTitle:         derefString(r.JobTitle),
-		Address2:         derefString(r.Address2),
+		FirstName:        derefStr(r.FirstName),
+		LastName:         derefStr(r.LastName),
+		Address1:         derefStr(r.Address1),
+		City:             derefStr(r.City),
+		StateProvince:    derefStr(r.StateProvince),
+		PostalCode:       derefStr(r.Zip),
+		Country:          derefStr(r.Country),
+		Phone:            derefStr(r.Phone),
+		EmailAddress:     derefStr(r.EmailAddress),
+		OrganizationName: derefStr(r.Organization),
+		JobTitle:         derefStr(r.JobTitle),
+		Address2:         derefStr(r.Address2),
 	}
-}
-
-// derefString returns *p, or "" when p is nil.
-func derefString(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
 }

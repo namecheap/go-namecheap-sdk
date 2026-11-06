@@ -1368,6 +1368,8 @@ Sends a password reset link to the end user's profile email. The user must click
 
 ## users.address
 
+> **Captured responses.** The response tables below follow real sandbox responses captured on 2026-11-03 (`namecheaptest/fixtures/users_address_*.xml`, #212; `getList` re-captured on 2026-11-06 with a second, non-default address), not the official docs. Responses spell the id `AddressId` (`ProfileId` in delete), where the official docs write `AddressID`/`ProfileID`. The account's primary address has `AddressId` **0**: `getList` lists it, and `getInfo` and `setDefault` accept `AddressId=0`.
+
 ### namecheap.users.address.create
 
 Creates a new address for the user.
@@ -1396,6 +1398,14 @@ Creates a new address for the user.
 | PhoneExt | String | 10 | No | Phone extension |
 | Fax | String | 20 | No | Fax number |
 
+#### Response Parameters
+
+| Name | Description |
+|------|-------------|
+| Success | Whether the address was created (attribute of `AddressCreateResult`) |
+| AddressId | Id of the new address profile |
+| AddressName | Name of the new address profile |
+
 ---
 
 ### namecheap.users.address.delete
@@ -1415,8 +1425,8 @@ Deletes an address for the user.
 | Name | Description |
 |------|-------------|
 | Success | Whether address was deleted successfully |
-| ProfileID | Unique integer representing the address profile |
-| Username | Username in question |
+| ProfileId | Id of the deleted address profile (the official docs write `ProfileID`) |
+| Username | Listed in the official docs; absent from the captured sandbox response |
 
 ---
 
@@ -1430,7 +1440,19 @@ Gets information for the requested addressID.
 
 | Name | Type | MaxLength | Required | Description |
 |------|------|-----------|----------|-------------|
-| AddressId | Number | 20 | Yes | Unique AddressID |
+| AddressId | Number | 20 | Yes | Unique AddressID; 0 is the primary address |
+
+#### Response Parameters
+
+Child elements of `GetAddressInfoResult`. Optional fields with no value (`JobTitle`, `Address2`, `PhoneExt`, `Fax` in the capture) are omitted, not sent empty.
+
+| Name | Description |
+|------|-------------|
+| AddressId | Id of the address profile |
+| UserName | Account the address belongs to |
+| AddressName | Name of the address profile; for the primary address it differs from `getList` (`Main Address` vs `Primary Address`) |
+| Default_YN | `true` or `false`: whether this is the default address. The request parameter of create/update is `DefaultYN` |
+| FirstName, LastName, JobTitle, Organization, Address1, Address2, City, StateProvince, StateProvinceChoice, Zip, Country, Phone, PhoneExt, Fax, EmailAddress | The stored contact fields |
 
 #### Error Codes
 
@@ -1453,8 +1475,9 @@ No additional request parameters required.
 
 | Name | Description |
 |------|-------------|
-| AddressID | Unique integer representing the address profile |
+| AddressId | Id of the address profile (attribute of each `List` element); 0 is the primary address |
 | AddressName | Name of the address profile |
+| IsDefault | `true` or `false`: whether this is the default address |
 
 ---
 
@@ -1468,14 +1491,14 @@ Sets the default address for the user.
 
 | Name | Type | MaxLength | Required | Description |
 |------|------|-----------|----------|-------------|
-| AddressId | Number | 20 | Yes | Unique addressID to set as default |
+| AddressId | Number | 20 | Yes | Unique addressID to set as default; 0 makes the primary address the default again |
 
 #### Response Parameters
 
 | Name | Description |
 |------|-------------|
 | Success | Whether default address was set successfully |
-| AddressID | Unique integer representing the address profile |
+| AddressId | Id of the new default address profile |
 
 ---
 
@@ -1507,6 +1530,16 @@ Updates an address for the user.
 | Phone | String | 20 | Yes | Phone in format +NNN.NNNNNNNNNN |
 | PhoneExt | String | 10 | No | Phone extension |
 | Fax | String | 20 | No | Fax number |
+
+#### Response Parameters
+
+| Name | Description |
+|------|-------------|
+| Success | Whether the address was updated (attribute of `AddressUpdateResult`) |
+| AddressId | Id of the updated address profile |
+| AddressName | Name of the updated address profile |
+
+Omitting `DefaultYN` leaves the default flag unchanged (sandbox, 2026-11-03).
 
 ---
 

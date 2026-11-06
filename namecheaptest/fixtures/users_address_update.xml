@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
-	<Errors />
-	<CommandResponse Type="namecheap.users.address.update">
-		<AddressUpdateResult Success="true" AddressID="777" />
-	</CommandResponse>
+  <Errors />
+  <Warnings />
+  <RequestedCommand>namecheap.users.address.update</RequestedCommand>
+  <CommandResponse Type="namecheap.users.address.update">
+    <AddressUpdateResult Success="true" AddressId="149238" AddressName="sdk-212-probe2" />
+  </CommandResponse>
+  <Server>Server -151154064</Server>
+  <GMTTimeDifference>--5:00</GMTTimeDifference>
+  <ExecutionTime>0.106</ExecutionTime>
 </ApiResponse>
