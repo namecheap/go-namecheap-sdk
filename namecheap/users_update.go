@@ -26,9 +26,11 @@ type UsersUpdateCommandResponse struct {
 type UsersUpdateResult struct {
 	// Success reports whether the account was updated.
 	Success *bool `xml:"Success,attr"`
-	// UserID is the unique integer representing the updated user. The response
-	// attribute is UserId.
-	UserID *int `xml:"UserId,attr"`
+	// UserID is the id of the updated user ("249707" in the captured response),
+	// from the undocumented UserId attribute. It stays the raw text so a value
+	// that is not a number cannot fail the response of an update that already
+	// succeeded.
+	UserID *string `xml:"UserId,attr"`
 }
 
 // UsersUpdateArgs are the arguments for UpdateWithContext. Field names and

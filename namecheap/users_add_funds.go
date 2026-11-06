@@ -40,12 +40,29 @@ type UsersCreateAddFundsRequestResponse struct {
 }
 
 // UsersCreateAddFundsRequestCommandResponse wraps the createaddfundsrequest
-// result. The result element is spelled Createaddfundsrequestresult on the
-// wire (captured sandbox response in
-// namecheaptest/fixtures/users_createaddfundsrequest.xml), not
-// CreateAddFundsRequestResult as the official docs suggest.
+// result. The sandbox spells the result element Createaddfundsrequestresult
+// (captured in namecheaptest/fixtures/users_createaddfundsrequest.xml), the
+// official docs CreateAddFundsRequestResult, and production has no capture, so
+// either spelling decodes into CreateAddFundsRequestResult.
 type UsersCreateAddFundsRequestCommandResponse struct {
 	CreateAddFundsRequestResult *UsersCreateAddFundsRequestResult `xml:"Createaddfundsrequestresult"`
+}
+
+// UnmarshalXML implements xml.Unmarshaler, accepting both spellings of the
+// result element.
+func (r *UsersCreateAddFundsRequestCommandResponse) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var raw struct {
+		Wire       *UsersCreateAddFundsRequestResult `xml:"Createaddfundsrequestresult"`
+		Documented *UsersCreateAddFundsRequestResult `xml:"CreateAddFundsRequestResult"`
+	}
+	if err := d.DecodeElement(&raw, &start); err != nil {
+		return err
+	}
+	r.CreateAddFundsRequestResult = raw.Wire
+	if r.CreateAddFundsRequestResult == nil {
+		r.CreateAddFundsRequestResult = raw.Documented
+	}
+	return nil
 }
 
 // UsersCreateAddFundsRequestResult is the outcome of an add-funds request. Field

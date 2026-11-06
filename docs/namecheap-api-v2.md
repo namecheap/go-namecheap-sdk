@@ -1159,12 +1159,12 @@ Returns pricing information for a requested product type.
 | Product Name | Name of the product |
 | Duration | Duration of the product |
 | DurationType | Duration type |
-| Price | Final price (from regular, userprice, special, promo, or tier price) |
+| Price | Final price (from regular, userprice, special, promo, or tier price). Per year: the capture quotes `13.98` for every `.com` Duration from 1 to 10 |
 | RegularPrice | Regular price |
 | YourPrice | User's price |
 | Currency | Currency in which the price is listed |
 | PromotionPrice | Promotional price; the capture sends `0.0` on tiers without a promotion |
-| AdditionalCost, RegularAdditionalCost, YourAdditonalCost (sic) | Fee charged on top of the matching price, per the same unit (`0.20` for `.com` in the capture, the ICANN fee); not in the official docs. The SDK exposes them on `Price` and adds the matching one in `Price.TotalPrice()` |
+| AdditionalCost, RegularAdditionalCost, YourAdditonalCost (sic) | Fee charged on top of the matching price, per year like it (`0.20` for `.com` in the capture, the ICANN fee); not in the official docs. The SDK exposes them on `Price` and adds the matching one in `Price.TotalPrice()` |
 | PricingType, RegularPriceType, YourPriceType, RegularAdditionalCostType, YourAdditonalCostType | `MULTIPLE` in the capture; not in the official docs. The SDK exposes `PricingType` |
 
 ---
@@ -1272,7 +1272,7 @@ Creates a request to add funds through a credit card.
 
 #### Response Parameters
 
-The result element is `Createaddfundsrequestresult` (lowercase after the first letter) inside `CommandResponse Type="namecheap.users.createAddfundsRequest"`.
+The result element is `Createaddfundsrequestresult` (lowercase after the first letter) inside `CommandResponse Type="namecheap.users.createAddfundsRequest"` on the sandbox. Production has no capture, so the SDK also accepts the documented `CreateAddFundsRequestResult`.
 
 | Name | Description |
 |------|-------------|

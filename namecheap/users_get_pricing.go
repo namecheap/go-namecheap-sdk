@@ -97,8 +97,8 @@ type Price struct {
 	// PromotionPrice is what makes the discount that produced it identifiable
 	// rather than guessed from Price != RegularPrice.
 	PromotionPrice Amount `xml:"PromotionPrice,attr"`
-	// AdditionalCost is the fee charged on top of Price for this tier, per the
-	// same unit as Price (the ICANN fee, "0.20" on .com registrations). It is
+	// AdditionalCost is the fee charged on top of Price for this tier, per year
+	// like Price (the ICANN fee, "0.20" on .com registrations). It is
 	// not in the official docs; the attribute is in every Price node of the
 	// captured sandbox response (namecheaptest/fixtures/users_getPricing.xml).
 	// See TotalPrice.
@@ -239,10 +239,14 @@ func (p Price) EffectivePrice() Amount {
 // TotalPrice returns EffectivePrice plus the additional cost that goes with
 // the attribute EffectivePrice chose: Price pairs with AdditionalCost,
 // YourPrice with YourAdditionalCost and RegularPrice with
-// RegularAdditionalCost. This is the amount the account is charged per unit of
-// the tier ("14.18" for a .com registration quoted as Price="13.98"
-// AdditionalCost="0.20"), so a balance check should use it rather than
-// EffectivePrice, which stays the server-resolved price alone.
+// RegularAdditionalCost ("14.18" for a .com registration quoted as
+// Price="13.98" AdditionalCost="0.20"). A balance check should use it rather
+// than EffectivePrice, which stays the server-resolved price alone.
+//
+// Like Price, it is the amount for one year, not for the whole term: the
+// captured .com sheet (PricingType="MULTIPLE") quotes Price="13.98" for every
+// Duration from 1 to 10. A balance check before an N-year order must scale it
+// by N; no multi-year charge has been captured yet to confirm the exact total.
 //
 // The sum is exact: both strings are added as decimals (math/big.Rat) and
 // formatted with the longer scale of the two, never through float64. A missing

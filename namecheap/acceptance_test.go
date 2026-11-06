@@ -23,7 +23,6 @@
 package namecheap_test
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -672,6 +671,7 @@ func TestAcc_UsersAddFunds(t *testing.T) {
 	if on, _ := strconv.ParseBool(os.Getenv(envAddFunds)); !on {
 		t.Skipf("%s not true; skipping users.createaddfundsrequest (leaves a pending funding request)", envAddFunds)
 	}
+	requireSandbox(t, client, "users.createaddfundsrequest")
 	args := &namecheap.UsersCreateAddFundsRequestArgs{
 		PaymentType: namecheap.PaymentTypeCreditcard,
 		Amount:      "10.00",
@@ -773,12 +773,14 @@ var tokenAttr = regexp.MustCompile(`Token[Ii][Dd]="([^"]+)"`)
 // users.update, and reads it again. It is opt-in through
 // NAMECHEAP_ACC_USERS_UPDATE because it writes the shared account's profile,
 // even though no value changes. The profile is personal data: no value is
-// logged, and a captured users.update fixture that echoes one is refused.
+// logged, and a users.update capture that echoes one is refused before it is
+// written.
 func TestAcc_UsersUpdateRoundTrip(t *testing.T) {
 	client := liveClient(t)
 	if on, _ := strconv.ParseBool(os.Getenv(envUsersUpdate)); !on {
 		t.Skipf("%s not true; skipping users.update (writes the account profile)", envUsersUpdate)
 	}
+	requireSandbox(t, client, "users.update")
 	before := primaryAddress(t, client)
 	args := &namecheap.UsersUpdateArgs{
 		FirstName:     deref(before.FirstName),
@@ -856,14 +858,24 @@ func TestAcc_UsersUpdateRoundTrip(t *testing.T) {
 			params[k] = v
 		}
 	}
-	body := captureFixture(t, client, "users_update", params, &fixtureRedaction{
+	captureFixture(t, client, "users_update", params, &fixtureRedaction{
 		Container: "UserUpdateResult",
 		Attrs:     []string{"Success", "UserId"},
+		Forbidden: []string{
+			args.FirstName, args.LastName, args.JobTitle, args.Organization, args.Address1, args.Address2,
+			args.City, args.Zip, args.EmailAddress, args.Phone, args.PhoneExt, args.Fax,
+		},
 	})
-	refuseIfEchoed(t, "users_update", body, []string{
-		args.FirstName, args.LastName, args.JobTitle, args.Organization, args.Address1, args.Address2,
-		args.City, args.Zip, args.EmailAddress, args.Phone, args.PhoneExt, args.Fax,
-	})
+}
+
+// requireSandbox fails a write test before its first request unless the client
+// targets the sandbox. The opt-in variables choose which writes run, not where:
+// under a production profile they would write to the real account.
+func requireSandbox(t *testing.T, c *namecheap.Client, command string) {
+	t.Helper()
+	if !c.ClientOptions.UseSandbox {
+		t.Fatalf("%s writes to the account; refusing to run it outside the sandbox (%s is not true)", command, envUseSandbox)
+	}
 }
 
 // primaryAddress reads the account's primary address (AddressId 0).
@@ -1036,30 +1048,10 @@ func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[
 			t.Fatalf("capture %s: %v; refusing to write personal data", short, err)
 		}
 	}
-	if err := os.WriteFile(fixturePath(short), body, 0o600); err != nil {
+	path := filepath.Join("..", "namecheaptest", "fixtures", short+".xml")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
 		t.Fatalf("capture %s: write: %v", short, err)
 	}
 	t.Logf("captured fixture %s (%d bytes)", short, len(body))
 	return body
-}
-
-// fixturePath is where captureFixture writes the fixture named short.
-func fixturePath(short string) string {
-	return filepath.Join("..", "namecheaptest", "fixtures", short+".xml")
-}
-
-// refuseIfEchoed deletes a freshly captured fixture and fails the test when the
-// raw response carries any of values, so a profile value never reaches the
-// committed corpus. It is a no-op when nothing was captured (body == nil).
-func refuseIfEchoed(t *testing.T, short string, body []byte, values []string) {
-	t.Helper()
-	if body == nil {
-		return
-	}
-	for _, v := range values {
-		if v != "" && bytes.Contains(body, []byte(v)) {
-			_ = os.Remove(fixturePath(short))
-			t.Fatalf("capture %s: the response echoes a profile value; fixture removed, refusing to write personal data", short)
-		}
-	}
 }

@@ -79,7 +79,7 @@ func TestUsersUpdateFromCapturedResponse(t *testing.T) {
 	if ur == nil || ur.Success == nil || !*ur.Success {
 		t.Fatalf("UpdateWithContext().UserUpdateResult = %+v, want Success", ur)
 	}
-	if ur.UserID == nil || *ur.UserID != 249707 {
-		t.Errorf("UpdateWithContext().UserID = %v, want 249707", ur.UserID)
+	if ur.UserID == nil || *ur.UserID != "249707" {
+		t.Errorf("UpdateWithContext().UserID = %v, want %q", ur.UserID, "249707")
 	}
 }

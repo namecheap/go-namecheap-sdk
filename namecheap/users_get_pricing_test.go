@@ -14,9 +14,10 @@ import (
 // pricingDomainResponse is a realistic captured-style DOMAIN price sheet. The
 // register tiers for com/net/org are crafted to exercise EffectivePrice
 // precedence: com has a promo Price, net falls through to YourPrice (Price zero),
-// org falls through to RegularPrice (Price empty, YourPrice zero). Currency is
-// parsed; the remaining extra attributes (PricingType, RegularPriceType, ...)
-// mirror the live API and must be ignored.
+// org falls through to RegularPrice (Price empty, YourPrice zero). Every price
+// is per year, as in the captured sheet, so the 2-year com tier quotes one
+// year (without the 1-year promo). Currency and PricingType are parsed; the
+// remaining extra attributes (RegularPriceType, ...) must be ignored.
 const pricingDomainResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
@@ -27,7 +28,7 @@ const pricingDomainResponse = `<?xml version="1.0" encoding="utf-8"?>
 				<ProductCategory Name="register">
 					<Product Name="com">
 						<Price Duration="1" DurationType="YEAR" Price="8.88" PricingType="MULTIPLE" RegularPrice="10.87" RegularPriceType="MULTIPLE" YourPrice="9.99" YourPriceType="MULTIPLE" Currency="USD" />
-						<Price Duration="2" DurationType="YEAR" Price="17.76" RegularPrice="21.74" YourPrice="19.98" Currency="USD" />
+						<Price Duration="2" DurationType="YEAR" Price="9.99" RegularPrice="10.87" YourPrice="9.99" Currency="USD" />
 					</Product>
 					<Product Name="net">
 						<Price Duration="1" DurationType="YEAR" Price="0.0" RegularPrice="12.00" YourPrice="10.50" Currency="USD" />
@@ -226,7 +227,7 @@ func TestUsersService_GetPricing_PriceForPrecedence(t *testing.T) {
 		{"promo wins (Price set)", "REGISTER", "com", 1, true, "8.88"},
 		{"user price when Price zero", "REGISTER", "net", 1, true, "10.50"},
 		{"regular when Price empty and user zero", "REGISTER", "org", 1, true, "9.18"},
-		{"multi-year tier", "REGISTER", "com", 2, true, "17.76"},
+		{"multi-year tier", "REGISTER", "com", 2, true, "9.99"},
 		{"different action", "RENEW", "com", 1, true, "11.00"},
 		{"case-insensitive action and product", "register", "COM", 1, true, "8.88"},
 		{"unknown product", "REGISTER", "xyz", 1, false, ""},

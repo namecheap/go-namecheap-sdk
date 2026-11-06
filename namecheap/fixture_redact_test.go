@@ -20,17 +20,25 @@ import (
 // Anything else there (an unknown element, another attribute, nested markup,
 // CDATA, a comment, a placeholder element whose text was not replaced) fails
 // the capture, so a change in the response cannot put real data into a fixture.
+// A non-empty Forbidden value (one the request sent, such as a profile field)
+// fails it wherever it appears in the redacted body.
 type fixtureRedaction struct {
 	Container    string
 	Keep         []string
 	Attrs        []string
 	Placeholders map[string]string
+	Forbidden    []string
 }
 
 func (r fixtureRedaction) apply(body []byte) ([]byte, error) {
 	for name, placeholder := range r.Placeholders {
 		plain := regexp.MustCompile(`<` + name + `>[^<]*</` + name + `>`)
 		body = plain.ReplaceAllLiteral(body, []byte("<"+name+">"+placeholder+"</"+name+">"))
+	}
+	for _, v := range r.Forbidden {
+		if v != "" && bytes.Contains(body, []byte(v)) {
+			return nil, errors.New("the response echoes a forbidden value")
+		}
 	}
 
 	dec := xml.NewDecoder(bytes.NewReader(body))
@@ -128,6 +136,8 @@ func TestFixtureRedaction(t *testing.T) {
 		{"nested markup", info, `<R><Result><Phone><Number>+380.000</Number></Phone></Result></R>`},
 		{"comment", info, `<R><Result><!-- +380.000 --></Result></R>`},
 		{"unlisted list attribute", list, `<R><Result><List AddressId="0" EmailAddress="a@b.c" /></Result></R>`},
+		{"forbidden value outside the container", fixtureRedaction{Container: "Result", Forbidden: []string{"a@b.c"}},
+			`<R><Warnings><Warning>a@b.c</Warning></Warnings><Result /></R>`},
 	} {
 		t.Run(tt.name+" fails", func(t *testing.T) {
 			got, err := tt.r.apply([]byte(tt.in))

@@ -3,6 +3,7 @@ package namecheap
 import (
 	"context"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,7 +57,19 @@ func TestUsersService_Update(t *testing.T) {
 
 		mustNotNil(t, resp.UserUpdateResult)
 		assert.True(t, *resp.UserUpdateResult.Success)
-		assert.Equal(t, 249707, *resp.UserUpdateResult.UserID)
+		assert.Equal(t, "249707", *resp.UserUpdateResult.UserID)
+	})
+
+	// UserId is undocumented: a value that is not a number must not turn a
+	// completed update into an error.
+	t.Run("non-numeric UserId", func(t *testing.T) {
+		t.Parallel()
+		client := usersMockClient(t, strings.Replace(usersUpdateResponse, `UserId="249707"`, `UserId="u-249707"`, 1), nil)
+
+		resp, err := client.Users.UpdateWithContext(context.Background(), validUpdateArgs())
+		mustNoError(t, err)
+		mustNotNil(t, resp.UserUpdateResult)
+		assert.Equal(t, "u-249707", *resp.UserUpdateResult.UserID)
 	})
 
 	t.Run("nil args", func(t *testing.T) {
