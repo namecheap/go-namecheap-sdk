@@ -26,18 +26,21 @@ func TestUsersAddressDefaultFromCapturedResponses(t *testing.T) {
 	if !assert.NoError(t, err) {
 		return
 	}
-	var defaults []int
+	var defaults, others []int
 	for _, e := range entries {
 		if !assert.NotNil(t, e.AddressID, "getList entry AddressId") || !assert.NotNil(t, e.IsDefault, "getList entry IsDefault") {
 			return
 		}
 		if *e.IsDefault {
 			defaults = append(defaults, *e.AddressID)
+		} else {
+			others = append(others, *e.AddressID)
 		}
 	}
 	if !assert.Len(t, defaults, 1, "getList entries with IsDefault=true") {
 		return
 	}
+	assert.NotEmpty(t, others, "getList entries with IsDefault=false")
 	defaultID := defaults[0]
 
 	info, err := client.UsersAddress.GetInfoWithContext(context.Background(), defaultID)

@@ -1368,7 +1368,7 @@ Sends a password reset link to the end user's profile email. The user must click
 
 ## users.address
 
-> **Captured responses.** The response tables below follow real sandbox responses captured on 2026-11-03 (`namecheaptest/fixtures/users_address_*.xml`, #212), not the official docs. Responses spell the id `AddressId` (`ProfileId` in delete), where the official docs write `AddressID`/`ProfileID`. The account's primary address has `AddressId` **0**: `getList` lists it, and `getInfo` and `setDefault` accept `AddressId=0`.
+> **Captured responses.** The response tables below follow real sandbox responses captured on 2026-11-03 (`namecheaptest/fixtures/users_address_*.xml`, #212; `getList` re-captured on 2026-11-06 with a second, non-default address), not the official docs. Responses spell the id `AddressId` (`ProfileId` in delete), where the official docs write `AddressID`/`ProfileID`. The account's primary address has `AddressId` **0**: `getList` lists it, and `getInfo` and `setDefault` accept `AddressId=0`.
 
 ### namecheap.users.address.create
 
