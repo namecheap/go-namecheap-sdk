@@ -6,7 +6,7 @@ go 1.26.6
 toolchain go1.26.10
 
 require (
-	github.com/namecheap/go-namecheap-sdk/v2 v2.10.5
+	github.com/namecheap/go-namecheap-sdk/v2 v2.10.7
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
