@@ -30,6 +30,8 @@ type UsersAddressGetInfoCommandResponse struct {
 type UsersAddressGetInfoResult struct {
 	// AddressID is the unique integer identifying the address profile.
 	AddressID *int `xml:"AddressId"`
+	// UserName is the account the address belongs to.
+	UserName *string `xml:"UserName"`
 	// AddressName is the address label.
 	AddressName *string `xml:"AddressName"`
 	// DefaultYN reports whether this is the default address. The response
@@ -70,7 +72,8 @@ type UsersAddressGetInfoResult struct {
 // GetInfoWithContext returns the full stored address for the given id.
 //
 // It is a read-only, idempotent call. addressID must not be negative: the
-// account's primary address has id 0 (getList returns it as AddressId="0").
+// account's primary address has id PrimaryAddressID (0), and getList returns it
+// as AddressId="0".
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/users/address/get-info/
 func (uas *UsersAddressService) GetInfoWithContext(ctx context.Context, addressID int) (*UsersAddressGetInfoCommandResponse, error) {

@@ -2,6 +2,7 @@ package namecheap
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"testing"
 
@@ -36,21 +37,25 @@ func TestUsersAddressService_SetDefault(t *testing.T) {
 	})
 
 	// setDefault AddressId=0 makes the primary address the default again
-	// (captured on the sandbox, #212), so 0 must reach the API.
-	t.Run("primary address id 0 is sent", func(t *testing.T) {
+	// (captured on the sandbox, #212); SetPrimaryDefaultWithContext sends it.
+	t.Run("primary default sends id 0", func(t *testing.T) {
 		t.Parallel()
 		var sent url.Values
 		client := usersMockClient(t, addressSetDefaultResponse, &sent)
 
-		_, err := client.UsersAddress.SetDefaultWithContext(context.Background(), 0)
+		_, err := client.UsersAddress.SetPrimaryDefaultWithContext(context.Background())
 		mustNoError(t, err)
+		assert.Equal(t, "namecheap.users.address.setDefault", sent.Get("Command"))
 		assert.Equal(t, "0", sent.Get("AddressId"))
 	})
 
-	t.Run("negative id no http", func(t *testing.T) {
-		t.Parallel()
-		client := setupClient(nil)
-		_, err := client.UsersAddress.SetDefaultWithContext(context.Background(), -1)
-		assertInvalidArguments(t, err, "AddressId")
-	})
+	// An unset id must not change the account default.
+	for _, id := range []int{0, -1} {
+		t.Run(fmt.Sprintf("id %d no http", id), func(t *testing.T) {
+			t.Parallel()
+			client := setupClient(nil)
+			_, err := client.UsersAddress.SetDefaultWithContext(context.Background(), id)
+			assertInvalidArguments(t, err, "AddressId")
+		})
+	}
 }

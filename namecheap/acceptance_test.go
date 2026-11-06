@@ -578,7 +578,7 @@ func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
 			continue
 		}
 		id := *e.AddressID
-		t.Logf("users.address.getList AddressId=%d AddressName=%s IsDefault=%v", id, quoteAttr(e.AddressName), boolAttr(e.IsDefault))
+		t.Logf("users.address.getList AddressId=%d AddressName=%s IsDefault=%s", id, quoteAttr(e.AddressName), boolAttr(e.IsDefault))
 		if e.IsDefault == nil {
 			t.Errorf("users.address.getList AddressId=%d: IsDefault is missing", id)
 		} else if *e.IsDefault {
@@ -597,7 +597,7 @@ func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
 			continue
 		}
 		if got.AddressID == nil || *got.AddressID != id {
-			t.Errorf("users.address.getInfo(%d) AddressID = %v, want %d", id, got.AddressID, id)
+			t.Errorf("users.address.getInfo(%d) AddressID = %s, want %d", id, intAttr(got.AddressID), id)
 		}
 		switch {
 		case got.DefaultYN == nil:
@@ -612,11 +612,19 @@ func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
 
 	captureFixture(t, client, "users_address_getList", map[string]string{
 		"Command": "namecheap.users.address.getList",
-	}, nil)
+	}, &fixtureRedaction{
+		Container: "AddressGetListResult",
+		Keep:      []string{"List"},
+		Attrs:     []string{"AddressId", "AddressName", "IsDefault"},
+	})
 	captureFixture(t, client, "users_address_getInfo", map[string]string{
 		"Command":   "namecheap.users.address.getInfo",
 		"AddressId": strconv.Itoa(defaultID),
-	}, addressPlaceholders)
+	}, &fixtureRedaction{
+		Container:    "GetAddressInfoResult",
+		Keep:         []string{"AddressId", "AddressName", "Default_YN"},
+		Placeholders: addressPlaceholders,
+	})
 }
 
 // addressPlaceholders replace the account owner's personal data in the
@@ -641,6 +649,14 @@ var addressPlaceholders = map[string]string{
 	"PhoneExt":            "100",
 	"Fax":                 "+1.5555555556",
 	"EmailAddress":        "user@example.com",
+}
+
+// intAttr renders an optional int for logs.
+func intAttr(p *int) string {
+	if p == nil {
+		return "<nil>"
+	}
+	return strconv.Itoa(*p)
 }
 
 // boolAttr renders an optional flag for logs.
@@ -763,17 +779,16 @@ func hostRecords(resp *namecheap.DomainsDNSGetHostsCommandResponse) []namecheap.
 
 // captureFixture re-captures a raw sandbox response into the committed fixture
 // corpus when -update-fixtures is set. It performs a direct POST (bypassing the
-// SDK's response decoding) to obtain the verbatim XML body. The text of every
-// element named in placeholders is replaced with its placeholder (see
-// redactElements); the rest of the body is written unchanged. It is a no-op
-// otherwise.
-func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string, placeholders map[string]string) {
+// SDK's response decoding) to obtain the verbatim XML body. A response that
+// holds personal data passes a redaction (see fixtureRedaction); the rest of the
+// body is written unchanged. It is a no-op otherwise.
+func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string, redaction *fixtureRedaction) {
 	t.Helper()
 	if !*updateFixtures {
 		return
 	}
-	if useSandbox, _ := strconv.ParseBool(os.Getenv(envUseSandbox)); !useSandbox {
-		t.Fatalf("capture %s: %s is not true; fixtures are captured from the sandbox only", short, envUseSandbox)
+	if !c.ClientOptions.UseSandbox {
+		t.Fatalf("capture %s: the client does not target the sandbox; fixtures are captured from the sandbox only", short)
 	}
 	form := url.Values{}
 	for k, v := range params {
@@ -793,9 +808,11 @@ func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[
 	if err != nil {
 		t.Fatalf("capture %s: read: %v", short, err)
 	}
-	body, err = redactElements(body, placeholders)
-	if err != nil {
-		t.Fatalf("capture %s: %v; refusing to write personal data", short, err)
+	if redaction != nil {
+		body, err = redaction.apply(body)
+		if err != nil {
+			t.Fatalf("capture %s: %v; refusing to write personal data", short, err)
+		}
 	}
 	path := filepath.Join("..", "namecheaptest", "fixtures", short+".xml")
 	if err := os.WriteFile(path, body, 0o600); err != nil {

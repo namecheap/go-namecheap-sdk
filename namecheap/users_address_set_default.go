@@ -36,15 +36,28 @@ type UsersAddressSetDefaultResult struct {
 // SetDefaultWithContext marks an address-book entry as the account default.
 //
 // It is a non-idempotent write but not charge-bearing; it uses the standard
-// idempotent transport. addressID must not be negative: 0 makes the account's
-// primary address the default again.
+// idempotent transport. addressID must be positive, so an unset id cannot change
+// the account default; to make the primary address the default again, use
+// SetPrimaryDefaultWithContext.
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/users/address/set-default/
 func (uas *UsersAddressService) SetDefaultWithContext(ctx context.Context, addressID int) (*UsersAddressSetDefaultCommandResponse, error) {
-	if addressID < 0 {
+	if addressID <= 0 {
 		return nil, &InvalidArgumentsError{Fields: []string{"AddressId"}}
 	}
+	return uas.setDefault(ctx, addressID)
+}
 
+// SetPrimaryDefaultWithContext makes the account's primary address
+// (PrimaryAddressID) the default again. The API accepts AddressId=0 for it
+// (captured in namecheaptest/fixtures/users_address_setDefault.xml).
+//
+// Namecheap doc: https://www.namecheap.com/support/api/methods/users/address/set-default/
+func (uas *UsersAddressService) SetPrimaryDefaultWithContext(ctx context.Context) (*UsersAddressSetDefaultCommandResponse, error) {
+	return uas.setDefault(ctx, PrimaryAddressID)
+}
+
+func (uas *UsersAddressService) setDefault(ctx context.Context, addressID int) (*UsersAddressSetDefaultCommandResponse, error) {
 	params := map[string]string{
 		"Command":   "namecheap.users.address.setDefault",
 		"AddressId": strconv.Itoa(addressID),

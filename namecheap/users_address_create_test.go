@@ -29,6 +29,7 @@ const addressGetInfoResponse = `<?xml version="1.0" encoding="utf-8"?>
 	<CommandResponse Type="namecheap.users.address.getInfo">
 		<GetAddressInfoResult>
 			<AddressId>777</AddressId>
+			<UserName>owner</UserName>
 			<AddressName>Home</AddressName>
 			<Default_YN>false</Default_YN>
 			<EmailAddress>john@example.com</EmailAddress>
