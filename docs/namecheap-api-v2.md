@@ -1164,7 +1164,7 @@ Returns pricing information for a requested product type.
 | YourPrice | User's price |
 | Currency | Currency in which the price is listed |
 | PromotionPrice | Promotional price; the capture sends `0.0` on tiers without a promotion |
-| AdditionalCost, RegularAdditionalCost, YourAdditonalCost (sic) | Fee charged on top of the matching price, per year like it (`0.20` for `.com` in the capture, the ICANN fee); not in the official docs. The SDK exposes them on `Price` and adds the matching one in `Price.TotalPrice()` |
+| AdditionalCost, RegularAdditionalCost, YourAdditonalCost (sic) | Fee that goes with the matching price, per year like it (`0.20` for `.com` in the capture, the ICANN fee); not in the official docs. The SDK exposes them on `Price` and adds the matching one in `Price.TotalPrice()`. That it is charged on top of the price is read from these attributes only: no captured charge (`ChargedAmount` of `domains.create` or `domains.renew`) confirms it yet |
 | PricingType, RegularPriceType, YourPriceType, RegularAdditionalCostType, YourAdditonalCostType | `MULTIPLE` in the capture; not in the official docs. The SDK exposes `PricingType` |
 
 ---
@@ -1251,7 +1251,7 @@ Updates user account information.
 | Success | Whether the account was updated (attribute of `UserUpdateResult`) |
 | UserId | Id of the updated user |
 
-The account profile this writes is the one `namecheap.users.address.getInfo` returns for `AddressId=0`: a round trip (read, update with the same values, read) left every field unchanged on the sandbox, 2026-11-06.
+Which record this writes is not proven yet. The account profile is presumably the one `namecheap.users.address.getInfo` returns for `AddressId=0`, but the only run so far (sandbox, 2026-11-06) wrote the same values back, which passes whichever record is written, or none. `TestAcc_UsersUpdateRoundTrip` now writes a changed `FirstName` and reads `AddressId=0` back to settle it.
 
 ---
 

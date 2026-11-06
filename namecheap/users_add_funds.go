@@ -79,8 +79,9 @@ type UsersCreateAddFundsRequestArgs struct {
 	// Required.
 	Amount Amount
 	// ReturnURL is the URL to redirect the user to after payment. Required. It is
-	// sent as the "ReturnUrl" request parameter (the response echoes it back as
-	// "ReturnURL").
+	// sent as the "ReturnUrl" request parameter. The response does not echo it:
+	// its ReturnURL attribute carries the payment page URL (see
+	// UsersCreateAddFundsRequestResult).
 	ReturnURL string
 }
 

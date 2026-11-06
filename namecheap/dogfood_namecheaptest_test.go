@@ -14,6 +14,7 @@ package namecheap_test
 import (
 	"context"
 	"errors"
+	"regexp"
 	"testing"
 	"time"
 
@@ -21,6 +22,16 @@ import (
 	"github.com/namecheap/go-namecheap-sdk/v2/namecheaptest"
 	"github.com/stretchr/testify/assert"
 )
+
+// fixtureAttr returns the raw text of the attribute attr in the fixture name.
+func fixtureAttr(t *testing.T, name, attr string) string {
+	t.Helper()
+	m := regexp.MustCompile(`\s` + attr + `="([^"]*)"`).FindStringSubmatch(namecheaptest.FixtureOK(name))
+	if m == nil {
+		t.Fatalf("fixture %s has no %s attribute", name, attr)
+	}
+	return m[1]
+}
 
 // Domains service: migrated from TestDomainsService_GetRegistrarLock.
 func TestDogfood_Domains_GetRegistrarLock(t *testing.T) {
@@ -216,15 +227,22 @@ func TestDogfood_Users_GetBalances(t *testing.T) {
 		result := resp.UserGetBalancesResult
 		if assert.NotNil(t, result) {
 			assert.Equal(t, "USD", result.Currency)
-			// The values are the sandbox capture of 2026-11-06. 8718.02 has no
-			// exact binary float representation; the Amount type preserves the
-			// exact string (never parsed to float64).
-			assert.Equal(t, namecheap.Amount("8718.02"), result.AvailableBalance)
-			assert.Equal(t, "8718.02", result.AvailableBalance.String())
-			assert.Equal(t, namecheap.Amount("8718.02"), result.AccountBalance)
-			assert.Equal(t, namecheap.Amount("0.00"), result.EarnedAmount)
-			assert.Equal(t, namecheap.Amount("0.00"), result.WithdrawableAmount)
-			assert.Equal(t, namecheap.Amount("7.60"), result.FundsRequiredForAutoRenew)
+			// Each Amount is the exact attribute text of the captured fixture,
+			// never parsed to float64. The expected text is read from the fixture
+			// rather than pinned, so a re-capture after any sandbox spend does not
+			// fail a correct fixture.
+			for _, f := range []struct {
+				attr string
+				got  namecheap.Amount
+			}{
+				{"AvailableBalance", result.AvailableBalance},
+				{"AccountBalance", result.AccountBalance},
+				{"EarnedAmount", result.EarnedAmount},
+				{"WithdrawableAmount", result.WithdrawableAmount},
+				{"FundsRequiredForAutoRenew", result.FundsRequiredForAutoRenew},
+			} {
+				assert.Equal(t, fixtureAttr(t, "users_getBalances", f.attr), f.got.String(), f.attr)
+			}
 		}
 	})
 

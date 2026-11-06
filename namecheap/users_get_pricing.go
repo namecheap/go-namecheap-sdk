@@ -228,41 +228,48 @@ func (p *PricingProduct) priceFor(years int) (Price, bool) {
 // positive it returns RegularPrice unchanged (possibly empty), so the caller
 // still sees the raw server value rather than a fabricated one.
 func (p Price) EffectivePrice() Amount {
-	for _, a := range []Amount{p.Price, p.YourPrice, p.RegularPrice} {
-		if a.IsPositive() {
-			return a
-		}
-	}
-	return p.RegularPrice
+	price, _ := p.resolved()
+	return price
 }
 
 // TotalPrice returns EffectivePrice plus the additional cost that goes with
 // the attribute EffectivePrice chose: Price pairs with AdditionalCost,
 // YourPrice with YourAdditionalCost and RegularPrice with
 // RegularAdditionalCost ("14.18" for a .com registration quoted as
-// Price="13.98" AdditionalCost="0.20"). A balance check should use it rather
-// than EffectivePrice, which stays the server-resolved price alone.
+// Price="13.98" AdditionalCost="0.20"). EffectivePrice stays the
+// server-resolved price alone.
+//
+// That the fee is charged on top of the price is read from the getPricing
+// attributes only: no captured charge (a domains.create or domains.renew
+// ChargedAmount) confirms it yet.
 //
 // Like Price, it is the amount for one year, not for the whole term: the
 // captured .com sheet (PricingType="MULTIPLE") quotes Price="13.98" for every
 // Duration from 1 to 10. A balance check before an N-year order must scale it
-// by N; no multi-year charge has been captured yet to confirm the exact total.
+// by N.
 //
 // The sum is exact: both strings are added as decimals (math/big.Rat) and
 // formatted with the longer scale of the two, never through float64. A missing
 // or non-positive additional cost adds nothing, and when the fee is not a
 // number the price is returned unchanged.
 func (p Price) TotalPrice() Amount {
+	return addAmounts(p.resolved())
+}
+
+// resolved returns the price EffectivePrice chooses and the additional cost
+// that goes with it. When no price is positive it returns RegularPrice and no
+// fee.
+func (p Price) resolved() (price, fee Amount) {
 	for _, pair := range []struct{ price, fee Amount }{
 		{p.Price, p.AdditionalCost},
 		{p.YourPrice, p.YourAdditionalCost},
 		{p.RegularPrice, p.RegularAdditionalCost},
 	} {
 		if pair.price.IsPositive() {
-			return addAmounts(pair.price, pair.fee)
+			return pair.price, pair.fee
 		}
 	}
-	return p.RegularPrice
+	return p.RegularPrice, ""
 }
 
 // addAmounts returns price + fee as an exact decimal string with the longer

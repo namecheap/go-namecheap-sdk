@@ -181,14 +181,16 @@ func TestRepresentativeFixturesDecodeIntoStructs(t *testing.T) {
 		if price.Currency == "" {
 			t.Errorf("Currency not populated: %+v", price)
 		}
-		// The captured tier is Price="13.98" AdditionalCost="0.20": the fee the
-		// SDK ignored before PR #128's follow-up, and what the account is charged.
-		if price.AdditionalCost != "0.20" {
-			t.Errorf("AdditionalCost = %q, want %q", price.AdditionalCost, "0.20")
+		// Every .com tier of the capture carries a positive AdditionalCost (the
+		// ICANN fee) that TotalPrice adds. The amounts are not pinned, so a
+		// re-capture after a price change does not fail a correct fixture.
+		if !price.AdditionalCost.IsPositive() {
+			t.Errorf("AdditionalCost = %q, want a positive fee", price.AdditionalCost)
 		}
-		if got := price.TotalPrice(); got != "14.18" {
-			t.Errorf("TotalPrice() = %q, want %q", got, "14.18")
+		if total, eff := price.TotalPrice(), price.EffectivePrice(); total == eff {
+			t.Errorf("TotalPrice() = %q, want EffectivePrice() %q plus AdditionalCost %q", total, eff, price.AdditionalCost)
 		}
+		// PricingType is what makes Price a per-year amount (see Price.TotalPrice).
 		if price.PricingType != "MULTIPLE" {
 			t.Errorf("PricingType = %q, want %q", price.PricingType, "MULTIPLE")
 		}

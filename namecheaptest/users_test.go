@@ -34,8 +34,10 @@ func TestUsersAddFundsFromCapturedResponses(t *testing.T) {
 	if *cr.TokenID != token {
 		t.Errorf("CreateAddFundsRequestWithContext().TokenID = %q, want %q", *cr.TokenID, token)
 	}
-	if cr.RedirectURL == nil || cr.ReturnURL == nil || *cr.RedirectURL != *cr.ReturnURL {
-		t.Errorf("CreateAddFundsRequestWithContext() RedirectURL = %v, ReturnURL = %v, want the same payment URL", cr.RedirectURL, cr.ReturnURL)
+	if cr.RedirectURL == nil || cr.ReturnURL == nil {
+		t.Errorf("CreateAddFundsRequestWithContext() RedirectURL or ReturnURL missing: %+v, want the payment URL in both", *cr)
+	} else if *cr.RedirectURL != *cr.ReturnURL {
+		t.Errorf("CreateAddFundsRequestWithContext() RedirectURL = %q, ReturnURL = %q, want the same payment URL", *cr.RedirectURL, *cr.ReturnURL)
 	}
 
 	status, err := client.Users.GetAddFundsStatusWithContext(context.Background(), *cr.TokenID)
@@ -50,14 +52,20 @@ func TestUsersAddFundsFromCapturedResponses(t *testing.T) {
 	if sr.Status != namecheap.AddFundsStatusCreated {
 		t.Errorf("GetAddFundsStatusWithContext().Status = %q, want %q", sr.Status, namecheap.AddFundsStatusCreated)
 	}
-	if sr.TransactionID == nil || *sr.TransactionID != 0 {
-		t.Errorf("GetAddFundsStatusWithContext().TransactionID = %v, want 0 for a CREATED request", sr.TransactionID)
+	if sr.TransactionID == nil {
+		t.Error("GetAddFundsStatusWithContext().TransactionID = nil, want 0 for a CREATED request")
+	} else if *sr.TransactionID != 0 {
+		t.Errorf("GetAddFundsStatusWithContext().TransactionID = %d, want 0 for a CREATED request", *sr.TransactionID)
 	}
-	if sr.Amount == nil || *sr.Amount != "10" {
-		t.Errorf("GetAddFundsStatusWithContext().Amount = %v, want %q (the server drops the decimals)", sr.Amount, "10")
+	if sr.Amount == nil {
+		t.Errorf("GetAddFundsStatusWithContext().Amount = nil, want %q (the server drops the decimals)", "10")
+	} else if *sr.Amount != "10" {
+		t.Errorf("GetAddFundsStatusWithContext().Amount = %q, want %q (the server drops the decimals)", *sr.Amount, "10")
 	}
-	if sr.ReturnedTokenID == nil || *sr.ReturnedTokenID != token {
-		t.Errorf("GetAddFundsStatusWithContext().ReturnedTokenID = %v, want %q", sr.ReturnedTokenID, token)
+	if sr.ReturnedTokenID == nil {
+		t.Errorf("GetAddFundsStatusWithContext().ReturnedTokenID = nil, want %q", token)
+	} else if *sr.ReturnedTokenID != token {
+		t.Errorf("GetAddFundsStatusWithContext().ReturnedTokenID = %q, want %q", *sr.ReturnedTokenID, token)
 	}
 }
 
@@ -79,7 +87,9 @@ func TestUsersUpdateFromCapturedResponse(t *testing.T) {
 	if ur == nil || ur.Success == nil || !*ur.Success {
 		t.Fatalf("UpdateWithContext().UserUpdateResult = %+v, want Success", ur)
 	}
-	if ur.UserID == nil || *ur.UserID != "249707" {
-		t.Errorf("UpdateWithContext().UserID = %v, want %q", ur.UserID, "249707")
+	if ur.UserID == nil {
+		t.Errorf("UpdateWithContext().UserID = nil, want %q", "249707")
+	} else if *ur.UserID != "249707" {
+		t.Errorf("UpdateWithContext().UserID = %q, want %q", *ur.UserID, "249707")
 	}
 }

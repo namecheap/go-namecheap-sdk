@@ -736,14 +736,14 @@ func TestAcc_UsersAddFunds(t *testing.T) {
 	if sr == nil {
 		t.Fatal("users.getAddFundsStatus: no GetAddFundsStatusResult (result element named differently on the wire?)")
 	}
-	t.Logf("users.getAddFundsStatus TransactionID=%v Amount=%v Status=%q", sr.TransactionID, sr.Amount, sr.Status)
+	t.Logf("users.getAddFundsStatus TransactionID=%s Amount=%s Status=%q", attr(sr.TransactionID), attr(sr.Amount), sr.Status)
 	if sr.TransactionID == nil {
 		t.Error("users.getAddFundsStatus: TransactionID is missing")
 	}
 	// The server drops the fractional part of a whole amount ("10" for 10.00),
 	// so the comparison is numeric.
 	if sr.Amount == nil || !sameAmount(*sr.Amount, args.Amount) {
-		t.Errorf("users.getAddFundsStatus Amount = %v, want %s", sr.Amount, args.Amount)
+		t.Errorf("users.getAddFundsStatus Amount = %s, want %s", attr(sr.Amount), args.Amount)
 	}
 	if sr.ReturnedTokenID == nil || *sr.ReturnedTokenID != token {
 		t.Errorf("users.getAddFundsStatus ReturnedTokenID = %s, want %q", attr(sr.ReturnedTokenID), token)
@@ -767,14 +767,20 @@ func sameAmount(a, b namecheap.Amount) bool {
 // whatever the attribute's spelling.
 var tokenAttr = regexp.MustCompile(`Token[Ii][Dd]="([^"]+)"`)
 
-// TestAcc_UsersUpdateRoundTrip writes the account profile back to itself. The
-// primary address (users.address.getInfo AddressId=0, #212) is the profile that
-// users.update writes, so the test reads it, sends the same values through
-// users.update, and reads it again. It is opt-in through
-// NAMECHEAP_ACC_USERS_UPDATE because it writes the shared account's profile,
-// even though no value changes. The profile is personal data: no value is
-// logged, and a users.update capture that echoes one is refused before it is
-// written.
+// updateProbeFirstName is the FirstName TestAcc_UsersUpdateRoundTrip writes to
+// the account profile for the length of the test.
+const updateProbeFirstName = "SDKProbe"
+
+// TestAcc_UsersUpdateRoundTrip proves which record users.update writes. It sets
+// the profile's FirstName to updateProbeFirstName, reads the primary address
+// (users.address.getInfo AddressId=0, #212) back, and restores the original
+// values. Writing the same values back would pass whichever record
+// users.update wrote, or none. FirstName is the field changed because it is
+// required, so the restore always sends it: an optional field that was empty
+// could not be cleared again, since the SDK omits empty optional parameters.
+// It is opt-in through NAMECHEAP_ACC_USERS_UPDATE because it writes the shared
+// account's profile. The profile is personal data: no value is logged, and a
+// users.update capture that echoes one is refused before it is written.
 func TestAcc_UsersUpdateRoundTrip(t *testing.T) {
 	client := liveClient(t)
 	if on, _ := strconv.ParseBool(os.Getenv(envUsersUpdate)); !on {
@@ -782,62 +788,75 @@ func TestAcc_UsersUpdateRoundTrip(t *testing.T) {
 	}
 	requireSandbox(t, client, "users.update")
 	before := primaryAddress(t, client)
-	args := &namecheap.UsersUpdateArgs{
-		FirstName:     deref(before.FirstName),
-		LastName:      deref(before.LastName),
-		JobTitle:      deref(before.JobTitle),
-		Organization:  deref(before.Organization),
-		Address1:      deref(before.Address1),
-		Address2:      deref(before.Address2),
-		City:          deref(before.City),
-		StateProvince: deref(before.StateProvince),
-		Zip:           deref(before.Zip),
-		Country:       deref(before.Country),
-		EmailAddress:  deref(before.EmailAddress),
-		Phone:         deref(before.Phone),
-		PhoneExt:      deref(before.PhoneExt),
-		Fax:           deref(before.Fax),
-	}
+	original := profileArgs(before)
+	t.Cleanup(func() {
+		if _, err := client.Users.UpdateWithContext(context.Background(), original); err != nil {
+			t.Errorf("users.update restore: %v; the profile FirstName stays %q", err, updateProbeFirstName)
+			return
+		}
+		compareProfiles(t, "after the restore", before, primaryAddress(t, client))
+	})
 
-	resp, err := client.Users.UpdateWithContext(ctx(t), args)
+	probe := *original
+	probe.FirstName = updateProbeFirstName
+	resp, err := client.Users.UpdateWithContext(ctx(t), &probe)
 	if err != nil {
 		t.Fatalf("users.update: %v", err)
 	}
+
+	// The capture runs before any assertion so a response the SDK cannot
+	// decode is still written down. It sends the probe a second time.
+	captureFixture(t, client, "users_update", updateParams(&probe), &fixtureRedaction{
+		Container: "UserUpdateResult",
+		Attrs:     []string{"Success", "UserId"},
+		Forbidden: []string{
+			original.FirstName, original.LastName, original.JobTitle, original.Organization, original.Address1,
+			original.Address2, original.City, original.Zip, original.EmailAddress, original.Phone, original.PhoneExt,
+			original.Fax,
+		},
+	})
+
 	ur := resp.UserUpdateResult
 	if ur == nil {
 		t.Fatal("users.update: no UserUpdateResult")
 	}
+	t.Logf("users.update Success=%s UserId=%s", attr(ur.Success), attr(ur.UserID))
 	if ur.Success == nil || !*ur.Success {
-		t.Errorf("users.update Success = %v, want true", ur.Success)
+		t.Errorf("users.update Success = %s, want true", attr(ur.Success))
 	}
 
 	after := primaryAddress(t, client)
-	for _, f := range []struct {
-		name          string
-		before, after *string
-	}{
-		{"FirstName", before.FirstName, after.FirstName},
-		{"LastName", before.LastName, after.LastName},
-		{"JobTitle", before.JobTitle, after.JobTitle},
-		{"Organization", before.Organization, after.Organization},
-		{"Address1", before.Address1, after.Address1},
-		{"Address2", before.Address2, after.Address2},
-		{"City", before.City, after.City},
-		{"StateProvince", before.StateProvince, after.StateProvince},
-		{"StateProvinceChoice", before.StateProvinceChoice, after.StateProvinceChoice},
-		{"Zip", before.Zip, after.Zip},
-		{"Country", before.Country, after.Country},
-		{"EmailAddress", before.EmailAddress, after.EmailAddress},
-		{"Phone", before.Phone, after.Phone},
-		{"PhoneExt", before.PhoneExt, after.PhoneExt},
-		{"Fax", before.Fax, after.Fax},
-		{"DefaultYN", boolPtrText(before.DefaultYN), boolPtrText(after.DefaultYN)},
-	} {
-		if deref(f.before) != deref(f.after) {
-			t.Errorf("users.update changed %s of the primary address (values not logged: personal data)", f.name)
-		}
+	if deref(after.FirstName) != updateProbeFirstName {
+		t.Errorf("users.address.getInfo(0) FirstName is not the %q users.update wrote: the update did not reach the primary address", updateProbeFirstName)
 	}
+	written := *after
+	written.FirstName = before.FirstName
+	compareProfiles(t, "after users.update (FirstName aside)", before, &written)
+}
 
+// profileArgs returns the users.update arguments that write a back unchanged.
+func profileArgs(a *namecheap.UsersAddressGetInfoResult) *namecheap.UsersUpdateArgs {
+	return &namecheap.UsersUpdateArgs{
+		FirstName:     deref(a.FirstName),
+		LastName:      deref(a.LastName),
+		JobTitle:      deref(a.JobTitle),
+		Organization:  deref(a.Organization),
+		Address1:      deref(a.Address1),
+		Address2:      deref(a.Address2),
+		City:          deref(a.City),
+		StateProvince: deref(a.StateProvince),
+		Zip:           deref(a.Zip),
+		Country:       deref(a.Country),
+		EmailAddress:  deref(a.EmailAddress),
+		Phone:         deref(a.Phone),
+		PhoneExt:      deref(a.PhoneExt),
+		Fax:           deref(a.Fax),
+	}
+}
+
+// updateParams returns the request parameters UpdateWithContext sends for args,
+// for captureFixture's direct POST.
+func updateParams(args *namecheap.UsersUpdateArgs) map[string]string {
 	params := map[string]string{
 		"Command":       "namecheap.users.update",
 		"FirstName":     args.FirstName,
@@ -858,14 +877,38 @@ func TestAcc_UsersUpdateRoundTrip(t *testing.T) {
 			params[k] = v
 		}
 	}
-	captureFixture(t, client, "users_update", params, &fixtureRedaction{
-		Container: "UserUpdateResult",
-		Attrs:     []string{"Success", "UserId"},
-		Forbidden: []string{
-			args.FirstName, args.LastName, args.JobTitle, args.Organization, args.Address1, args.Address2,
-			args.City, args.Zip, args.EmailAddress, args.Phone, args.PhoneExt, args.Fax,
-		},
-	})
+	return params
+}
+
+// compareProfiles reports every field of got that differs from want by name
+// only: the values are personal data.
+func compareProfiles(t *testing.T, when string, want, got *namecheap.UsersAddressGetInfoResult) {
+	t.Helper()
+	for _, f := range []struct {
+		name      string
+		want, got *string
+	}{
+		{"FirstName", want.FirstName, got.FirstName},
+		{"LastName", want.LastName, got.LastName},
+		{"JobTitle", want.JobTitle, got.JobTitle},
+		{"Organization", want.Organization, got.Organization},
+		{"Address1", want.Address1, got.Address1},
+		{"Address2", want.Address2, got.Address2},
+		{"City", want.City, got.City},
+		{"StateProvince", want.StateProvince, got.StateProvince},
+		{"StateProvinceChoice", want.StateProvinceChoice, got.StateProvinceChoice},
+		{"Zip", want.Zip, got.Zip},
+		{"Country", want.Country, got.Country},
+		{"EmailAddress", want.EmailAddress, got.EmailAddress},
+		{"Phone", want.Phone, got.Phone},
+		{"PhoneExt", want.PhoneExt, got.PhoneExt},
+		{"Fax", want.Fax, got.Fax},
+		{"DefaultYN", boolPtrText(want.DefaultYN), boolPtrText(got.DefaultYN)},
+	} {
+		if deref(f.want) != deref(f.got) {
+			t.Errorf("primary address %s: %s changed (values not logged: personal data)", when, f.name)
+		}
+	}
 }
 
 // requireSandbox fails a write test before its first request unless the client

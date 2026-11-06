@@ -447,7 +447,9 @@ promo/special), then `YourPrice` (account price), then `RegularPrice` (list
 price). Each of those carries a per-year fee on the wire (`AdditionalCost`,
 the ICANN fee, `0.20` on `.com`) that is not in the official docs;
 `Price.TotalPrice()` adds the fee that pairs with the attribute `EffectivePrice`
-chose, so use it rather than `EffectivePrice` for a balance check. Both are
+chose, so use it rather than `EffectivePrice` for a balance check (that the
+fee is charged on top is read from the price sheet; no captured charge confirms
+it yet). Both are
 the price of **one year**, whatever the tier's `Duration`: the captured `.com`
 sheet quotes `13.98` for every term from 1 to 10 years. Scale it by the number
 of years before comparing it with the balance for a multi-year order.
