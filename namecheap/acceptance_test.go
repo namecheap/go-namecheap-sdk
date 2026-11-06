@@ -593,9 +593,10 @@ func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
 }
 
 // addressPlaceholders replace the account owner's personal data in the
-// committed getInfo fixture. The values are the ones the sandbox returned for a
-// dummy address (Country included, so the address stays consistent), so code
-// that stubs the fixture gets data in the API's real format.
+// committed getInfo fixture with made-up values, so code that stubs the fixture
+// gets usable data. Name, street, city, state, zip, country, phone and email
+// are the values the sandbox returned for a dummy address on 2026-11-03;
+// Country is replaced too, so the address stays consistent.
 var addressPlaceholders = map[string]string{
 	"UserName":            "sandboxuser",
 	"FirstName":           "Test",
