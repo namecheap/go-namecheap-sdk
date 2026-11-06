@@ -315,7 +315,7 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 		// automatic email rotation; once set it has the same date-only shape
 		// (docs/namecheap-api-v2.md, "Date formats").
 		if ed := wg.EmailDetails; ed != nil {
-			t.Logf("getInfo Whoisguard.EmailDetails.LastAutoEmailChangeDate raw text %s", quoteAttr(ed.LastAutoEmailChangeDate))
+			t.Logf("getInfo Whoisguard.EmailDetails.LastAutoEmailChangeDate raw text %s", attr(ed.LastAutoEmailChangeDate))
 			if ed.LastAutoEmailChangeDate != nil && *ed.LastAutoEmailChangeDate != "" {
 				assertLiveDateText(t, "getInfo Whoisguard.EmailDetails.LastAutoEmailChangeDate", ed.LastAutoEmailChangeDate, dateOnlyPadded)
 			}
@@ -372,10 +372,10 @@ func TestAcc_DomainPrivacyGetList(t *testing.T) {
 			field = "whoisguard.getList ID=" + strconv.Itoa(*e.ID)
 		}
 		t.Logf("%s DomainName=%v Status=%v Created=%v Expires=%v",
-			field, quoteAttr(e.DomainName), quoteAttr(e.Status), quoteAttr(e.Created), quoteAttr(e.Expires))
+			field, attr(e.DomainName), attr(e.Status), attr(e.Created), attr(e.Expires))
 		if e.State() == namecheap.PrivacyStateUnknown {
 			t.Errorf("%s Status = %s, want a value ClassifyPrivacyStatus recognises (server-side vocabulary drift?)",
-				field, quoteAttr(e.Status))
+				field, attr(e.Status))
 		}
 		assertLiveDateText(t, field+" Created", e.Created, dateOnlyPadded)
 		assertLiveDateText(t, field+" Expires", e.Expires, dateOnlyPadded)
@@ -428,12 +428,12 @@ func assertPrivacyListMatchesGetInfo(t *testing.T, client *namecheap.Client) {
 		}
 		if e.DomainName == nil || !strings.EqualFold(*e.DomainName, domain) {
 			t.Errorf("whoisguard.getList ID=%d DomainName = %s, want %q (the domain getInfo attaches it to)",
-				*wg.ID, quoteAttr(e.DomainName), domain)
+				*wg.ID, attr(e.DomainName), domain)
 		}
 		got, ok := parseLiveDateText(deref(e.Expires)).Parsed()
 		if !ok || !got.Equal(want) {
 			t.Errorf("whoisguard.getList ID=%d Expires = %s, want %q (getInfo(%q) Whoisguard.ExpiredDate)",
-				*wg.ID, quoteAttr(e.Expires), wg.ExpiredDate.Raw, domain)
+				*wg.ID, attr(e.Expires), wg.ExpiredDate.Raw, domain)
 		}
 		return
 	}
@@ -448,13 +448,13 @@ func deref(s *string) string {
 	return *s
 }
 
-// quoteAttr renders an optional attribute for logs, quoting it so an empty value
-// stays visible.
-func quoteAttr(s *string) string {
-	if s == nil {
+// attr renders an optional field for logs in Go syntax, so a nil pointer, an
+// empty string and a zero stay distinguishable: <nil>, "" and 0.
+func attr[T any](p *T) string {
+	if p == nil {
 		return "<nil>"
 	}
-	return strconv.Quote(*s)
+	return fmt.Sprintf("%#v", *p)
 }
 
 // TestAcc_DomainsRenew proves the DateTime parser against a real domains.renew
@@ -574,11 +574,11 @@ func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
 	defaultID := -1
 	for _, e := range *list.AddressGetListResult {
 		if e.AddressID == nil {
-			t.Errorf("users.address.getList entry %s: AddressId is missing", quoteAttr(e.AddressName))
+			t.Errorf("users.address.getList entry %s: AddressId is missing", attr(e.AddressName))
 			continue
 		}
 		id := *e.AddressID
-		t.Logf("users.address.getList AddressId=%d AddressName=%s IsDefault=%s", id, quoteAttr(e.AddressName), boolAttr(e.IsDefault))
+		t.Logf("users.address.getList AddressId=%d AddressName=%s IsDefault=%s", id, attr(e.AddressName), attr(e.IsDefault))
 		if e.IsDefault == nil {
 			t.Errorf("users.address.getList AddressId=%d: IsDefault is missing", id)
 		} else if *e.IsDefault {
@@ -597,7 +597,7 @@ func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
 			continue
 		}
 		if got.AddressID == nil || *got.AddressID != id {
-			t.Errorf("users.address.getInfo(%d) AddressID = %s, want %d", id, intAttr(got.AddressID), id)
+			t.Errorf("users.address.getInfo(%d) AddressID = %s, want %d", id, attr(got.AddressID), id)
 		}
 		switch {
 		case got.DefaultYN == nil:
@@ -649,22 +649,6 @@ var addressPlaceholders = map[string]string{
 	"PhoneExt":            "100",
 	"Fax":                 "+1.5555555556",
 	"EmailAddress":        "user@example.com",
-}
-
-// intAttr renders an optional int for logs.
-func intAttr(p *int) string {
-	if p == nil {
-		return "<nil>"
-	}
-	return strconv.Itoa(*p)
-}
-
-// boolAttr renders an optional flag for logs.
-func boolAttr(b *bool) string {
-	if b == nil {
-		return "<nil>"
-	}
-	return strconv.FormatBool(*b)
 }
 
 // TestAcc_DNSRoundTrip exercises the get -> set -> restore reversible flow on

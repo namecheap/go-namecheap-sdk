@@ -103,25 +103,17 @@ func (r *UsersAddressGetInfoResult) ToContactInfo() ContactInfo {
 		return ContactInfo{}
 	}
 	return ContactInfo{
-		FirstName:        derefString(r.FirstName),
-		LastName:         derefString(r.LastName),
-		Address1:         derefString(r.Address1),
-		City:             derefString(r.City),
-		StateProvince:    derefString(r.StateProvince),
-		PostalCode:       derefString(r.Zip),
-		Country:          derefString(r.Country),
-		Phone:            derefString(r.Phone),
-		EmailAddress:     derefString(r.EmailAddress),
-		OrganizationName: derefString(r.Organization),
-		JobTitle:         derefString(r.JobTitle),
-		Address2:         derefString(r.Address2),
+		FirstName:        derefStr(r.FirstName),
+		LastName:         derefStr(r.LastName),
+		Address1:         derefStr(r.Address1),
+		City:             derefStr(r.City),
+		StateProvince:    derefStr(r.StateProvince),
+		PostalCode:       derefStr(r.Zip),
+		Country:          derefStr(r.Country),
+		Phone:            derefStr(r.Phone),
+		EmailAddress:     derefStr(r.EmailAddress),
+		OrganizationName: derefStr(r.Organization),
+		JobTitle:         derefStr(r.JobTitle),
+		Address2:         derefStr(r.Address2),
 	}
-}
-
-// derefString returns *p, or "" when p is nil.
-func derefString(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
 }
