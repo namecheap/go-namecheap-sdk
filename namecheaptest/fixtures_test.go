@@ -181,6 +181,17 @@ func TestRepresentativeFixturesDecodeIntoStructs(t *testing.T) {
 		if price.Currency == "" {
 			t.Errorf("Currency not populated: %+v", price)
 		}
+		// The captured tier is Price="13.98" AdditionalCost="0.20": the fee the
+		// SDK ignored before PR #128's follow-up, and what the account is charged.
+		if price.AdditionalCost != "0.20" {
+			t.Errorf("AdditionalCost = %q, want %q", price.AdditionalCost, "0.20")
+		}
+		if got := price.TotalPrice(); got != "14.18" {
+			t.Errorf("TotalPrice() = %q, want %q", got, "14.18")
+		}
+		if price.PricingType != "MULTIPLE" {
+			t.Errorf("PricingType = %q, want %q", price.PricingType, "MULTIPLE")
+		}
 	})
 
 	t.Run("ssl_getInfo", func(t *testing.T) {

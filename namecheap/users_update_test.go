@@ -12,7 +12,7 @@ const usersUpdateResponse = `<?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
 	<Errors />
 	<CommandResponse Type="namecheap.users.update">
-		<UserUpdateResult Success="true" />
+		<UserUpdateResult Success="true" UserId="249707" />
 	</CommandResponse>
 </ApiResponse>`
 
@@ -56,6 +56,7 @@ func TestUsersService_Update(t *testing.T) {
 
 		mustNotNil(t, resp.UserUpdateResult)
 		assert.True(t, *resp.UserUpdateResult.Success)
+		assert.Equal(t, 249707, *resp.UserUpdateResult.UserID)
 	})
 
 	t.Run("nil args", func(t *testing.T) {

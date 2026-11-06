@@ -16,8 +16,8 @@ type UsersUpdateResponse struct {
 }
 
 // UsersUpdateCommandResponse wraps the update result. The doc lists no response
-// table for users.update (docs/namecheap-api-v2.md lines 1188-1212); the result
-// element carries a Success flag on the wire.
+// table for users.update; the fields follow the captured sandbox response in
+// namecheaptest/fixtures/users_update.xml.
 type UsersUpdateCommandResponse struct {
 	UserUpdateResult *UsersUpdateResult `xml:"UserUpdateResult"`
 }
@@ -26,6 +26,9 @@ type UsersUpdateCommandResponse struct {
 type UsersUpdateResult struct {
 	// Success reports whether the account was updated.
 	Success *bool `xml:"Success,attr"`
+	// UserID is the unique integer representing the updated user. The response
+	// attribute is UserId.
+	UserID *int `xml:"UserId,attr"`
 }
 
 // UsersUpdateArgs are the arguments for UpdateWithContext. Field names and

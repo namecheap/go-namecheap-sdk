@@ -1132,6 +1132,8 @@ Sets new domain control validation (DCV) method for a certificate or serves as a
 
 ## users
 
+> **Captured responses.** The response tables of `getBalances`, `getPricing`, `createaddfundsrequest`, `getAddFundsStatus` and `update` below follow real sandbox responses captured on 2026-11-06 (`namecheaptest/fixtures/users_*.xml`). `changePassword` has no capture.
+
 ### namecheap.users.getPricing
 
 Returns pricing information for a requested product type.
@@ -1161,7 +1163,9 @@ Returns pricing information for a requested product type.
 | RegularPrice | Regular price |
 | YourPrice | User's price |
 | Currency | Currency in which the price is listed |
-| PromotionPrice | Promotional price, when a promotion applies to the tier |
+| PromotionPrice | Promotional price; the capture sends `0.0` on tiers without a promotion |
+| AdditionalCost, RegularAdditionalCost, YourAdditonalCost (sic) | Fee charged on top of the matching price, per the same unit (`0.20` for `.com` in the capture, the ICANN fee); not in the official docs. The SDK exposes them on `Price` and adds the matching one in `Price.TotalPrice()` |
+| PricingType, RegularPriceType, YourPriceType, RegularAdditionalCostType, YourAdditonalCostType | `MULTIPLE` in the capture; not in the official docs. The SDK exposes `PricingType` |
 
 ---
 
@@ -1240,6 +1244,15 @@ Updates user account information.
 | PhoneExt | String | 10 | No | Phone extension |
 | Fax | String | 20 | No | Fax number in format +NNN.NNNNNNNNNN |
 
+#### Response Parameters
+
+| Name | Description |
+|------|-------------|
+| Success | Whether the account was updated (attribute of `UserUpdateResult`) |
+| UserId | Id of the updated user |
+
+The account profile this writes is the one `namecheap.users.address.getInfo` returns for `AddressId=0`: a round trip (read, update with the same values, read) left every field unchanged on the sandbox, 2026-11-06.
+
 ---
 
 ### namecheap.users.createaddfundsrequest
@@ -1259,11 +1272,13 @@ Creates a request to add funds through a credit card.
 
 #### Response Parameters
 
+The result element is `Createaddfundsrequestresult` (lowercase after the first letter) inside `CommandResponse Type="namecheap.users.createAddfundsRequest"`.
+
 | Name | Description |
 |------|-------------|
 | TokenID | Unique ID to redirect user to add funds page |
-| RedirectURL | URL for submitting credit card details |
-| ReturnURL | URL to redirect after payment |
+| RedirectURL | URL for submitting credit card details (`https://www.sandbox.namecheap.com/myaccount/addfunds/Payment.aspx?tokenid=<TokenID>` on the sandbox) |
+| ReturnURL | Documented as the URL to redirect to after payment; the captured response carries the same payment page URL as `RedirectURL`, not the `ReturnUrl` that was sent |
 
 ---
 
@@ -1283,9 +1298,11 @@ Gets the status of an add funds request.
 
 | Name | Description |
 |------|-------------|
-| TransactionID | Unique integer representing the transaction |
-| Amount | Amount added |
+| TransactionID | Unique integer representing the transaction; `0` while the request is `CREATED` |
+| Amount | Amount requested, without the fractional part when whole (`10` for a request of `10.00`) |
 | Status | Status of added fund: CREATED, SUBMITTED, COMPLETED, FAILED, EXPIRED |
+| RequestedTokenId | The `TokenId` the status was asked for |
+| ReturnedTokenId | The token of the request the status describes |
 
 ---
 

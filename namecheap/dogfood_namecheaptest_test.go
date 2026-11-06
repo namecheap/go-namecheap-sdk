@@ -216,14 +216,15 @@ func TestDogfood_Users_GetBalances(t *testing.T) {
 		result := resp.UserGetBalancesResult
 		if assert.NotNil(t, result) {
 			assert.Equal(t, "USD", result.Currency)
-			// 123.45 has no exact binary float representation; the Amount type
-			// preserves the exact string (never parsed to float64).
-			assert.Equal(t, namecheap.Amount("123.45"), result.AvailableBalance)
-			assert.Equal(t, "123.45", result.AvailableBalance.String())
-			assert.Equal(t, namecheap.Amount("123.45"), result.AccountBalance)
-			assert.Equal(t, namecheap.Amount("15.00"), result.EarnedAmount)
-			assert.Equal(t, namecheap.Amount("100.00"), result.WithdrawableAmount)
-			assert.Equal(t, namecheap.Amount("42.50"), result.FundsRequiredForAutoRenew)
+			// The values are the sandbox capture of 2026-11-06. 8718.02 has no
+			// exact binary float representation; the Amount type preserves the
+			// exact string (never parsed to float64).
+			assert.Equal(t, namecheap.Amount("8718.02"), result.AvailableBalance)
+			assert.Equal(t, "8718.02", result.AvailableBalance.String())
+			assert.Equal(t, namecheap.Amount("8718.02"), result.AccountBalance)
+			assert.Equal(t, namecheap.Amount("0.00"), result.EarnedAmount)
+			assert.Equal(t, namecheap.Amount("0.00"), result.WithdrawableAmount)
+			assert.Equal(t, namecheap.Amount("7.60"), result.FundsRequiredForAutoRenew)
 		}
 	})
 

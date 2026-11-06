@@ -40,20 +40,26 @@ type UsersCreateAddFundsRequestResponse struct {
 }
 
 // UsersCreateAddFundsRequestCommandResponse wraps the createaddfundsrequest
-// result.
+// result. The result element is spelled Createaddfundsrequestresult on the
+// wire (captured sandbox response in
+// namecheaptest/fixtures/users_createaddfundsrequest.xml), not
+// CreateAddFundsRequestResult as the official docs suggest.
 type UsersCreateAddFundsRequestCommandResponse struct {
-	CreateAddFundsRequestResult *UsersCreateAddFundsRequestResult `xml:"CreateAddFundsRequestResult"`
+	CreateAddFundsRequestResult *UsersCreateAddFundsRequestResult `xml:"Createaddfundsrequestresult"`
 }
 
 // UsersCreateAddFundsRequestResult is the outcome of an add-funds request. Field
-// names follow the response table in docs/namecheap-api-v2.md (lines 1232-1236).
+// names follow the captured sandbox response in
+// namecheaptest/fixtures/users_createaddfundsrequest.xml.
 type UsersCreateAddFundsRequestResult struct {
 	// TokenID is the unique ID used to redirect the user to the add-funds page and
 	// to poll GetAddFundsStatusWithContext.
 	TokenID *string `xml:"TokenID,attr"`
 	// RedirectURL is the URL for submitting credit-card details.
 	RedirectURL *string `xml:"RedirectURL,attr"`
-	// ReturnURL is the URL the user is redirected to after payment.
+	// ReturnURL is documented as the URL the user is redirected to after
+	// payment. The captured sandbox response carries the payment page URL
+	// here, the same value as RedirectURL, not the ReturnUrl that was sent.
 	ReturnURL *string `xml:"ReturnURL,attr"`
 }
 
@@ -151,14 +157,22 @@ type UsersGetAddFundsStatusCommandResponse struct {
 }
 
 // UsersGetAddFundsStatusResult is the status of an add-funds request. Field names
-// follow the response table in docs/namecheap-api-v2.md (lines 1254-1258).
+// follow the captured sandbox response in
+// namecheaptest/fixtures/users_getAddFundsStatus.xml.
 type UsersGetAddFundsStatusResult struct {
-	// TransactionID is the unique integer identifying the transaction.
+	// TransactionID is the unique integer identifying the transaction. It is 0
+	// while the request is still CREATED (no payment has been made).
 	TransactionID *int `xml:"TransactionID,attr"`
-	// Amount is the amount added, as an exact decimal string (see Amount).
+	// Amount is the amount requested, as an exact decimal string (see Amount).
+	// The server returns it without the fractional part when it is whole ("10"
+	// for a request of 10.00).
 	Amount *Amount `xml:"Amount,attr"`
 	// Status is the request status, one of the AddFundsStatus constants.
 	Status AddFundsStatus `xml:"Status,attr"`
+	// RequestedTokenID echoes the TokenId the status was asked for.
+	RequestedTokenID *string `xml:"RequestedTokenId,attr"`
+	// ReturnedTokenID is the token of the request the status describes.
+	ReturnedTokenID *string `xml:"ReturnedTokenId,attr"`
 }
 
 // GetAddFundsStatusWithContext returns the status of an add-funds request
