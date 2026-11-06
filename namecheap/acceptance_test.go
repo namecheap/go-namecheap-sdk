@@ -185,7 +185,7 @@ func TestAcc_DomainsCheck(t *testing.T) {
 	captureFixture(t, client, "domains_check", map[string]string{
 		"Command":    "namecheap.domains.check",
 		"DomainList": freeCandidate,
-	})
+	}, nil)
 }
 
 func TestAcc_DomainsGetList(t *testing.T) {
@@ -229,7 +229,7 @@ func TestAcc_DomainsGetList(t *testing.T) {
 	captureFixture(t, client, "domains_getList", map[string]string{
 		"Command":  "namecheap.domains.getList",
 		"PageSize": "10",
-	})
+	}, nil)
 }
 
 func TestAcc_DomainsGetInfo(t *testing.T) {
@@ -314,7 +314,7 @@ func TestAcc_DomainsGetInfo(t *testing.T) {
 		"Command":    "namecheap.domains.getInfo",
 		"DomainName": domain,
 		"HostName":   domain,
-	})
+	}, nil)
 }
 
 // TestAcc_DomainPrivacyGetList is the live-format check for whoisguard.getList
@@ -359,7 +359,7 @@ func TestAcc_DomainPrivacyGetList(t *testing.T) {
 	captureFixture(t, client, "whoisguard_getlist", map[string]string{
 		"Command":  "namecheap.whoisguard.getlist",
 		"PageSize": "10",
-	})
+	}, nil)
 }
 
 // assertPrivacyListMatchesGetInfo cross-checks the two endpoints that report
@@ -487,7 +487,7 @@ func TestAcc_UsersGetBalances(t *testing.T) {
 	}
 	captureFixture(t, client, "users_getBalances", map[string]string{
 		"Command": "namecheap.users.getBalances",
-	})
+	}, nil)
 }
 
 func TestAcc_UsersGetPricing(t *testing.T) {
@@ -525,7 +525,7 @@ func TestAcc_UsersGetPricing(t *testing.T) {
 		"ProductType": "DOMAIN",
 		"ActionName":  "REGISTER",
 		"ProductName": "com",
-	})
+	}, nil)
 }
 
 // TestAcc_UsersAddressGetListAndInfo reads every address-book entry through
@@ -585,19 +585,34 @@ func TestAcc_UsersAddressGetListAndInfo(t *testing.T) {
 
 	captureFixture(t, client, "users_address_getList", map[string]string{
 		"Command": "namecheap.users.address.getList",
-	})
+	}, nil)
 	captureFixture(t, client, "users_address_getInfo", map[string]string{
 		"Command":   "namecheap.users.address.getInfo",
 		"AddressId": strconv.Itoa(defaultID),
-	}, addressPersonalElements...)
+	}, addressPlaceholders)
 }
 
-// addressPersonalElements are the getInfo elements that hold the account
-// owner's personal data; captureFixture blanks them in the committed fixture.
-var addressPersonalElements = []string{
-	"UserName", "FirstName", "LastName", "JobTitle", "Organization",
-	"Address1", "Address2", "City", "StateProvince", "StateProvinceChoice",
-	"Zip", "Phone", "PhoneExt", "Fax", "EmailAddress",
+// addressPlaceholders replace the account owner's personal data in the
+// committed getInfo fixture. The values are the ones the sandbox returned for a
+// dummy address (Country included, so the address stays consistent), so code
+// that stubs the fixture gets data in the API's real format.
+var addressPlaceholders = map[string]string{
+	"UserName":            "sandboxuser",
+	"FirstName":           "Test",
+	"LastName":            "Probe",
+	"JobTitle":            "Engineer",
+	"Organization":        "Example Org",
+	"Address1":            "1 Test Street",
+	"Address2":            "Suite 100",
+	"City":                "Phoenix",
+	"StateProvince":       "AZ",
+	"StateProvinceChoice": "S",
+	"Zip":                 "85284",
+	"Country":             "US",
+	"Phone":               "+1.5555555555",
+	"PhoneExt":            "100",
+	"Fax":                 "+1.5555555556",
+	"EmailAddress":        "user@example.com",
 }
 
 // boolAttr renders an optional flag for logs.
@@ -624,7 +639,7 @@ func TestAcc_DNSRoundTrip(t *testing.T) {
 	}
 	captureFixture(t, client, "domains_dns_getHosts", map[string]string{
 		"Command": "namecheap.domains.dns.getHosts",
-	})
+	}, nil)
 
 	original := toSetRecords(got)
 
@@ -716,9 +731,10 @@ func toSetRecords(resp *namecheap.DomainsDNSGetHostsCommandResponse) []namecheap
 // captureFixture re-captures a raw sandbox response into the committed fixture
 // corpus when -update-fixtures is set. It performs a direct POST (bypassing the
 // SDK's response decoding) to obtain the verbatim XML body. The text of every
-// element named in redact is replaced with "REDACTED"; the rest of the body is
-// written unchanged. It is a no-op otherwise.
-func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string, redact ...string) {
+// element named in placeholders is replaced with its placeholder (see
+// redactElements); the rest of the body is written unchanged. It is a no-op
+// otherwise.
+func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string, placeholders map[string]string) {
 	t.Helper()
 	if !*updateFixtures {
 		return
@@ -744,9 +760,9 @@ func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[
 	if err != nil {
 		t.Fatalf("capture %s: read: %v", short, err)
 	}
-	for _, name := range redact {
-		re := regexp.MustCompile(`(<` + name + `>)[^<]*(</` + name + `>)`)
-		body = re.ReplaceAll(body, []byte("${1}REDACTED${2}"))
+	body, err = redactElements(body, placeholders)
+	if err != nil {
+		t.Fatalf("capture %s: %v; refusing to write personal data", short, err)
 	}
 	path := filepath.Join("..", "namecheaptest", "fixtures", short+".xml")
 	if err := os.WriteFile(path, body, 0o600); err != nil {
