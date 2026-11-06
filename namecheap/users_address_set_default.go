@@ -42,7 +42,7 @@ type UsersAddressSetDefaultResult struct {
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/users/address/set-default/
 func (uas *UsersAddressService) SetDefaultWithContext(ctx context.Context, addressID int) (*UsersAddressSetDefaultCommandResponse, error) {
-	if addressID < 0 {
+	if addressID <= 0 {
 		return nil, &InvalidArgumentsError{Fields: []string{"AddressId"}}
 	}
 	return uas.setDefault(ctx, addressID)

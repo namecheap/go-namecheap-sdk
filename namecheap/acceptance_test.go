@@ -660,6 +660,212 @@ var addressPlaceholders = map[string]string{
 	"EmailAddress":        "user@example.com",
 }
 
+// TestAcc_UsersAddFunds creates a credit-card add-funds request on the sandbox
+// and reads it back through getAddFundsStatus. Nothing is charged: the token is
+// never submitted with card details. It is opt-in through NAMECHEAP_ACC_ADD_FUNDS
+// because every run leaves a pending funding request on the account. The write
+// results were typed from the docs (#212 found AddressId where the docs wrote
+// AddressID), so the token, URLs, transaction id and status are checked on the
+// real response.
+func TestAcc_UsersAddFunds(t *testing.T) {
+	client := liveClient(t)
+	if on, _ := strconv.ParseBool(os.Getenv(envAddFunds)); !on {
+		t.Skipf("%s not true; skipping users.createaddfundsrequest (leaves a pending funding request)", envAddFunds)
+	}
+	args := &namecheap.UsersCreateAddFundsRequestArgs{
+		PaymentType: namecheap.PaymentTypeCreditcard,
+		Amount:      "10.00",
+		ReturnURL:   "https://example.com/add-funds/return",
+	}
+	created, err := client.Users.CreateAddFundsRequestWithContext(ctx(t), args)
+	if err != nil {
+		t.Fatalf("users.createaddfundsrequest: %v", err)
+	}
+
+	// The capture runs before any assertion so a response the SDK cannot
+	// decode is still written down. It is a second request with a token of
+	// its own; the status fixture is captured for that token so the two
+	// fixtures agree.
+	body := captureFixture(t, client, "users_createaddfundsrequest", map[string]string{
+		"Command":     "namecheap.users.createaddfundsrequest",
+		"PaymentType": args.PaymentType,
+		"Amount":      args.Amount.String(),
+		"ReturnUrl":   args.ReturnURL,
+	}, nil)
+	captureToken := ""
+	if m := tokenAttr.FindSubmatch(body); m != nil {
+		captureToken = string(m[1])
+	}
+	if captureToken != "" {
+		captureFixture(t, client, "users_getAddFundsStatus", map[string]string{
+			"Command": "namecheap.users.getAddFundsStatus",
+			"TokenId": captureToken,
+		}, nil)
+	}
+
+	cr := created.CreateAddFundsRequestResult
+	if cr == nil {
+		t.Fatal("users.createaddfundsrequest: no CreateAddFundsRequestResult (result element named differently on the wire?)")
+	}
+	t.Logf("users.createaddfundsrequest TokenID=%s RedirectURL=%s ReturnURL=%s",
+		attr(cr.TokenID), attr(cr.RedirectURL), attr(cr.ReturnURL))
+	if cr.TokenID == nil || *cr.TokenID == "" {
+		t.Error("users.createaddfundsrequest: TokenID is missing, want the token")
+	}
+	if cr.RedirectURL == nil || *cr.RedirectURL == "" {
+		t.Error("users.createaddfundsrequest: RedirectURL is missing")
+	}
+	// The server sends the payment page URL here, not the ReturnUrl it was
+	// given (namecheaptest/fixtures/users_createaddfundsrequest.xml).
+	if cr.ReturnURL == nil || cr.RedirectURL == nil || *cr.ReturnURL != *cr.RedirectURL {
+		t.Errorf("users.createaddfundsrequest ReturnURL = %s, want RedirectURL %s", attr(cr.ReturnURL), attr(cr.RedirectURL))
+	}
+
+	token := deref(cr.TokenID)
+	if token == "" {
+		token = captureToken
+	}
+	if token == "" {
+		t.Fatal("users.getAddFundsStatus: no token to query")
+	}
+	status, err := client.Users.GetAddFundsStatusWithContext(ctx(t), token)
+	if err != nil {
+		t.Fatalf("users.getAddFundsStatus: %v", err)
+	}
+	sr := status.GetAddFundsStatusResult
+	if sr == nil {
+		t.Fatal("users.getAddFundsStatus: no GetAddFundsStatusResult (result element named differently on the wire?)")
+	}
+	t.Logf("users.getAddFundsStatus TransactionID=%v Amount=%v Status=%q", sr.TransactionID, sr.Amount, sr.Status)
+	if sr.TransactionID == nil {
+		t.Error("users.getAddFundsStatus: TransactionID is missing")
+	}
+	// The server drops the fractional part of a whole amount ("10" for 10.00),
+	// so the comparison is numeric.
+	if sr.Amount == nil || !sameAmount(*sr.Amount, args.Amount) {
+		t.Errorf("users.getAddFundsStatus Amount = %v, want %s", sr.Amount, args.Amount)
+	}
+	if sr.ReturnedTokenID == nil || *sr.ReturnedTokenID != token {
+		t.Errorf("users.getAddFundsStatus ReturnedTokenID = %s, want %q", attr(sr.ReturnedTokenID), token)
+	}
+	switch sr.Status {
+	case namecheap.AddFundsStatusCreated, namecheap.AddFundsStatusSubmitted, namecheap.AddFundsStatusCompleted,
+		namecheap.AddFundsStatusFailed, namecheap.AddFundsStatusExpired:
+	default:
+		t.Errorf("users.getAddFundsStatus Status = %q, want one of the documented values", sr.Status)
+	}
+}
+
+// sameAmount reports whether two decimal strings denote the same value.
+func sameAmount(a, b namecheap.Amount) bool {
+	x, okX := new(big.Rat).SetString(a.String())
+	y, okY := new(big.Rat).SetString(b.String())
+	return okX && okY && x.Cmp(y) == 0
+}
+
+// tokenAttr finds the add-funds token in a raw createaddfundsrequest response,
+// whatever the attribute's spelling.
+var tokenAttr = regexp.MustCompile(`Token[Ii][Dd]="([^"]+)"`)
+
+// TestAcc_UsersUpdateRoundTrip writes the account profile back to itself. The
+// primary address (users.address.getInfo AddressId=0, #212) is the profile that
+// users.update writes, so the test reads it, sends the same values through
+// users.update, and reads it again. It is opt-in through
+// NAMECHEAP_ACC_USERS_UPDATE because it writes the shared account's profile,
+// even though no value changes. The profile is personal data: no value is
+// logged, and a captured users.update fixture that echoes one is refused.
+func TestAcc_UsersUpdateRoundTrip(t *testing.T) {
+	client := liveClient(t)
+	if on, _ := strconv.ParseBool(os.Getenv(envUsersUpdate)); !on {
+		t.Skipf("%s not true; skipping users.update (writes the account profile)", envUsersUpdate)
+	}
+	before := primaryAddress(t, client)
+	args := &namecheap.UsersUpdateArgs{
+		FirstName:     deref(before.FirstName),
+		LastName:      deref(before.LastName),
+		JobTitle:      deref(before.JobTitle),
+		Organization:  deref(before.Organization),
+		Address1:      deref(before.Address1),
+		Address2:      deref(before.Address2),
+		City:          deref(before.City),
+		StateProvince: deref(before.StateProvince),
+		Zip:           deref(before.Zip),
+		Country:       deref(before.Country),
+		EmailAddress:  deref(before.EmailAddress),
+		Phone:         deref(before.Phone),
+		PhoneExt:      deref(before.PhoneExt),
+		Fax:           deref(before.Fax),
+	}
+
+	resp, err := client.Users.UpdateWithContext(ctx(t), args)
+	if err != nil {
+		t.Fatalf("users.update: %v", err)
+	}
+	ur := resp.UserUpdateResult
+	if ur == nil {
+		t.Fatal("users.update: no UserUpdateResult")
+	}
+	if ur.Success == nil || !*ur.Success {
+		t.Errorf("users.update Success = %v, want true", ur.Success)
+	}
+
+	after := primaryAddress(t, client)
+	for _, f := range []struct {
+		name          string
+		before, after *string
+	}{
+		{"FirstName", before.FirstName, after.FirstName},
+		{"LastName", before.LastName, after.LastName},
+		{"JobTitle", before.JobTitle, after.JobTitle},
+		{"Organization", before.Organization, after.Organization},
+		{"Address1", before.Address1, after.Address1},
+		{"Address2", before.Address2, after.Address2},
+		{"City", before.City, after.City},
+		{"StateProvince", before.StateProvince, after.StateProvince},
+		{"StateProvinceChoice", before.StateProvinceChoice, after.StateProvinceChoice},
+		{"Zip", before.Zip, after.Zip},
+		{"Country", before.Country, after.Country},
+		{"EmailAddress", before.EmailAddress, after.EmailAddress},
+		{"Phone", before.Phone, after.Phone},
+		{"PhoneExt", before.PhoneExt, after.PhoneExt},
+		{"Fax", before.Fax, after.Fax},
+		{"DefaultYN", boolPtrText(before.DefaultYN), boolPtrText(after.DefaultYN)},
+	} {
+		if deref(f.before) != deref(f.after) {
+			t.Errorf("users.update changed %s of the primary address (values not logged: personal data)", f.name)
+		}
+	}
+
+	params := map[string]string{
+		"Command":       "namecheap.users.update",
+		"FirstName":     args.FirstName,
+		"LastName":      args.LastName,
+		"Address1":      args.Address1,
+		"City":          args.City,
+		"StateProvince": args.StateProvince,
+		"Zip":           args.Zip,
+		"Country":       args.Country,
+		"EmailAddress":  args.EmailAddress,
+		"Phone":         args.Phone,
+	}
+	for k, v := range map[string]string{
+		"JobTitle": args.JobTitle, "Organization": args.Organization, "Address2": args.Address2,
+		"PhoneExt": args.PhoneExt, "Fax": args.Fax,
+	} {
+		if v != "" {
+			params[k] = v
+		}
+	}
+	body := captureFixture(t, client, "users_update", params, &fixtureRedaction{
+		Container: "UserUpdateResult",
+		Attrs:     []string{"Success", "UserId"},
+	})
+	refuseIfEchoed(t, "users_update", body, []string{
+		args.FirstName, args.LastName, args.JobTitle, args.Organization, args.Address1, args.Address2,
+		args.City, args.Zip, args.EmailAddress, args.Phone, args.PhoneExt, args.Fax,
+	})
+}
+
 // primaryAddress reads the account's primary address (AddressId 0).
 func primaryAddress(t *testing.T, c *namecheap.Client) *namecheap.UsersAddressGetInfoResult {
 	t.Helper()
@@ -680,14 +886,6 @@ func boolPtrText(b *bool) *string {
 	}
 	s := strconv.FormatBool(*b)
 	return &s
-}
-
-// boolAttr renders an optional flag for logs.
-func boolAttr(b *bool) string {
-	if b == nil {
-		return "<nil>"
-	}
-	return strconv.FormatBool(*b)
 }
 
 // TestAcc_DNSRoundTrip exercises the get -> set -> restore reversible flow on
@@ -804,14 +1002,12 @@ func hostRecords(resp *namecheap.DomainsDNSGetHostsCommandResponse) []namecheap.
 // corpus when -update-fixtures is set. It performs a direct POST (bypassing the
 // SDK's response decoding) to obtain the verbatim XML body. A response that
 // holds personal data passes a redaction (see fixtureRedaction); the rest of the
-// body is written unchanged. It is a no-op otherwise.
-func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string, redaction *fixtureRedaction) {
+// body is written unchanged. It returns the body it wrote, or nil when
+// -update-fixtures is not set and nothing was captured.
+func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[string]string, redaction *fixtureRedaction) []byte {
 	t.Helper()
 	if !*updateFixtures {
 		return nil
-	}
-	if useSandbox, _ := strconv.ParseBool(os.Getenv(envUseSandbox)); !useSandbox {
-		t.Fatalf("capture %s: %s is not true; fixtures are captured from the sandbox only", short, envUseSandbox)
 	}
 	if !c.ClientOptions.UseSandbox {
 		t.Fatalf("capture %s: the client does not target the sandbox; fixtures are captured from the sandbox only", short)
@@ -840,8 +1036,7 @@ func captureFixture(t *testing.T, c *namecheap.Client, short string, params map[
 			t.Fatalf("capture %s: %v; refusing to write personal data", short, err)
 		}
 	}
-	path := filepath.Join("..", "namecheaptest", "fixtures", short+".xml")
-	if err := os.WriteFile(path, body, 0o600); err != nil {
+	if err := os.WriteFile(fixturePath(short), body, 0o600); err != nil {
 		t.Fatalf("capture %s: write: %v", short, err)
 	}
 	t.Logf("captured fixture %s (%d bytes)", short, len(body))
