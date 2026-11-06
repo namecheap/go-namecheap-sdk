@@ -6,9 +6,10 @@
   <CommandResponse Type="namecheap.users.address.getList">
     <AddressGetListResult>
       <List AddressId="0" AddressName="Primary Address" IsDefault="true" />
+      <List AddressId="149248" AddressName="sdk-nondefault-fixture" IsDefault="false" />
     </AddressGetListResult>
   </CommandResponse>
   <Server>Server -151154065</Server>
   <GMTTimeDifference>--5:00</GMTTimeDifference>
-  <ExecutionTime>0.014</ExecutionTime>
+  <ExecutionTime>0.025</ExecutionTime>
 </ApiResponse>

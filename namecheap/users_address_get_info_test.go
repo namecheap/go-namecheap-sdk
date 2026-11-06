@@ -25,6 +25,8 @@ func TestUsersAddressService_GetInfo(t *testing.T) {
 		got := resp.GetAddressInfoResult
 		mustNotNil(t, got)
 		assert.Equal(t, "Home", *got.AddressName)
+		mustNotNil(t, got.UserName)
+		assert.Equal(t, "owner", *got.UserName)
 		assert.Equal(t, "85284", *got.Zip)
 		assert.Equal(t, "NameCheap.com", *got.Organization)
 		mustNotNil(t, got.DefaultYN)

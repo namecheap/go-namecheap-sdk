@@ -535,9 +535,10 @@ contact blocks of `domains.create`.
 | `CreateWithContext(ctx, details)` | Add a new address-book entry |
 | `UpdateWithContext(ctx, addressID, details)` | Update an existing entry |
 | `DeleteWithContext(ctx, addressID)` | Delete an entry |
-| `GetInfoWithContext(ctx, addressID)` | Get the full stored address (0 = the primary address) |
+| `GetInfoWithContext(ctx, addressID)` | Get the full stored address (`PrimaryAddressID`, 0, reads the primary address) |
 | `GetListWithContext(ctx)` | List every entry (id, name, `IsDefault`) |
-| `SetDefaultWithContext(ctx, addressID)` | Mark an entry as the account default (0 = the primary address) |
+| `SetDefaultWithContext(ctx, addressID)` | Mark an entry as the account default (id must be positive) |
+| `SetPrimaryDefaultWithContext(ctx)` | Make the account's primary address the default again |
 
 ```go
 // Reuse the account's default address as a domains.create contact block.

@@ -3,7 +3,7 @@ package namecheap
 // UsersAddressService groups the namecheap.users.address.* API commands: the
 // address-book CRUD used to store reusable registrant profiles
 // (CreateWithContext, UpdateWithContext, DeleteWithContext, GetInfoWithContext,
-// GetListWithContext, SetDefaultWithContext).
+// GetListWithContext, SetDefaultWithContext, SetPrimaryDefaultWithContext).
 //
 // An address-book entry stores the same logical fields as a domain ContactInfo,
 // so an entry can feed the contact blocks of domains.create. Convert between the
@@ -12,6 +12,11 @@ package namecheap
 //
 // Namecheap doc: https://www.namecheap.com/support/api/methods/users/address/
 type UsersAddressService service
+
+// PrimaryAddressID is the id of the account's primary address, the one the
+// account is created with. getList returns it as AddressId="0", GetInfoWithContext
+// reads it, and SetPrimaryDefaultWithContext makes it the default again.
+const PrimaryAddressID = 0
 
 // UsersAddressDetails holds the mutable fields of an address-book entry shared by
 // create and update. Field names and required/optional status follow the
