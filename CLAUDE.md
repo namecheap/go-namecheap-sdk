@@ -63,6 +63,7 @@ make test-race       # race detector
 - Keep functions small, names descriptive, packages focused.
 - Do not add unnecessary comments, docstrings, or type annotations to code you didn't change.
 - Avoid over-engineering: no premature abstractions, no feature flags for one-time operations.
+- Before writing a helper, grep the package for one that already does it (`deref[T]` in `ptr.go`, `derefStr` in `domains_dns_records.go`, `attr[T]` in `acceptance_test.go`); extend or reuse it instead of adding a sibling. PR #213 grew `derefString`, `quoteAttr`, `intAttr` and `boolAttr` next to those.
 
 ## Architecture
 
