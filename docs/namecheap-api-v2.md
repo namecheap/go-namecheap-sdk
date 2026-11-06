@@ -1251,7 +1251,7 @@ Updates user account information.
 | Success | Whether the account was updated (attribute of `UserUpdateResult`) |
 | UserId | Id of the updated user |
 
-Which record this writes is not proven yet. The account profile is presumably the one `namecheap.users.address.getInfo` returns for `AddressId=0`, but the only run so far (sandbox, 2026-11-06) wrote the same values back, which passes whichever record is written, or none. `TestAcc_UsersUpdateRoundTrip` now writes a changed `FirstName` and reads `AddressId=0` back to settle it.
+The account profile this writes is the one `namecheap.users.address.getInfo` returns for `AddressId=0`: on the sandbox (2026-11-06, `TestAcc_UsersUpdateRoundTrip`), an update that changed only `FirstName` showed the new value on `getInfo(AddressId=0)` with every other field unchanged, and an update with the original values restored it.
 
 ---
 
