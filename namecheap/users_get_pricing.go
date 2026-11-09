@@ -97,8 +97,8 @@ type Price struct {
 	// PromotionPrice is what makes the discount that produced it identifiable
 	// rather than guessed from Price != RegularPrice.
 	PromotionPrice Amount `xml:"PromotionPrice,attr"`
-	// AdditionalCost is the fee charged on top of Price for this tier, per year
-	// like Price (the ICANN fee, "0.20" on .com registrations). It is
+	// AdditionalCost is the fee that goes with Price for this tier, per year
+	// like Price (the ICANN fee on .com registrations). It is
 	// not in the official docs; the attribute is in every Price node of the
 	// captured sandbox response (namecheaptest/fixtures/users_getPricing.xml).
 	// See TotalPrice.
@@ -235,16 +235,10 @@ func (p Price) EffectivePrice() Amount {
 // TotalPrice returns EffectivePrice plus the additional cost that goes with
 // the attribute EffectivePrice chose: Price pairs with AdditionalCost,
 // YourPrice with YourAdditionalCost and RegularPrice with
-// RegularAdditionalCost ("14.18" for a .com registration quoted as
-// Price="13.98" AdditionalCost="0.20"). EffectivePrice stays the
-// server-resolved price alone.
-//
-// That the fee is charged on top of the price is read from the getPricing
-// attributes only: no captured charge (a domains.create or domains.renew
-// ChargedAmount) confirms it yet.
+// RegularAdditionalCost. EffectivePrice stays the server-resolved price alone.
 //
 // Like Price, it is the amount for one year, not for the whole term: the
-// captured .com sheet (PricingType="MULTIPLE") quotes Price="13.98" for every
+// captured .com sheet (PricingType="MULTIPLE") quotes the same Price for every
 // Duration from 1 to 10. A balance check before an N-year order must scale it
 // by N.
 //
