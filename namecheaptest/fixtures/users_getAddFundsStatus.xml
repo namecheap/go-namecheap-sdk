@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
-	<Errors />
-	<CommandResponse Type="namecheap.users.getAddFundsStatus">
-		<GetAddFundsStatusResult TransactionID="998877" Amount="50.00" Status="COMPLETED" />
-	</CommandResponse>
+  <Errors />
+  <Warnings />
+  <RequestedCommand>namecheap.users.getaddfundsstatus</RequestedCommand>
+  <CommandResponse Type="namecheap.users.getAddFundsStatus">
+    <GetAddFundsStatusResult TransactionID="0" Amount="10" Status="CREATED" RequestedTokenId="fd935045fec54dc08b8b45a3c99d2262" ReturnedTokenId="fd935045fec54dc08b8b45a3c99d2262" />
+  </CommandResponse>
+  <Server>Server -151154065</Server>
+  <GMTTimeDifference>--5:00</GMTTimeDifference>
+  <ExecutionTime>0.064</ExecutionTime>
 </ApiResponse>

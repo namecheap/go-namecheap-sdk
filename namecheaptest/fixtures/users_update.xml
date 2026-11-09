@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response">
-	<Errors />
-	<CommandResponse Type="namecheap.users.update">
-		<UserUpdateResult Success="true" />
-	</CommandResponse>
+  <Errors />
+  <Warnings />
+  <RequestedCommand>namecheap.users.update</RequestedCommand>
+  <CommandResponse Type="namecheap.users.update">
+    <UserUpdateResult Success="true" UserId="249707" />
+  </CommandResponse>
+  <Server>Server -151154064</Server>
+  <GMTTimeDifference>--5:00</GMTTimeDifference>
+  <ExecutionTime>0.79</ExecutionTime>
 </ApiResponse>

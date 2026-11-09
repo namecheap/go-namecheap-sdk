@@ -3,6 +3,7 @@ package namecheap
 import (
 	"context"
 	"encoding/xml"
+	"math/big"
 	"strings"
 )
 
@@ -96,6 +97,21 @@ type Price struct {
 	// PromotionPrice is what makes the discount that produced it identifiable
 	// rather than guessed from Price != RegularPrice.
 	PromotionPrice Amount `xml:"PromotionPrice,attr"`
+	// AdditionalCost is the fee that goes with Price for this tier, per year
+	// like Price (the ICANN fee on .com registrations). It is
+	// not in the official docs; the attribute is in every Price node of the
+	// captured sandbox response (namecheaptest/fixtures/users_getPricing.xml).
+	// See TotalPrice.
+	AdditionalCost Amount `xml:"AdditionalCost,attr"`
+	// RegularAdditionalCost is the fee that goes with RegularPrice.
+	RegularAdditionalCost Amount `xml:"RegularAdditionalCost,attr"`
+	// YourAdditionalCost is the fee that goes with YourPrice. The API spells
+	// the attribute YourAdditonalCost.
+	YourAdditionalCost Amount `xml:"YourAdditonalCost,attr"`
+	// PricingType is how Price applies to Duration: "MULTIPLE" in the captured
+	// response, where Price is the per-year amount of a multi-year tier. Not in
+	// the official docs.
+	PricingType string `xml:"PricingType,attr"`
 }
 
 // UsersGetPricingArgs are the arguments for GetPricingWithContext. Field names
@@ -212,12 +228,66 @@ func (p *PricingProduct) priceFor(years int) (Price, bool) {
 // positive it returns RegularPrice unchanged (possibly empty), so the caller
 // still sees the raw server value rather than a fabricated one.
 func (p Price) EffectivePrice() Amount {
-	for _, a := range []Amount{p.Price, p.YourPrice, p.RegularPrice} {
-		if a.IsPositive() {
-			return a
+	price, _ := p.resolved()
+	return price
+}
+
+// TotalPrice returns EffectivePrice plus the additional cost that goes with
+// the attribute EffectivePrice chose: Price pairs with AdditionalCost,
+// YourPrice with YourAdditionalCost and RegularPrice with
+// RegularAdditionalCost. EffectivePrice stays the server-resolved price alone.
+//
+// Like Price, it is the amount for one year, not for the whole term: the
+// captured .com sheet (PricingType="MULTIPLE") quotes the same Price for every
+// Duration from 1 to 10. A balance check before an N-year order must scale it
+// by N.
+//
+// The sum is exact: both strings are added as decimals (math/big.Rat) and
+// formatted with the longer scale of the two, never through float64. A missing
+// or non-positive additional cost adds nothing, and when the fee is not a
+// number the price is returned unchanged.
+func (p Price) TotalPrice() Amount {
+	return addAmounts(p.resolved())
+}
+
+// resolved returns the price EffectivePrice chooses and the additional cost
+// that goes with it. When no price is positive it returns RegularPrice and no
+// fee.
+func (p Price) resolved() (price, fee Amount) {
+	for _, pair := range []struct{ price, fee Amount }{
+		{p.Price, p.AdditionalCost},
+		{p.YourPrice, p.YourAdditionalCost},
+		{p.RegularPrice, p.RegularAdditionalCost},
+	} {
+		if pair.price.IsPositive() {
+			return pair.price, pair.fee
 		}
 	}
-	return p.RegularPrice
+	return p.RegularPrice, ""
+}
+
+// addAmounts returns price + fee as an exact decimal string with the longer
+// scale of the two operands. A fee that is not positive, or not a number,
+// leaves price unchanged.
+func addAmounts(price, fee Amount) Amount {
+	if !fee.IsPositive() {
+		return price
+	}
+	x, okX := new(big.Rat).SetString(strings.TrimSpace(string(price)))
+	y, okY := new(big.Rat).SetString(strings.TrimSpace(string(fee)))
+	if !okX || !okY {
+		return price
+	}
+	return Amount(new(big.Rat).Add(x, y).FloatString(max(scaleOf(price), scaleOf(fee))))
+}
+
+// scaleOf is the number of digits after the decimal point in a.
+func scaleOf(a Amount) int {
+	s := strings.TrimSpace(string(a))
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		return len(s) - i - 1
+	}
+	return 0
 }
 
 // Promo returns the tier's PromotionPrice and whether the server sent the
