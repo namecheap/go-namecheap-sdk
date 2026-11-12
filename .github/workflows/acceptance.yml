@@ -4,12 +4,35 @@ name: Acceptance (EC2)
 # from an ephemeral EC2 runner holding this repo's dedicated whitelisted
 # Elastic IP. Runs are serialized: one EIP cannot be associated to two
 # runners at once.
-
+#
+# Every run spends the shared sandbox account's hourly quota and rewrites the
+# test domain, so it runs only when something the suite exercises changes: the
+# SDK package and its fixtures, the module's dependencies and toolchain, the
+# Makefile target and this workflow. Release PRs (CHANGELOG and manifest only),
+# docs, other workflows and the otelnamecheap module, which makes no API calls,
+# skip it. It is not a required check, so a skipped run blocks no merge; run it
+# by hand with workflow_dispatch when in doubt.
 on:
   pull_request:
     branches: [master]
+    paths:
+      - "namecheap/**"
+      - "namecheaptest/**"
+      - "go.mod"
+      - "go.sum"
+      - "vendor/**"
+      - "Makefile"
+      - ".github/workflows/acceptance.yml"
   push:
     branches: [master]
+    paths:
+      - "namecheap/**"
+      - "namecheaptest/**"
+      - "go.mod"
+      - "go.sum"
+      - "vendor/**"
+      - "Makefile"
+      - ".github/workflows/acceptance.yml"
   workflow_dispatch:
 
 permissions:
