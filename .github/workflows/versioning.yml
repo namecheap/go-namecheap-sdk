@@ -1,7 +1,8 @@
 name: Versioning
 
-# release-please maintains a long-lived "release PR" off the default branch.
-# Merging that PR creates the vX.Y.Z tag and the GitHub release. Gated on a
+# release-please maintains a long-lived "release PR" off the default branch for
+# each module: the SDK (tags vX.Y.Z) and otelnamecheap (tags
+# otelnamecheap/vX.Y.Z). Merging one creates its tag and GitHub release. Gated on a
 # successful CI run so a release is only ever proposed/cut from green commits.
 # See RELEASE.md for the full flow.
 on:
@@ -51,3 +52,17 @@ jobs:
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ steps.generate-token.outputs.token }}
+
+      # release-please never sets make_latest, so GitHub marks the release it
+      # created last as the repository's Latest. Give that label back to the
+      # SDK after an otelnamecheap release, reading the SDK version from the
+      # manifest on master.
+      - name: Keep the SDK release marked as Latest
+        if: steps.release.outputs['otelnamecheap--release_created'] == 'true'
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=$(gh api -H "Accept: application/vnd.github.raw+json" \
+            "repos/$GH_REPO/contents/.release-please-manifest.json" --jq '."."')
+          gh release edit "v$version" --latest

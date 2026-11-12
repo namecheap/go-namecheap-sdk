@@ -55,7 +55,7 @@ make test-race       # race detector
 - Every commit needs a DCO sign-off (`git commit -s`): a `Signed-off-by: Name <email>` trailer whose name/email match the commit author — enforced by the DCO check on PRs. See CONTRIBUTING.md.
 - release-please (`versioning.yml`) parses those subjects to maintain a long-lived release PR; merging it tags `vX.Y.Z`. `fix:` → patch, `feat:` → minor, `feat!:`/`BREAKING CHANGE:` → major. Full flow: RELEASE.md.
 - Releasing vs non-releasing types matter: only `fix:`, `feat:`, `perf:`, `revert:` and breaking changes open or update the release PR (release-please skips it when no commit falls into a visible `changelog-sections` entry of `.release-please-config.json`; never list `docs` there). `docs:`, `chore:`, `ci:`, `test:`, `refactor:` never release. gomod Dependabot bumps use `fix(deps):` (ships to consumers), github-actions bumps use `ci(deps):` (CI-only). A change to Go doc comments that consumers read on pkg.go.dev is `fix(docs):`; repo-internal markdown is `docs:`.
-- The nested `otelnamecheap` module is tagged manually as `otelnamecheap/vX.Y.Z` — not managed by release-please.
+- The nested `otelnamecheap` module is a second release-please package with its own release PR, `otelnamecheap/CHANGELOG.md` and `otelnamecheap/vX.Y.Z` tags. A releasing commit that touches only `otelnamecheap/` releases only it; one that touches both modules releases both. See RELEASE.md.
 
 ## General principles
 

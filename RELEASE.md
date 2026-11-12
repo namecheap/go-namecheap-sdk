@@ -82,7 +82,9 @@ At this point nothing is released — the commit simply sits on `master`.
     `feat!:`/`BREAKING CHANGE:` → major),
   - updates `CHANGELOG.md` with a generated entry grouped by type,
   - updates `.release-please-manifest.json` with the new version,
-  - opens (or updates) a PR titled `chore(master): release X.Y.Z`.
+  - opens (or updates) a PR titled `chore(master): release X.Y.Z`. The
+    `otelnamecheap` module gets its own release PR; see
+    [The `otelnamecheap` module](#the-otelnamecheap-module).
 - Authentication uses a dedicated GitHub App (`APP_CLIENT_ID`,
   `APP_PRIVATE_KEY`), **not** the default `GITHUB_TOKEN`: events
   authored by `GITHUB_TOKEN` do not re-trigger workflows, so the release PR
@@ -147,24 +149,49 @@ repo-internal markdown (`README.md`, `CONTRIBUTING.md`, `RELEASE.md`,
 
 ## The `otelnamecheap` module
 
-The nested module `github.com/namecheap/go-namecheap-sdk/otelnamecheap` is
-**not** managed by release-please (root-package commits exclude the
-`otelnamecheap/` path, so its changes never trigger an SDK release). It is
-released manually:
+The nested module `github.com/namecheap/go-namecheap-sdk/otelnamecheap` is a
+second release-please package with its own version line. It goes through the
+same flow as the SDK, separately:
 
-1. Bump the `github.com/namecheap/go-namecheap-sdk/v2` requirement in
-   `otelnamecheap/go.mod` to the latest SDK release — nothing bumps it
-   automatically, so it drifts behind on every root release.
-2. Tag using the directory-prefixed form Go requires for nested modules:
+- **Its own release PR**, titled `chore(master): release otelnamecheap X.Y.Z`
+  (`separate-pull-requests` keeps it apart from the SDK's release PR, so either
+  can be merged without the other).
+- **Its own changelog**, `otelnamecheap/CHANGELOG.md`.
+- **Its own tags**, in the directory-prefixed form Go requires for a nested
+  module: `otelnamecheap/vX.Y.Z` (`component` plus `tag-separator: "/"`).
+  Install with `go get github.com/namecheap/go-namecheap-sdk/otelnamecheap@vX.Y.Z`.
 
-```
-git tag -a otelnamecheap/vX.Y.Z -m "otelnamecheap vX.Y.Z" && git push origin otelnamecheap/vX.Y.Z
-```
+Which package a commit releases depends on the files it touches. The SDK
+package excludes `otelnamecheap/`, so a releasing commit that touches only
+that directory releases only otelnamecheap. A commit that touches both modules,
+such as a toolchain or CVE bump, releases both, and its PR title goes into both
+changelogs. Keep such bumps in their own PR: squashed into a core change, the
+core change's title becomes the otelnamecheap changelog entry (as #203 and #215
+did). To correct an entry already merged, put the right message between
+`BEGIN_COMMIT_OVERRIDE` and `END_COMMIT_OVERRIDE` in the merged PR's body;
+release-please reads it in place of the commit message.
+
+While the module is at `0.x`, `bump-minor-pre-major` turns a breaking change
+into a minor bump. Moving to `v1.0.0` is a deliberate API-stability promise,
+made by setting the version (`Release-As: 1.0.0` in a commit body), never by
+accident.
+
+The module's SDK requirement is not bumped by Dependabot (see
+`.github/dependabot.yml`): it is a minimum, not a pin, so a stale value holds
+no consumer back. Raise it by hand when the module needs a newer SDK API. CI
+still tests the module against the SDK on every commit (`Test against the SDK
+on this commit` in `ci.yml`), so a core change that breaks it fails before the
+SDK is released.
+
+release-please cannot set GitHub's `make_latest`, so a new otelnamecheap
+release would take the repository's "Latest" label from the SDK.
+`versioning.yml` hands it back to the SDK release after every otelnamecheap
+release.
 
 > Note: the historical tags `votelnamecheap/v0.1.1` and `votelnamecheap/v0.1.2`
-> are malformed (extra leading `v`) and invisible to the Go module proxy —
-> otelnamecheap v0.1.1 and v0.1.2 are effectively unreleased. The latest usable
-> tag is `otelnamecheap/v0.1.0`.
+> are malformed (extra leading `v`) and invisible to the Go module proxy. The
+> versions before automation were tagged by hand as `otelnamecheap/v0.1.0` and
+> `otelnamecheap/v0.1.3`; release-please starts from the `0.1.3` tag.
 
 ## Required configuration
 
