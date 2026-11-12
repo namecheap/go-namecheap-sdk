@@ -98,7 +98,9 @@ make testacc
 
 Without credentials the suite skips cleanly. In CI it runs via
 [acceptance.yml](.github/workflows/acceptance.yml) on an EC2 runner holding the
-repo's whitelisted Elastic IP.
+repo's whitelisted Elastic IP, only when a PR changes what the suite exercises
+(the path list is at the top of that workflow); start it by hand from the
+Actions tab for any other PR.
 
 ## Proof of API behaviour
 

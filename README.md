@@ -1168,7 +1168,8 @@ its API and on the fixture naming scheme with the same stability guarantees.
 
 ### Acceptance tests
 
-On every pull request and push to `master`, the
+On pull requests and pushes to `master` that change the `namecheap` package,
+its fixtures, the module's dependencies or the workflow itself, the
 [Acceptance (EC2)](.github/workflows/acceptance.yml) workflow runs a read-only
 and reversible suite (`make testacc`) against the live Namecheap API from a
 runner with a whitelisted IP. See [CONTRIBUTING.md](CONTRIBUTING.md) for running
