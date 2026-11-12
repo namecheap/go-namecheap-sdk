@@ -147,6 +147,17 @@ jobs:
       - name: Test
         run: go test -race -count=1 ./...
 
+      # The steps above build against the SDK release pinned in go.mod, which
+      # is what consumers get. This one swaps in the SDK from this commit
+      # through a throwaway workspace, so a core change that breaks this
+      # module fails here instead of after the SDK is released.
+      - name: Test against the SDK on this commit
+        working-directory: .
+        run: |
+          go work init . ./otelnamecheap
+          go vet ./otelnamecheap/...
+          go test -race -count=1 ./otelnamecheap/...
+
   security:
     name: Security scan (Trivy)
     runs-on: ubuntu-latest

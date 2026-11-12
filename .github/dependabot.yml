@@ -20,6 +20,15 @@ updates:
     commit-message:
       prefix: fix
       include: scope
+    # otelnamecheap is a release-please package, so a `fix(deps):` bump of its
+    # SDK requirement would cut an otelnamecheap release after every SDK
+    # release, with no change in it. The requirement is a minimum, not a pin:
+    # consumers require the SDK themselves and Go picks the higher version, so
+    # a stale minimum holds no one back. Raise it by hand when otelnamecheap
+    # needs a newer SDK API. Only otelnamecheap requires this module, so the
+    # ignore has no effect on "/".
+    ignore:
+      - dependency-name: github.com/namecheap/go-namecheap-sdk/v2
     # Dependencies are vendored; Dependabot auto-detects the vendor/ tree for
     # gomod and updates it in bump PRs. (The explicit `vendor` key was removed
     # from the config schema and now fails validation.) The `Verify vendor/
